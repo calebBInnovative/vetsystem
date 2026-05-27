@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
   Menu, X, Home, Users, Calendar, Package,
-  BarChart3, Settings, Search,
+  BarChart3, Settings, Search, DollarSign,
 } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -17,12 +17,13 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const menuItems = [
-  { icon: Home,     label: 'Dashboard',      href: '/dashboard',    disponible: true  },
-  { icon: Users,    label: 'Pacientes',      href: '/pacientes',    disponible: true  },
-  { icon: Calendar, label: 'Agenda',         href: '/agenda',       disponible: true  },
-  { icon: Package,  label: 'Inventario',     href: '/inventario',   disponible: false },
-  { icon: BarChart3, label: 'Reportes',      href: '/reportes',     disponible: false },
-  { icon: Settings, label: 'Configuración',  href: '/configuracion', disponible: false },
+  { icon: Home,        label: 'Dashboard',      href: '/dashboard',     disponible: true  },
+  { icon: Users,       label: 'Pacientes',      href: '/pacientes',     disponible: true  },
+  { icon: Calendar,    label: 'Agenda',         href: '/agenda',        disponible: true  },
+  { icon: Package,     label: 'Inventario',     href: '/inventario',    disponible: true  },
+  { icon: DollarSign,  label: 'Finanzas',       href: '/finanzas',      disponible: true  },
+  { icon: BarChart3,   label: 'Reportes',       href: '/reportes',      disponible: false },
+  { icon: Settings,    label: 'Configuración',  href: '/configuracion', disponible: false },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────

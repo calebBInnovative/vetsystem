@@ -1,0 +1,139 @@
+'use client';
+
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db } from '@/lib/db/database';
+
+const CLINICA_ID = 'house-of-pets';
+
+/** Retorna todos los KPIs del dashboard en una sola query reactiva. */
+export function useDashboard() {
+  const hoy = new Date().toISOString().slice(0, 10);
+
+  const datos = useLiveQuery(async () => {
+    const [
+      totalPacientes,
+      citasHoy,
+      citasPendientesHoy,
+      productosStockBajo,
+      consultasEsteMes,
+    ] = await Promise.all([
+      // Pacientes activos
+      db.pacientes
+        .where('clinicaId').equals(CLINICA_ID)
+        .filter((p) => !p.deletedAt && p.activo)
+        .count(),
+
+      // Citas de hoy (todas)
+      db.citas
+        .where('fecha').equals(hoy)
+        .filter((c) => !c.deletedAt && c.clinicaId === CLINICA_ID)
+        .count(),
+
+      // Citas de hoy pendientes o confirmadas
+      db.citas
+        .where('fecha').equals(hoy)
+        .filter(
+          (c) =>
+            !c.deletedAt &&
+            c.clinicaId === CLINICA_ID &&
+            (c.estado === 'pendiente' || c.estado === 'confirmada' || c.estado === 'en_curso')
+        )
+        .count(),
+
+      // Productos con stock bajo o sin stock
+      db.productos
+        .where('clinicaId').equals(CLINICA_ID)
+        .filter((p) => !p.deletedAt && p.activo && p.stockActual <= p.stockMinimo)
+        .count(),
+
+      // Consultas registradas este mes
+      db.consultas
+        .where('clinicaId').equals(CLINICA_ID)
+        .filter((c) => {
+          if (c.deletedAt) return false;
+          const fecha = new Date(c.fecha);
+          const ahora = new Date();
+          return (
+            fecha.getFullYear() === ahora.getFullYear() &&
+            fecha.getMonth()    === ahora.getMonth()
+          );
+        })
+        .count(),
+    ]);
+
+    return {
+      totalPacientes,
+      citasHoy,
+      citasPendientesHoy,
+      productosStockBajo,
+      consultasEsteMes,
+    };
+  }, [hoy]);
+
+  return {
+    kpis:     datos,
+    cargando: datos === undefined,
+  };
+}
+
+/** Próximas citas del día con datos de paciente unidos. */
+export function useProximasCitasDia() {
+  const hoy = new Date().toISOString().slice(0, 10);
+  const horaActual = new Date().toTimeString().slice(0, 5);
+
+  const resultado = useLiveQuery(async () => {
+    const citas = await db.citas
+      .where('fecha').equals(hoy)
+      .filter(
+        (c) =>
+          !c.deletedAt &&
+          c.clinicaId === CLINICA_ID &&
+          (c.estado === 'pendiente' || c.estado === 'confirmada' || c.estado === 'en_curso') &&
+          c.horaInicio >= horaActual
+      )
+      .toArray();
+
+    citas.sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
+
+    const pacienteIds = [...new Set(citas.map((c) => c.pacienteId))];
+    const pacientes   = await db.pacientes.bulkGet(pacienteIds);
+    const pacientesMap = new Map(pacientes.filter(Boolean).map((p) => [p!.id, p!]));
+
+    return citas.slice(0, 6).map((c) => ({
+      ...c,
+      nombrePaciente:  pacientesMap.get(c.pacienteId)?.nombre ?? 'Paciente',
+      especiePaciente: pacientesMap.get(c.pacienteId)?.especie,
+    }));
+  }, [hoy, horaActual]);
+
+  return {
+    citas:    resultado ?? [],
+    cargando: resultado === undefined,
+  };
+}
+
+/** Últimas 5 consultas registradas en la clínica. */
+export function useUltimasConsultasDashboard() {
+  const resultado = useLiveQuery(async () => {
+    const consultas = await db.consultas
+      .where('clinicaId').equals(CLINICA_ID)
+      .filter((c) => !c.deletedAt)
+      .reverse()
+      .sortBy('fecha')
+      .then((arr) => arr.slice(0, 5));
+
+    const pacienteIds = [...new Set(consultas.map((c) => c.pacienteId))];
+    const pacientes   = await db.pacientes.bulkGet(pacienteIds);
+    const pacientesMap = new Map(pacientes.filter(Boolean).map((p) => [p!.id, p!]));
+
+    return consultas.map((c) => ({
+      ...c,
+      nombrePaciente: pacientesMap.get(c.pacienteId)?.nombre ?? 'Paciente',
+    }));
+  }, []);
+
+  return {
+    consultas: resultado ?? [],
+    cargando:  resultado === undefined,
+  };
+}

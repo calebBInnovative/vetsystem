@@ -30,7 +30,7 @@
 }
 
 :root {
-  --background: rgb(248, 250, 252);
+  --background: rgb(236, 252, 248);
   --foreground: rgb(15, 23, 42);
   --card: rgb(255, 255, 255);
   --card-foreground: rgb(15, 23, 42);
@@ -38,16 +38,16 @@
   --popover-foreground: rgb(15, 23, 42);
   --primary: rgb(15, 125, 110);
   --primary-foreground: rgb(255, 255, 255);
-  --secondary: rgb(241, 245, 249);
+  --secondary: rgb(230, 248, 244);
   --secondary-foreground: rgb(15, 23, 42);
-  --muted: rgb(241, 245, 249);
-  --muted-foreground: rgb(113, 113, 122);
+  --muted: rgb(230, 248, 244);
+  --muted-foreground: rgb(100, 116, 110);
   --accent: rgb(16, 185, 129);
   --accent-foreground: rgb(255, 255, 255);
   --destructive: rgb(239, 68, 68);
   --destructive-foreground: rgb(255, 255, 255);
-  --border: rgb(226, 232, 240);
-  --input: rgb(226, 232, 240);
+  --border: rgb(204, 228, 224);
+  --input: rgb(204, 228, 224);
   --ring: rgb(15, 125, 110);
   --radius: 0.75rem;
   /* Sidebar default = teal */

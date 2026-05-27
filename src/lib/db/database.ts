@@ -16,6 +16,8 @@ import Dexie, { type EntityTable } from 'dexie';
 import type { PacienteLocal, DuenoLocal } from '@/types/paciente';
 import type { ConsultaLocal } from '@/types/historial';
 import type { CitaLocal } from '@/types/agenda';
+import type { ProductoLocal, MovimientoStockLocal } from '@/types/inventario';
+import type { PagoLocal } from '@/types/finanzas';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TIPOS INTERNOS
@@ -56,6 +58,13 @@ class VetSystemDB extends Dexie {
 
   // Módulo Agenda
   citas!: EntityTable<CitaLocal, 'id'>;
+
+  // Módulo Inventario
+  productos!:   EntityTable<ProductoLocal,        'id'>;
+  movimientos!: EntityTable<MovimientoStockLocal, 'id'>;
+
+  // Módulo Finanzas
+  pagos!: EntityTable<PagoLocal, 'id'>;
 
   // Infraestructura de sync
   syncQueue!: EntityTable<SyncQueueItem, 'id'>;
@@ -120,13 +129,52 @@ class VetSystemDB extends Dexie {
 
     this.version(3).stores({
       citas: [
-        'id',           // PK
-        'pacienteId',   // citas de un paciente
-        'duenoId',      // citas por dueño
-        'clinicaId',    // multi-clínica
-        'fecha',        // filtrar por día "YYYY-MM-DD"
+        'id',
+        'pacienteId',
+        'duenoId',
+        'clinicaId',
+        'fecha',
+        'estado',
+        'tipo',
+        'syncStatus',
+        'updatedAt',
+        'deletedAt',
+      ].join(', '),
+    });
+
+    this.version(4).stores({
+      productos: [
+        'id',
+        'nombre',         // búsqueda por nombre
+        'categoria',      // filtrar por categoría
+        'clinicaId',
+        'activo',
+        'stockActual',    // ordenar/filtrar por stock
+        'syncStatus',
+        'updatedAt',
+        'deletedAt',
+      ].join(', '),
+
+      movimientos: [
+        'id',
+        'productoId',
+        'clinicaId',
+        'tipo',
+        'creadoEn',
+        'syncStatus',
+        'updatedAt',
+      ].join(', '),
+    });
+
+    this.version(5).stores({
+      pagos: [
+        'id',
+        'pacienteId',   // pagos de un paciente
+        'clinicaId',
+        'fecha',        // filtrar por fecha "YYYY-MM-DD"
+        'tipo',         // filtrar por tipo de ingreso
         'estado',       // filtrar por estado
-        'tipo',         // filtrar por tipo
+        'metodoPago',   // filtrar por método
         'syncStatus',
         'updatedAt',
         'deletedAt',
