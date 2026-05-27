@@ -1,0 +1,144 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --background: rgb(248, 250, 252);
+  --foreground: rgb(15, 23, 42);
+  --card: rgb(255, 255, 255);
+  --card-foreground: rgb(15, 23, 42);
+  --popover: rgb(255, 255, 255);
+  --popover-foreground: rgb(15, 23, 42);
+  --primary: rgb(15, 125, 110);
+  --primary-foreground: rgb(255, 255, 255);
+  --secondary: rgb(241, 245, 249);
+  --secondary-foreground: rgb(15, 23, 42);
+  --muted: rgb(241, 245, 249);
+  --muted-foreground: rgb(113, 113, 122);
+  --accent: rgb(16, 185, 129);
+  --accent-foreground: rgb(255, 255, 255);
+  --destructive: rgb(239, 68, 68);
+  --destructive-foreground: rgb(255, 255, 255);
+  --border: rgb(226, 232, 240);
+  --input: rgb(226, 232, 240);
+  --ring: rgb(15, 125, 110);
+  --radius: 0.75rem;
+  /* Sidebar default = teal */
+  --sidebar: rgb(13, 78, 70);
+  --sidebar-foreground: rgb(204, 251, 241);
+  --sidebar-muted: rgb(148, 192, 183);
+}
+
+.dark {
+  --background: rgb(15, 23, 42);
+  --foreground: rgb(248, 250, 252);
+  --card: rgb(30, 41, 59);
+  --card-foreground: rgb(248, 250, 252);
+  --popover: rgb(30, 41, 59);
+  --popover-foreground: rgb(248, 250, 252);
+  --primary: rgb(20, 184, 166);
+  --primary-foreground: rgb(15, 23, 42);
+  --secondary: rgb(51, 65, 85);
+  --secondary-foreground: rgb(248, 250, 252);
+  --muted: rgb(51, 65, 85);
+  --muted-foreground: rgb(161, 161, 170);
+  --accent: rgb(20, 184, 166);
+  --accent-foreground: rgb(15, 23, 42);
+  --destructive: rgb(239, 68, 68);
+  --destructive-foreground: rgb(255, 255, 255);
+  --border: rgb(51, 65, 85);
+  --input: rgb(51, 65, 85);
+  --ring: rgb(20, 184, 166);
+  /* Sidebar dark default = teal */
+  --sidebar: rgb(15, 60, 54);
+  --sidebar-foreground: rgb(204, 251, 241);
+  --sidebar-muted: rgb(120, 175, 165);
+}
+
+/* ── Paletas ──────────────────────────────────────── */
+
+[data-palette="teal"] {
+  --primary: rgb(15, 125, 110);
+  --accent: rgb(16, 185, 129);
+  --ring: rgb(15, 125, 110);
+  --sidebar: rgb(13, 78, 70);
+  --sidebar-foreground: rgb(204, 251, 241);
+  --sidebar-muted: rgb(148, 192, 183);
+}
+
+[data-palette="emerald"] {
+  --primary: rgb(16, 185, 129);
+  --accent: rgb(59, 130, 246);
+  --ring: rgb(16, 185, 129);
+  --sidebar: rgb(4, 74, 55);
+  --sidebar-foreground: rgb(209, 250, 229);
+  --sidebar-muted: rgb(110, 183, 152);
+}
+
+[data-palette="indigo"] {
+  --primary: rgb(30, 64, 175);
+  --accent: rgb(20, 184, 166);
+  --ring: rgb(30, 64, 175);
+  --sidebar: rgb(23, 45, 106);
+  --sidebar-foreground: rgb(219, 234, 254);
+  --sidebar-muted: rgb(130, 163, 210);
+}
+
+/* Dark + paleta — mayor especificidad, siempre gana */
+.dark[data-palette="teal"] {
+  --primary: rgb(20, 184, 166);
+  --ring: rgb(20, 184, 166);
+  --sidebar: rgb(15, 60, 54);
+  --sidebar-foreground: rgb(204, 251, 241);
+  --sidebar-muted: rgb(120, 175, 165);
+}
+
+.dark[data-palette="emerald"] {
+  --primary: rgb(52, 211, 153);
+  --accent: rgb(99, 102, 241);
+  --ring: rgb(52, 211, 153);
+  --sidebar: rgb(8, 65, 48);
+  --sidebar-foreground: rgb(209, 250, 229);
+  --sidebar-muted: rgb(100, 170, 135);
+}
+
+.dark[data-palette="indigo"] {
+  --primary: rgb(99, 102, 241);
+  --accent: rgb(20, 184, 166);
+  --ring: rgb(99, 102, 241);
+  --sidebar: rgb(20, 38, 100);
+  --sidebar-foreground: rgb(219, 234, 254);
+  --sidebar-muted: rgb(120, 148, 205);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+}

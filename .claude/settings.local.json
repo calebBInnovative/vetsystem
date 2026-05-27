@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(npm install *)",
+      "Read(//Users/macbookpro/.nvm/versions/node/**)",
+      "Bash(~/.nvm/versions/node/v20.16.0/bin/npm install *)"
+    ]
+  }
+}
