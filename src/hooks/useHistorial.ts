@@ -10,7 +10,7 @@
 
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type SyncQueueItem } from '@/lib/db/database';
-import type { ConsultaLocal } from '@/types/historial';
+import type { ConsultaLocal } from '@/types/consulta';
 import type { ConsultaFormData } from '@/lib/validations/historial.schema';
 
 // TODO: en producción vendrá del contexto de autenticación
@@ -96,22 +96,27 @@ export async function crearConsulta(
   const ahora      = Date.now();
   const consultaId = crypto.randomUUID();
 
+  const paciente = await db.pacientes.get(pacienteId);
+
   const nuevaConsulta: ConsultaLocal = {
     id:            consultaId,
     pacienteId,
+    duenoId:       paciente?.duenoId ?? '',
     clinicaId:     CLINICA_ID,
     fecha:         new Date(datos.fecha).getTime(),
     tipo:          datos.tipo,
+    estado:        'completada',
     motivo:        datos.motivo,
-    sintomas:      datos.sintomas      || undefined,
     temperatura:   datos.temperatura,
-    pesoConsulta:  datos.pesoConsulta,
+    peso:          datos.pesoConsulta,
     diagnostico:   datos.diagnostico   || undefined,
     tratamiento:   datos.tratamiento   || undefined,
-    medicamentos:  datos.medicamentos  ?? [],
     observaciones: datos.observaciones || undefined,
-    proximaCita:   datos.proximaCita   ? new Date(datos.proximaCita).getTime() : undefined,
     veterinario:   datos.veterinario   || undefined,
+    items:         [],
+    subtotal:      0,
+    descuento:     0,
+    total:         0,
     creadoEn:      ahora,
     syncStatus:    'pending',
     updatedAt:     ahora,

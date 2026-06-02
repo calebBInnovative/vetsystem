@@ -1,7 +1,7 @@
 'use client';
 
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { zodResolver } from '@/lib/zod-resolver';
 import { productoSchema, type ProductoFormData } from '@/lib/validations/inventario.schema';
 import { CATEGORIAS_PRODUCTO, UNIDADES_MEDIDA } from '@/types/inventario';
 import { DatePicker } from '@/components/ui/date-picker';

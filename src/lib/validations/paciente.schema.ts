@@ -57,8 +57,18 @@ export const pacienteSchema = z.object({
     { error: 'Selecciona el sexo' }
   ),
 
-  // Fecha como string ISO para evitar problemas de zona horaria en el input date
-  fechaNacimiento: z.string().optional(),
+  fechaNacimiento: z
+    .string()
+    .refine((v) => {
+      if (!v) return true;
+      const d = new Date(v);
+      return !isNaN(d.getTime());
+    }, 'Fecha de nacimiento inválida')
+    .refine((v) => {
+      if (!v) return true;
+      return new Date(v) <= new Date();
+    }, 'La fecha no puede ser en el futuro')
+    .optional(),
 
   /**
    * Peso: el input HTML siempre retorna string.

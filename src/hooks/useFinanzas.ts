@@ -3,6 +3,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type SyncQueueItem } from '@/lib/db/database';
 import type { PagoLocal, EstadoPago } from '@/types/finanzas';
+import type { EstadoFactura } from '@/types/factura';
 import type { PagoFormData } from '@/lib/validations/finanzas.schema';
 
 const CLINICA_ID = 'house-of-pets';
@@ -147,8 +148,31 @@ export async function crearPago(datos: PagoFormData): Promise<string> {
 
 export async function cambiarEstadoPago(id: string, estado: EstadoPago): Promise<void> {
   const ahora = Date.now();
-  await db.pagos.update(id, { estado, updatedAt: ahora, syncStatus: 'pending' });
-  await encolarSync({ coleccion: 'pagos', documentoId: id, operacion: 'update', datos: { id, estado, updatedAt: ahora }, intentos: 0, creadoEn: ahora });
+
+  await db.transaction('rw', [db.pagos, db.consultas, db.facturas, db.syncQueue], async () => {
+    await db.pagos.update(id, { estado, updatedAt: ahora, syncStatus: 'pending' });
+
+    // Sincronizar la factura vinculada: pago → consulta → factura
+    const pago = await db.pagos.get(id);
+    if (pago?.consultaId) {
+      const consulta = await db.consultas.get(pago.consultaId);
+      if (consulta?.facturaId) {
+        const estadoFactura: EstadoFactura =
+          estado === 'pagado'    ? 'pagada'   :
+          estado === 'cancelado' ? 'cancelada' : 'pendiente';
+
+        const factura = await db.facturas.get(consulta.facturaId);
+        await db.facturas.update(consulta.facturaId, {
+          estado:      estadoFactura,
+          montoPagado: estadoFactura === 'pagada' ? (factura?.total ?? 0) : (factura?.montoPagado ?? 0),
+          updatedAt:   ahora,
+          syncStatus:  'pending',
+        });
+      }
+    }
+
+    await encolarSync({ coleccion: 'pagos', documentoId: id, operacion: 'update', datos: { id, estado, updatedAt: ahora }, intentos: 0, creadoEn: ahora });
+  });
 }
 
 export async function eliminarPago(id: string): Promise<void> {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { zodResolver } from '@/lib/zod-resolver';
 import { citaSchema, type CitaFormData } from '@/lib/validations/agenda.schema';
 import { TIPOS_CITA, DURACIONES } from '@/types/agenda';
 import { PacienteSelector } from '@/components/common/PacienteSelector';

@@ -13,7 +13,7 @@ Vamos a construir **VetSystem**, un sistema de gestión veterinaria profesional,
 ## Información del Proyecto
 
 - **Nombre:** VetSystem
-- **Clínica inicial de prueba:** House of Pets (debe ser configurable por cada clínica)
+- **Clínica inicial de prueba:** Pet's House (debe ser configurable por cada clínica)
 - **Stack:** Next.js 15 (App Router) + TypeScript + Tailwind CSS v4 + shadcn/ui
 - **Base de datos local:** Dexie.js (IndexedDB)
 - **Base de datos en la nube:** Firebase (Firestore + Auth)

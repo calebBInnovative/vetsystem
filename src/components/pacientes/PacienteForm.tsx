@@ -1,13 +1,16 @@
 'use client';
 
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { zodResolver } from '@/lib/zod-resolver';
 import { pacienteSchema, type PacienteFormData } from '@/lib/validations/paciente.schema';
 import { ESPECIES } from '@/types/paciente';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { DatePicker } from '@/components/ui/date-picker';
 import { cn } from '@/lib/utils';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Camera } from 'lucide-react';
 
 interface PacienteFormProps {
   onSubmit: (datos: PacienteFormData) => Promise<void>;
@@ -41,224 +44,147 @@ export function PacienteForm({
   const sexoActual = watch('sexo');
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-10">
+      
+      {/* Datos de la Mascota */}
+      <section className="space-y-6">
+        <h3 className="text-lg font-semibold">Datos de la Mascota</h3>
 
-      {/* ── Sección: Mascota ─────────────────────────────── */}
-      <section>
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">
-          Datos de la Mascota
-        </h3>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
           {/* Nombre */}
           <div className="sm:col-span-2">
-            <label className="block text-sm font-medium mb-1.5">
-              Nombre <span className="text-destructive">*</span>
-            </label>
-            <input
+            <Label htmlFor="nombre">Nombre <span className="text-destructive">*</span></Label>
+            <Input
+              id="nombre"
               {...register('nombre')}
-              placeholder="Ej: Max, Luna, Toby..."
-              className={field(!!errors.nombre)}
+              placeholder="Ej: Max, Luna, Toby"
               autoFocus
+              className={cn(errors.nombre && "border-destructive")}
             />
-            {errors.nombre && <Err>{errors.nombre.message}</Err>}
+            {errors.nombre && <p className="text-sm text-destructive mt-1">{errors.nombre.message}</p>}
           </div>
 
           {/* Especie */}
           <div className="sm:col-span-2">
-            <label className="block text-sm font-medium mb-2">
-              Especie <span className="text-destructive">*</span>
-            </label>
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-              {(Object.entries(ESPECIES) as [keyof typeof ESPECIES, { label: string; emoji: string }][]).map(
-                ([valor, { label, emoji }]) => (
-                  <button
-                    key={valor}
-                    type="button"
-                    onClick={() => setValue('especie', valor, { shouldValidate: true })}
-                    className={cn(
-                      'flex flex-col items-center gap-1 p-2.5 rounded-xl border-2 text-xs font-medium transition-all',
-                      especieActual === valor
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border hover:border-primary/40 text-muted-foreground'
-                    )}
-                  >
-                    <span className="text-2xl leading-none">{emoji}</span>
-                    {label}
-                  </button>
-                )
-              )}
+            <Label>Especie <span className="text-destructive">*</span></Label>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 mt-2">
+              {Object.entries(ESPECIES).map(([valor, { label, emoji }]) => (
+                <button
+                  key={valor}
+                  type="button"
+                  onClick={() => setValue('especie', valor as any, { shouldValidate: true })}
+                  className={cn(
+                    "flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all hover:border-primary/50",
+                    especieActual === valor 
+                      ? "border-primary bg-primary/5 text-primary" 
+                      : "border-border"
+                  )}
+                >
+                  <span className="text-3xl">{emoji}</span>
+                  <span className="text-sm font-medium">{label}</span>
+                </button>
+              ))}
             </div>
-            {errors.especie && <Err>{errors.especie.message}</Err>}
           </div>
 
-          {/* Raza */}
+          {/* Raza, Sexo, Peso, Fecha */}
           <div>
-            <label className="block text-sm font-medium mb-1.5">Raza</label>
-            <input
-              {...register('raza')}
-              placeholder="Ej: Labrador, Persa..."
-              className={field(false)}
-            />
+            <Label htmlFor="raza">Raza</Label>
+            <Input id="raza" {...register('raza')} placeholder="Labrador, Persa..." />
           </div>
 
-          {/* Sexo */}
           <div>
-            <label className="block text-sm font-medium mb-1.5">
-              Sexo <span className="text-destructive">*</span>
-            </label>
-            <div className="grid grid-cols-2 gap-2">
+            <Label>Sexo <span className="text-destructive">*</span></Label>
+            <div className="flex gap-3 mt-2">
               {(['macho', 'hembra'] as const).map((s) => (
                 <button
                   key={s}
                   type="button"
                   onClick={() => setValue('sexo', s, { shouldValidate: true })}
                   className={cn(
-                    'py-2.5 rounded-xl border-2 text-sm font-medium transition-all',
-                    sexoActual === s
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border hover:border-primary/40 text-muted-foreground'
+                    "flex-1 py-3 rounded-2xl border-2 text-sm font-medium transition-all",
+                    sexoActual === s 
+                      ? "border-primary bg-primary/5 text-primary" 
+                      : "border-border hover:border-primary/40"
                   )}
                 >
                   {s === 'macho' ? '♂ Macho' : '♀ Hembra'}
                 </button>
               ))}
             </div>
-            {errors.sexo && <Err>{errors.sexo.message}</Err>}
           </div>
 
-          {/* Fecha de Nacimiento */}
           <div>
-            <label className="block text-sm font-medium mb-1.5">Fecha de Nacimiento</label>
+            <Label>Fecha de Nacimiento</Label>
             <DatePicker
               value={watch('fechaNacimiento')}
               onChange={(v) => setValue('fechaNacimiento', v, { shouldValidate: true })}
-              placeholder="Selecciona la fecha"
+              placeholder="DD/MM/AAAA"
               toDate={new Date()}
+              fromDate={new Date(1990, 0, 1)}
+              hasError={!!errors.fechaNacimiento}
             />
+            {errors.fechaNacimiento && (
+              <p className="text-sm text-destructive mt-1">{errors.fechaNacimiento.message}</p>
+            )}
           </div>
 
-          {/* Peso */}
           <div>
-            <label className="block text-sm font-medium mb-1.5">Peso (kg)</label>
-            <input
-              {...register('peso')}
+            <Label htmlFor="peso">Peso (kg)</Label>
+            <Input
+              id="peso"
               type="number"
               step="0.1"
               min="0"
-              placeholder="Ej: 4.5"
-              className={field(!!errors.peso)}
+              {...register('peso')}
+              placeholder="4.5"
             />
-            {errors.peso && <Err>{errors.peso.message}</Err>}
           </div>
 
-          {/* Color */}
           <div className="sm:col-span-2">
-            <label className="block text-sm font-medium mb-1.5">Color / Pelaje</label>
-            <input
-              {...register('color')}
-              placeholder="Ej: Dorado, Negro y blanco, Atigrado..."
-              className={field(false)}
-            />
+            <Label htmlFor="color">Color / Pelaje</Label>
+            <Input id="color" {...register('color')} placeholder="Dorado, Atigrado..." />
           </div>
-
-          {/* Notas */}
-          <div className="sm:col-span-2">
-            <label className="block text-sm font-medium mb-1.5">Notas adicionales</label>
-            <textarea
-              {...register('notas')}
-              rows={2}
-              placeholder="Alergias conocidas, observaciones importantes..."
-              className={cn(field(false), 'resize-none')}
-            />
-          </div>
-
         </div>
       </section>
 
-      {/* ── Sección: Dueño ───────────────────────────────── */}
-      <section>
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">
-          Datos del Dueño
-        </h3>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-
-          <div>
-            <label className="block text-sm font-medium mb-1.5">
-              Nombre completo <span className="text-destructive">*</span>
-            </label>
-            <input
-              {...register('dueno.nombre')}
-              placeholder="Nombre del dueño"
-              className={field(!!errors.dueno?.nombre)}
-            />
-            {errors.dueno?.nombre && <Err>{errors.dueno.nombre.message}</Err>}
+      {/* Datos del Dueño */}
+      <section className="space-y-6">
+        <h3 className="text-lg font-semibold">Datos del Dueño</h3>
+        
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <Label htmlFor="dueno.nombre">Nombre completo <span className="text-destructive">*</span></Label>
+            <Input id="dueno.nombre" {...register('dueno.nombre')} placeholder="Nombre del dueño" />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1.5">
-              Teléfono / WhatsApp <span className="text-destructive">*</span>
-            </label>
-            <input
-              {...register('dueno.telefono')}
-              type="tel"
-              placeholder="Ej: 8888-1234"
-              className={field(!!errors.dueno?.telefono)}
-            />
-            {errors.dueno?.telefono && <Err>{errors.dueno.telefono.message}</Err>}
+            <Label htmlFor="dueno.telefono">Teléfono / WhatsApp <span className="text-destructive">*</span></Label>
+            <Input id="dueno.telefono" type="tel" {...register('dueno.telefono')} placeholder="8888-1234" />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1.5">Correo electrónico</label>
-            <input
-              {...register('dueno.email')}
-              type="email"
-              placeholder="correo@ejemplo.com (opcional)"
-              className={field(!!errors.dueno?.email)}
-            />
-            {errors.dueno?.email && <Err>{errors.dueno.email.message}</Err>}
+            <Label htmlFor="dueno.email">Correo electrónico</Label>
+            <Input id="dueno.email" type="email" {...register('dueno.email')} placeholder="ejemplo@email.com" />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1.5">Dirección</label>
-            <input
-              {...register('dueno.direccion')}
-              placeholder="Barrio, ciudad..."
-              className={field(false)}
-            />
+          <div className="sm:col-span-2">
+            <Label htmlFor="dueno.direccion">Dirección</Label>
+            <Input id="dueno.direccion" {...register('dueno.direccion')} placeholder="Barrio, casa, referencia..." />
           </div>
-
         </div>
       </section>
 
-      {/* ── Botón submit ─────────────────────────────────── */}
-      <Button type="submit" className="w-full h-12 text-base font-medium" disabled={cargando}>
+      <Button type="submit" className="w-full h-12 text-base" disabled={cargando}>
         {cargando ? (
           <>
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            Guardando...
+            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+            Guardando paciente...
           </>
         ) : (
           textoBoton
         )}
       </Button>
-
     </form>
   );
-}
-
-function field(hasError: boolean) {
-  return cn(
-    'w-full rounded-xl border bg-background px-3 py-2.5 text-sm',
-    'placeholder:text-muted-foreground',
-    'focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-primary',
-    'transition-colors',
-    hasError ? 'border-destructive' : 'border-input'
-  );
-}
-
-function Err({ children }: { children: React.ReactNode }) {
-  return <p className="mt-1 text-xs text-destructive">{children}</p>;
 }

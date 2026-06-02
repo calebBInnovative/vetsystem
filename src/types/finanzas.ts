@@ -1,6 +1,6 @@
 import type { SyncMeta } from './paciente';
 
-export type MetodoPago  = 'efectivo' | 'tarjeta' | 'transferencia' | 'cheque' | 'otro';
+export type MetodoPago  = 'efectivo' | 'tarjeta' | 'transferencia' | 'cheque' | 'mixto' | 'otro';
 export type EstadoPago  = 'pendiente' | 'pagado' | 'cancelado' | 'reembolsado';
 export type TipoIngreso = 'consulta' | 'vacunacion' | 'cirugia' | 'producto' | 'estetica' | 'otro';
 
@@ -38,6 +38,7 @@ export const METODOS_PAGO: Record<MetodoPago, { label: string; emoji: string }> 
   tarjeta:      { label: 'Tarjeta',       emoji: '💳' },
   transferencia:{ label: 'Transferencia', emoji: '🏦' },
   cheque:       { label: 'Cheque',        emoji: '📝' },
+  mixto:        { label: 'Mixto',         emoji: '🔄' },
   otro:         { label: 'Otro',          emoji: '💰' },
 };
 

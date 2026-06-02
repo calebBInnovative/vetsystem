@@ -1,7 +1,7 @@
 'use client';
 
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { zodResolver } from '@/lib/zod-resolver';
 import { pagoSchema, type PagoFormData } from '@/lib/validations/finanzas.schema';
 import { crearPago } from '@/hooks/useFinanzas';
 import { METODOS_PAGO, TIPOS_INGRESO } from '@/types/finanzas';

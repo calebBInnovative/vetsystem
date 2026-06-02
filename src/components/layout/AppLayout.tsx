@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
   Menu, X, Home, Users, Calendar, Package,
-  BarChart3, Settings, Search, DollarSign,
+  BarChart3, Settings, Search, DollarSign, Stethoscope, Receipt, ClipboardList,
 } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -21,8 +21,11 @@ const menuItems = [
   { icon: Users,       label: 'Pacientes',      href: '/pacientes',     disponible: true  },
   { icon: Calendar,    label: 'Agenda',         href: '/agenda',        disponible: true  },
   { icon: Package,     label: 'Inventario',     href: '/inventario',    disponible: true  },
+  { icon: Stethoscope, label: 'Consultas',      href: '/consultas',     disponible: true  },
   { icon: DollarSign,  label: 'Finanzas',       href: '/finanzas',      disponible: true  },
-  { icon: BarChart3,   label: 'Reportes',       href: '/reportes',      disponible: false },
+  { icon: Receipt,       label: 'Facturas',       href: '/facturas',      disponible: true  },
+  { icon: ClipboardList, label: 'Servicios',     href: '/servicios',     disponible: true  },
+  { icon: BarChart3,     label: 'Reportes',      href: '/reportes',      disponible: false },
   { icon: Settings,    label: 'Configuración',  href: '/configuracion', disponible: false },
 ];
 
@@ -60,12 +63,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Logo */}
         <div className="px-5 py-4 border-b border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-white/15 rounded-xl flex items-center justify-center shrink-0">
-              <span className="text-sidebar-foreground font-bold text-lg">V</span>
-            </div>
+            <img
+              src="/logo.jpeg"
+              alt="Pets House"
+              className="w-10 h-10 rounded-xl object-cover shrink-0 bg-white"
+            />
             <div>
-              <h1 className="text-sm font-semibold tracking-tight text-sidebar-foreground">VetSystem</h1>
-              <p className="text-xs text-sidebar-muted">House of Pets</p>
+              <h1 className="text-sm font-semibold tracking-tight text-sidebar-foreground">Pet's House</h1>
+              <p className="text-xs text-sidebar-muted">VetSystem</p>
             </div>
           </div>
         </div>
@@ -159,11 +164,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <ThemeSwitcher />
               <div className="flex items-center gap-2.5 pl-3 border-l border-border">
                 <div className="text-right hidden sm:block">
-                  <p className="text-sm font-medium leading-tight">Dr. Laura Ramírez</p>
+                  <p className="text-sm font-medium leading-tight">Dr. Lucia Carballo</p>
                   <p className="text-xs text-muted-foreground">Veterinaria</p>
                 </div>
                 <div className="w-7 h-7 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-xs font-semibold shrink-0">
-                  LR
+                  LC
                 </div>
               </div>
             </div>

@@ -30,7 +30,7 @@
 }
 
 :root {
-  --background: rgb(236, 252, 248);
+  --background: rgb(234, 236, 240);
   --foreground: rgb(15, 23, 42);
   --card: rgb(255, 255, 255);
   --card-foreground: rgb(15, 23, 42);
@@ -38,16 +38,16 @@
   --popover-foreground: rgb(15, 23, 42);
   --primary: rgb(15, 125, 110);
   --primary-foreground: rgb(255, 255, 255);
-  --secondary: rgb(230, 248, 244);
+  --secondary: rgb(241, 242, 244);
   --secondary-foreground: rgb(15, 23, 42);
-  --muted: rgb(230, 248, 244);
-  --muted-foreground: rgb(100, 116, 110);
+  --muted: rgb(241, 242, 244);
+  --muted-foreground: rgb(107, 114, 128);
   --accent: rgb(16, 185, 129);
   --accent-foreground: rgb(255, 255, 255);
   --destructive: rgb(239, 68, 68);
   --destructive-foreground: rgb(255, 255, 255);
-  --border: rgb(204, 228, 224);
-  --input: rgb(204, 228, 224);
+  --border: rgb(225, 227, 232);
+  --input: rgb(225, 227, 232);
   --ring: rgb(15, 125, 110);
   --radius: 0.75rem;
   /* Sidebar default = teal */
@@ -112,24 +112,50 @@
 }
 
 /* Dark + paleta — mayor especificidad, siempre gana */
+
 .dark[data-palette="teal"] {
+  /* Fondo: verde oscuro profundo, cards: superficie teal oscura */
+  --background: rgb(8, 32, 28);
+  --foreground: rgb(240, 253, 250);
+  --card: rgb(14, 50, 44);
+  --card-foreground: rgb(240, 253, 250);
+  --popover: rgb(14, 50, 44);
+  --popover-foreground: rgb(240, 253, 250);
+  --secondary: rgb(20, 64, 57);
+  --muted: rgb(20, 64, 57);
+  --muted-foreground: rgb(140, 190, 182);
+  --border: rgb(28, 78, 70);
+  --input: rgb(28, 78, 70);
   --primary: rgb(20, 184, 166);
   --ring: rgb(20, 184, 166);
-  --sidebar: rgb(15, 60, 54);
+  --sidebar: rgb(5, 22, 19);
   --sidebar-foreground: rgb(204, 251, 241);
-  --sidebar-muted: rgb(120, 175, 165);
+  --sidebar-muted: rgb(100, 165, 155);
 }
 
 .dark[data-palette="emerald"] {
+  /* Fondo: verde bosque muy oscuro */
+  --background: rgb(5, 28, 18);
+  --foreground: rgb(236, 253, 245);
+  --card: rgb(10, 46, 29);
+  --card-foreground: rgb(236, 253, 245);
+  --popover: rgb(10, 46, 29);
+  --popover-foreground: rgb(236, 253, 245);
+  --secondary: rgb(16, 60, 38);
+  --muted: rgb(16, 60, 38);
+  --muted-foreground: rgb(128, 190, 150);
+  --border: rgb(22, 80, 50);
+  --input: rgb(22, 80, 50);
   --primary: rgb(52, 211, 153);
   --accent: rgb(99, 102, 241);
   --ring: rgb(52, 211, 153);
-  --sidebar: rgb(8, 65, 48);
+  --sidebar: rgb(3, 18, 11);
   --sidebar-foreground: rgb(209, 250, 229);
-  --sidebar-muted: rgb(100, 170, 135);
+  --sidebar-muted: rgb(90, 165, 120);
 }
 
 .dark[data-palette="indigo"] {
+  /* Slate azul — el dark base ya funciona bien para indigo */
   --primary: rgb(99, 102, 241);
   --accent: rgb(20, 184, 166);
   --ring: rgb(99, 102, 241);
@@ -141,4 +167,14 @@
 body {
   background-color: var(--background);
   color: var(--foreground);
+}
+
+/* Sombra sutil en cards — light mode */
+:root .bg-card {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07), 0 0 0 1px rgba(0, 0, 0, 0.03);
+}
+
+/* Dark mode: sin sombra negra — el borde ya separa del fondo oscuro */
+.dark .bg-card {
+  box-shadow: none;
 }

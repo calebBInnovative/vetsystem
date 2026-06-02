@@ -6,7 +6,7 @@ import { useProducto, useMovimientosProducto, ajustarStock, eliminarProducto } f
 import { CATEGORIAS_PRODUCTO, UNIDADES_MEDIDA } from '@/types/inventario';
 import { ajusteStockSchema, type AjusteStockFormData } from '@/lib/validations/inventario.schema';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { zodResolver } from '@/lib/zod-resolver';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Plus, Minus, AlertTriangle, Loader2, TrendingUp, TrendingDown } from 'lucide-react';

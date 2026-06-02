@@ -14,10 +14,12 @@
 
 import Dexie, { type EntityTable } from 'dexie';
 import type { PacienteLocal, DuenoLocal } from '@/types/paciente';
-import type { ConsultaLocal } from '@/types/historial';
+import type { ConsultaLocal } from '@/types/consulta';
 import type { CitaLocal } from '@/types/agenda';
 import type { ProductoLocal, MovimientoStockLocal } from '@/types/inventario';
 import type { PagoLocal } from '@/types/finanzas';
+import type { FacturaLocal } from '@/types/factura';
+import type { ServicioLocal } from '@/types/servicio';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TIPOS INTERNOS
@@ -64,7 +66,11 @@ class VetSystemDB extends Dexie {
   movimientos!: EntityTable<MovimientoStockLocal, 'id'>;
 
   // Módulo Finanzas
-  pagos!: EntityTable<PagoLocal, 'id'>;
+  pagos!:    EntityTable<PagoLocal,    'id'>;
+  facturas!: EntityTable<FacturaLocal, 'id'>;
+
+  // Catálogo de servicios
+  servicios!: EntityTable<ServicioLocal, 'id'>;
 
   // Infraestructura de sync
   syncQueue!: EntityTable<SyncQueueItem, 'id'>;
@@ -169,12 +175,57 @@ class VetSystemDB extends Dexie {
     this.version(5).stores({
       pagos: [
         'id',
-        'pacienteId',   // pagos de un paciente
+        'pacienteId',
         'clinicaId',
-        'fecha',        // filtrar por fecha "YYYY-MM-DD"
-        'tipo',         // filtrar por tipo de ingreso
-        'estado',       // filtrar por estado
-        'metodoPago',   // filtrar por método
+        'fecha',
+        'tipo',
+        'estado',
+        'metodoPago',
+        'syncStatus',
+        'updatedAt',
+        'deletedAt',
+      ].join(', '),
+    });
+
+    this.version(6).stores({
+      // Re-indexa consultas con los nuevos campos del módulo Atenciones
+      consultas: [
+        'id',
+        'pacienteId',
+        'duenoId',       // nuevo — join con dueños
+        'clinicaId',
+        'fecha',
+        'tipo',
+        'estado',        // nuevo — filtrar en_proceso / completada / cancelada
+        'citaId',        // nuevo — link desde agenda
+        'syncStatus',
+        'updatedAt',
+        'deletedAt',
+      ].join(', '),
+    });
+
+    this.version(7).stores({
+      facturas: [
+        'id',
+        'numero',        // FAC-YYYY-NNNN — búsqueda directa
+        'consultaId',    // link a la consulta origen
+        'pacienteId',
+        'duenoId',
+        'clinicaId',
+        'fecha',
+        'estado',        // pagada / pendiente / parcialmente_pagada / cancelada
+        'syncStatus',
+        'updatedAt',
+        'deletedAt',
+      ].join(', '),
+    });
+
+    this.version(8).stores({
+      servicios: [
+        'id',
+        'clinicaId',
+        'categoria',
+        'activo',
         'syncStatus',
         'updatedAt',
         'deletedAt',

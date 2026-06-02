@@ -1,7 +1,7 @@
 'use client';
 
 import { useForm, useFieldArray } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { zodResolver } from '@/lib/zod-resolver';
 import { consultaSchema, type ConsultaFormData } from '@/lib/validations/historial.schema';
 import { TIPOS_CONSULTA } from '@/types/historial';
 import { Button } from '@/components/ui/button';
