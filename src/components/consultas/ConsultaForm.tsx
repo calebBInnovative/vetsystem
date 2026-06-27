@@ -14,6 +14,7 @@ import type { ConsultaConPaciente } from '@/types/consulta';
 import type { ProductoLocal } from '@/types/inventario';
 import { db } from '@/lib/db/database';
 import { DatePicker } from '@/components/ui/date-picker';
+import { DescuentoInput } from '@/components/common/DescuentoInput';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
@@ -30,7 +31,7 @@ function formatMonto(n: number) {
 const TABS = [
   { id: 'examen',     label: 'Examen',     icon: Activity  },
   { id: 'clinico',    label: 'Clínico',    icon: FileText  },
-  { id: 'productos',  label: 'Productos',  icon: Package   },
+  { id: 'productos',  label: 'Productos y servicios',  icon: Package   },
   { id: 'cobro',      label: 'Cobro',      icon: Receipt   },
 ] as const;
 
@@ -47,13 +48,24 @@ interface ConsultaFormProps {
 
 export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }: ConsultaFormProps) {
   const [tab, setTab]               = useState<TabId>('examen');
-  const [guardando, setGuardando]   = useState(false);
+  const [guardando,   setGuardando]   = useState(false);
   const [finalizando, setFinalizando] = useState(false);
+  const [guardadoOk,  setGuardadoOk]  = useState(false);
 
   // ── Product search state ────────────────────────────────────────────────
-  const [busqueda, setBusqueda]         = useState('');
-  const [servicioDesc, setServicioDesc] = useState('');
-  const [servicioPrecio, setServicioPrecio] = useState('');
+  const [busqueda,           setBusqueda]           = useState('');
+  const [busquedaServicio,   setBusquedaServicio]   = useState('');
+  const [serviciosFocused,   setServiciosFocused]   = useState(false);
+  const [servicioDesc,       setServicioDesc]       = useState('');
+  const [servicioPrecio,     setServicioPrecio]     = useState('');
+
+  // Mapa tipo consulta → categoría de servicio preferida
+  const TIPO_A_CATEGORIA: Record<string, string> = {
+    consulta_general: 'consulta',   control:         'consulta',
+    vacunacion:       'vacunacion', cirugia:         'cirugia',
+    emergencia:       'emergencia', desparasitacion: 'desparasitacion',
+    estetica:         'estetica',   otro:            'otro',
+  };
 
   const {
     register,
@@ -88,8 +100,8 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
   const productosResultado = useLiveQuery(async () => {
     if (!busqueda.trim()) return [];
     const q = busqueda.toLowerCase();
-    return db.productos
-      .where('clinicaId').equals('house-of-pets')
+    return db.products
+      .where('clinicaId').equals(process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets')
       .filter((p) => p.activo && !p.deletedAt && p.nombre.toLowerCase().includes(q))
       .limit(6)
       .toArray();
@@ -181,8 +193,13 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
   async function handleGuardar() {
     const datos = watch();
     setGuardando(true);
-    try { await guardarConsulta(consultaId, datos as ConsultaFormData); }
-    finally { setGuardando(false); }
+    try {
+      await guardarConsulta(consultaId, datos as ConsultaFormData);
+      setGuardadoOk(true);
+      setTimeout(() => setGuardadoOk(false), 2000);
+    } finally {
+      setGuardando(false);
+    }
   }
 
   async function onSubmit(datos: ConsultaFormData) {
@@ -197,7 +214,19 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col h-full">
+    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col h-full relative">
+
+      {/* Toast — guardado exitoso */}
+      <div className={cn(
+        'absolute bottom-20 left-1/2 -translate-x-1/2 z-50',
+        'flex items-center gap-2 px-4 py-2 rounded-full',
+        'bg-green-600 text-white text-sm font-medium shadow-lg',
+        'transition-all duration-300 pointer-events-none',
+        guardadoOk ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+      )}>
+        <CheckCircle size={14} />
+        Guardado
+      </div>
 
       {/* Paciente banner */}
       <div className="bg-primary/10 border-b border-border px-4 py-3 flex items-center gap-3 shrink-0">
@@ -244,7 +273,7 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
             {/* Tipo */}
             <div className="space-y-2">
               <label className="text-sm font-medium">Tipo de atención *</label>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="flex flex-wrap gap-1.5">
                 {(Object.entries(TIPOS_CONSULTA) as [string, { label: string; emoji: string }][]).map(([key, info]) => {
                   const activo = watch('tipo') === key;
                   return (
@@ -253,14 +282,14 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
                       type="button"
                       onClick={() => setValue('tipo', key as ConsultaFormData['tipo'], { shouldValidate: true })}
                       className={cn(
-                        'flex flex-col items-center gap-1 rounded-xl border p-2 text-xs transition-colors',
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors',
                         activo
-                          ? 'border-primary bg-primary/10 text-primary font-medium'
+                          ? 'border-primary bg-primary/10 text-primary'
                           : 'border-border hover:border-primary/40 text-muted-foreground'
                       )}
                     >
-                      <span className="text-lg">{info.emoji}</span>
-                      <span className="line-clamp-1 text-center leading-tight">{info.label.split(' ')[0]}</span>
+                      <span>{info.emoji}</span>
+                      <span>{info.label}</span>
                     </button>
                   );
                 })}
@@ -270,7 +299,7 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
 
             {/* Motivo */}
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Motivo de la visita *</label>
+              <label className="text-sm font-medium">Motivo de la visita <span className="text-muted-foreground font-normal">(opcional)</span></label>
               <textarea
                 {...register('motivo')}
                 rows={2}
@@ -358,29 +387,76 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
         {tab === 'productos' && (
           <div className="p-4 space-y-4">
 
-            {/* Catálogo de servicios */}
-            {serviciosCatalogo.length > 0 && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Servicios del catálogo</label>
-                <div className="flex flex-wrap gap-2">
-                  {serviciosCatalogo.map((serv) => {
-                    const cat = CATEGORIAS_SERVICIO[serv.categoria];
-                    return (
-                      <button
-                        key={serv.id}
-                        type="button"
-                        onClick={() => agregarServicioCatalogo(serv)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-background hover:bg-primary/5 hover:border-primary/50 text-sm transition-colors"
-                      >
-                        <span>{cat?.emoji}</span>
-                        <span className="font-medium">{serv.nombre}</span>
-                        <span className="text-muted-foreground text-xs">{formatMonto(serv.precio)}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+            {/* Buscar servicio del catálogo */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Buscar servicio</label>
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={busquedaServicio}
+                  onChange={(e) => setBusquedaServicio(e.target.value)}
+                  onFocus={() => setServiciosFocused(true)}
+                  onBlur={() => setServiciosFocused(false)}
+                  placeholder="Buscar en catálogo de servicios…"
+                  className="w-full rounded-xl border border-input bg-background pl-9 pr-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
               </div>
-            )}
+
+              {/* Resultados — solo visibles con focus */}
+              {serviciosFocused && (() => {
+                const q                 = busquedaServicio.toLowerCase().trim();
+                const categoriaPreferida = TIPO_A_CATEGORIA[watch('tipo')] ?? 'consulta';
+
+                const filtrados = (q
+                  ? serviciosCatalogo.filter((s) => s.nombre.toLowerCase().includes(q) || s.categoria.includes(q))
+                  : serviciosCatalogo
+                ).sort((a, b) => {
+                  // Servicios del tipo de consulta actual primero
+                  const pa = a.categoria === categoriaPreferida ? 0 : 1;
+                  const pb = b.categoria === categoriaPreferida ? 0 : 1;
+                  return pa - pb || a.nombre.localeCompare(b.nombre);
+                });
+
+                if (filtrados.length === 0) return (
+                  <p className="text-sm text-muted-foreground text-center py-3">Sin resultados</p>
+                );
+
+                return (
+                  // onMouseDown prevent → evita que el blur del input se dispare antes del click
+                  <div
+                    className="rounded-xl border border-border bg-card overflow-hidden max-h-52 overflow-y-auto"
+                    onMouseDown={(e) => e.preventDefault()}
+                  >
+                    {filtrados.map((serv) => {
+                      const cat      = CATEGORIAS_SERVICIO[serv.categoria];
+                      const esPreferido = serv.categoria === categoriaPreferida;
+                      return (
+                        <button
+                          key={serv.id}
+                          type="button"
+                          onClick={() => { agregarServicioCatalogo(serv); setBusquedaServicio(''); }}
+                          className="w-full flex items-center justify-between gap-2 px-4 py-2.5 hover:bg-muted/40 transition-colors border-b border-border last:border-0 text-left"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="shrink-0">{cat?.emoji}</span>
+                            <span className="text-sm font-medium truncate">{serv.nombre}</span>
+                            {esPreferido && !q && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary shrink-0">
+                                Sugerido
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-sm font-semibold">{formatMonto(serv.precio)}</span>
+                            <Plus size={13} className="text-primary" />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
 
             {/* Buscador */}
             <div className="space-y-2">
@@ -508,13 +584,11 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
 
             {/* Descuento */}
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Descuento (C$)</label>
-              <input
-                {...register('descuento')}
-                type="number"
-                min="0"
-                placeholder="0"
-                className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              <label className="text-sm font-medium">Descuento</label>
+              <DescuentoInput
+                subtotal={subtotal}
+                value={descuento}
+                onChange={(monto) => setValue('descuento', monto, { shouldValidate: true })}
               />
             </div>
 

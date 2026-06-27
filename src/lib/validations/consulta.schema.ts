@@ -30,10 +30,7 @@ export const consultaSchema = z.object({
     { error: 'Selecciona el tipo de atención' }
   ),
 
-  motivo: z
-    .string()
-    .min(3, 'Describe el motivo de la visita')
-    .max(500),
+  motivo: z.string().max(500).optional().default(''),
 
   // ── Signos vitales ────────────────────────────────────────────────────────
   peso:                 numOpt('Peso inválido'),

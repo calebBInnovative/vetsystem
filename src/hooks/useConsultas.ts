@@ -5,7 +5,7 @@ import { db, type SyncQueueItem } from '@/lib/db/database';
 import type { ConsultaLocal, ConsultaConPaciente, EstadoConsulta, TipoConsulta } from '@/types/consulta';
 import type { ConsultaFormData } from '@/lib/validations/consulta.schema';
 
-const CLINICA_ID   = 'house-of-pets';
+const CLINICA_ID = process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
 const VETERINARIO  = 'Dra. Patricia Vega';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -20,7 +20,7 @@ export function useConsultas(filtros?: {
   fechaHasta?: number;
 }) {
   const resultado = useLiveQuery(async () => {
-    let consultas = await db.consultas
+    let consultas = await db.consultations
       .where('clinicaId')
       .equals(CLINICA_ID)
       .filter((c) => !c.deletedAt)
@@ -34,11 +34,11 @@ export function useConsultas(filtros?: {
     consultas.sort((a, b) => b.fecha - a.fecha);
 
     const pacienteIds  = [...new Set(consultas.map((c) => c.pacienteId))];
-    const pacientes    = await db.pacientes.bulkGet(pacienteIds);
+    const pacientes    = await db.patients.bulkGet(pacienteIds);
     const pacientesMap = new Map(pacientes.filter(Boolean).map((p) => [p!.id, p!]));
 
     const duenoIds  = [...new Set(consultas.map((c) => c.duenoId).filter(Boolean))];
-    const duenos    = await db.duenos.bulkGet(duenoIds);
+    const duenos    = await db.owners.bulkGet(duenoIds);
     const duenosMap = new Map(duenos.filter(Boolean).map((d) => [d!.id, d!]));
 
     return consultas.map<ConsultaConPaciente>((c) => ({
@@ -58,14 +58,14 @@ export function useConsultas(filtros?: {
 /** Consultas en proceso (activas ahora) */
 export function useConsultasEnProceso() {
   const resultado = useLiveQuery(async () => {
-    const consultas = await db.consultas
+    const consultas = await db.consultations
       .where('estado')
       .equals('en_proceso')
       .filter((c) => !c.deletedAt && c.clinicaId === CLINICA_ID)
       .toArray();
 
     const pacienteIds  = [...new Set(consultas.map((c) => c.pacienteId))];
-    const pacientes    = await db.pacientes.bulkGet(pacienteIds);
+    const pacientes    = await db.patients.bulkGet(pacienteIds);
     const pacientesMap = new Map(pacientes.filter(Boolean).map((p) => [p!.id, p!]));
 
     return consultas.map<ConsultaConPaciente>((c) => ({
@@ -81,11 +81,11 @@ export function useConsultasEnProceso() {
 /** Una consulta individual por ID */
 export function useConsulta(id: string) {
   const resultado = useLiveQuery(async () => {
-    const c = await db.consultas.get(id);
+    const c = await db.consultations.get(id);
     if (!c || c.deletedAt) return null;
 
-    const paciente = await db.pacientes.get(c.pacienteId);
-    const dueno    = c.duenoId ? await db.duenos.get(c.duenoId) : undefined;
+    const paciente = await db.patients.get(c.pacienteId);
+    const dueno    = c.duenoId ? await db.owners.get(c.duenoId) : undefined;
 
     return {
       ...c,
@@ -105,7 +105,7 @@ export function useConsulta(id: string) {
 /** Historial de consultas de un paciente */
 export function useConsultasPaciente(pacienteId: string) {
   const resultado = useLiveQuery(async () => {
-    const consultas = await db.consultas
+    const consultas = await db.consultations
       .where('pacienteId')
       .equals(pacienteId)
       .filter((c) => !c.deletedAt)
@@ -133,7 +133,7 @@ export async function iniciarConsulta(datos: {
   const ahora = Date.now();
   const id    = crypto.randomUUID();
 
-  const paciente = await db.pacientes.get(datos.pacienteId);
+  const paciente = await db.patients.get(datos.pacienteId);
   if (!paciente) throw new Error('Paciente no encontrado');
 
   const nueva: ConsultaLocal = {
@@ -156,12 +156,12 @@ export async function iniciarConsulta(datos: {
     updatedAt:  ahora,
   };
 
-  await db.consultas.add(nueva);
+  await db.consultations.add(nueva);
   await encolarSync({ coleccion: 'consultas', documentoId: id, operacion: 'create', datos: nueva, intentos: 0, creadoEn: ahora });
 
   // Si viene de una cita, marcarla como en_curso
   if (datos.citaId) {
-    await db.citas.update(datos.citaId, { estado: 'en_curso', updatedAt: ahora, syncStatus: 'pending' });
+    await db.appointments.update(datos.citaId, { estado: 'en_curso', updatedAt: ahora, syncStatus: 'pending' });
   }
 
   return id;
@@ -196,7 +196,7 @@ export async function guardarConsulta(id: string, datos: ConsultaFormData): Prom
     syncStatus: 'pending',
   };
 
-  await db.consultas.update(id, cambios);
+  await db.consultations.update(id, cambios);
 }
 
 /** Finaliza la consulta: completa inventario, genera pago */
@@ -207,13 +207,13 @@ export async function finalizarConsulta(id: string, datos: ConsultaFormData): Pr
   const total    = Math.max(0, subtotal - descuento);
 
   await db.transaction('rw',
-    [db.consultas, db.productos, db.movimientos, db.syncQueue],
+    [db.consultations, db.products, db.movements, db.syncQueue],
     async () => {
-      const consulta = await db.consultas.get(id);
+      const consulta = await db.consultations.get(id);
       if (!consulta) throw new Error('Consulta no encontrada');
 
       // 1 — Guardar datos clínicos completos
-      await db.consultas.update(id, {
+      await db.consultations.update(id, {
         tipo:                  datos.tipo,
         motivo:                datos.motivo,
         peso:                  datos.peso,
@@ -238,15 +238,15 @@ export async function finalizarConsulta(id: string, datos: ConsultaFormData): Pr
 
       // 2 — Descontar inventario por cada producto (no servicios)
       for (const item of (datos.items ?? []).filter((i) => !i.esServicio && i.productoId)) {
-        const prod = await db.productos.get(item.productoId!);
+        const prod = await db.products.get(item.productoId!);
         if (!prod) continue;
         const stockNuevo = Math.max(0, prod.stockActual - item.cantidad);
-        await db.productos.update(item.productoId!, {
+        await db.products.update(item.productoId!, {
           stockActual: stockNuevo,
           updatedAt:   ahora,
           syncStatus:  'pending',
         });
-        await db.movimientos.add({
+        await db.movements.add({
           id:           crypto.randomUUID(),
           productoId:   item.productoId!,
           clinicaId:    CLINICA_ID,
@@ -264,11 +264,11 @@ export async function finalizarConsulta(id: string, datos: ConsultaFormData): Pr
 
       // 3 — Marcar cita como completada si aplica (era paso 4)
       if (consulta.citaId) {
-        await db.citas.update(consulta.citaId, { estado: 'completada', updatedAt: ahora, syncStatus: 'pending' });
+        await db.appointments.update(consulta.citaId, { estado: 'completada', updatedAt: ahora, syncStatus: 'pending' });
       }
 
       // 5 — Encolar sync
-      const final = await db.consultas.get(id);
+      const final = await db.consultations.get(id);
       if (final) {
         await encolarSync({ coleccion: 'consultas', documentoId: id, operacion: 'update', datos: final, intentos: 0, creadoEn: ahora });
       }
@@ -279,7 +279,7 @@ export async function finalizarConsulta(id: string, datos: ConsultaFormData): Pr
 /** Cancela una consulta en proceso */
 export async function cancelarConsulta(id: string): Promise<void> {
   const ahora = Date.now();
-  await db.consultas.update(id, { estado: 'cancelada', updatedAt: ahora, syncStatus: 'pending' });
+  await db.consultations.update(id, { estado: 'cancelada', updatedAt: ahora, syncStatus: 'pending' });
   await encolarSync({ coleccion: 'consultas', documentoId: id, operacion: 'update', datos: { id, estado: 'cancelada', updatedAt: ahora }, intentos: 0, creadoEn: ahora });
 }
 

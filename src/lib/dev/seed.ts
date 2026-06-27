@@ -7,7 +7,7 @@ import type { PagoLocal } from '@/types/finanzas';
 import type { FacturaLocal, FacturaItem } from '@/types/factura';
 import type { ServicioLocal } from '@/types/servicio';
 
-const CLINICA_ID = 'house-of-pets';
+const CLINICA_ID = process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -491,17 +491,17 @@ export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record
 
   // ── Escribir todo en Dexie ────────────────────────────────────────────────
   await db.transaction('rw',
-    [db.duenos, db.pacientes, db.consultas, db.citas, db.productos, db.movimientos, db.pagos, db.facturas, db.servicios],
+    [db.owners, db.patients, db.consultations, db.appointments, db.products, db.movements, db.payments, db.invoices, db.services],
     async () => {
-      await db.duenos.bulkAdd(duenos);
-      await db.pacientes.bulkAdd(pacientes);
-      await db.consultas.bulkAdd(consultas);
-      await db.citas.bulkAdd(citas);
-      await db.productos.bulkAdd(productos);
-      await db.movimientos.bulkAdd(movimientos);
-      await db.pagos.bulkAdd(pagos);
-      await db.facturas.bulkAdd(facturas);
-      await db.servicios.bulkAdd(servicios);
+      await db.owners.bulkAdd(duenos);
+      await db.patients.bulkAdd(pacientes);
+      await db.consultations.bulkAdd(consultas);
+      await db.appointments.bulkAdd(citas);
+      await db.products.bulkAdd(productos);
+      await db.movements.bulkAdd(movimientos);
+      await db.payments.bulkAdd(pagos);
+      await db.invoices.bulkAdd(facturas);
+      await db.services.bulkAdd(servicios);
     }
   );
 
@@ -523,18 +523,18 @@ export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record
 
 export async function limpiarDatos(): Promise<void> {
   await db.transaction('rw',
-    [db.duenos, db.pacientes, db.consultas, db.citas, db.productos, db.movimientos, db.pagos, db.facturas, db.servicios, db.syncQueue],
+    [db.owners, db.patients, db.consultations, db.appointments, db.products, db.movements, db.payments, db.invoices, db.services, db.syncQueue],
     async () => {
       await Promise.all([
-        db.duenos.clear(),
-        db.pacientes.clear(),
-        db.consultas.clear(),
-        db.citas.clear(),
-        db.productos.clear(),
-        db.movimientos.clear(),
-        db.pagos.clear(),
-        db.facturas.clear(),
-        db.servicios.clear(),
+        db.owners.clear(),
+        db.patients.clear(),
+        db.consultations.clear(),
+        db.appointments.clear(),
+        db.products.clear(),
+        db.movements.clear(),
+        db.payments.clear(),
+        db.invoices.clear(),
+        db.services.clear(),
         db.syncQueue.clear(),
       ]);
     }

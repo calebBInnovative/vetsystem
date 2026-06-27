@@ -7,7 +7,7 @@ import type { ConsultaLocal } from '@/types/consulta';
 import type { TipoIngreso } from '@/types/finanzas';
 import { TIPO_PAGO_POR_CONSULTA } from '@/types/consulta';
 
-const CLINICA_ID = 'house-of-pets';
+const CLINICA_ID = process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HOOKS DE LECTURA
@@ -21,7 +21,7 @@ export function useFacturas(filtros?: {
   fechaHasta?: string;
 }) {
   const resultado = useLiveQuery(async () => {
-    let facturas = await db.facturas
+    let facturas = await db.invoices
       .where('clinicaId')
       .equals(CLINICA_ID)
       .filter((f) => !f.deletedAt)
@@ -35,20 +35,20 @@ export function useFacturas(filtros?: {
 
     facturas.sort((a, b) => b.creadoEn - a.creadoEn);
 
-    const pacienteIds  = [...new Set(facturas.map((f) => f.pacienteId))];
-    const duenoIds     = [...new Set(facturas.map((f) => f.duenoId).filter(Boolean))];
-    const pacientes    = await db.pacientes.bulkGet(pacienteIds);
-    const duenos       = await db.duenos.bulkGet(duenoIds);
+    const pacienteIds  = [...new Set(facturas.map((f) => f.pacienteId).filter((id): id is string => !!id))];
+    const duenoIds     = [...new Set(facturas.map((f) => f.duenoId).filter((id): id is string => !!id))];
+    const pacientes    = await db.patients.bulkGet(pacienteIds);
+    const duenos       = await db.owners.bulkGet(duenoIds);
     const pacientesMap = new Map(pacientes.filter(Boolean).map((p) => [p!.id, p!]));
     const duenosMap    = new Map(duenos.filter(Boolean).map((d) => [d!.id, d!]));
 
     return facturas.map<FacturaCompleta>((f) => ({
       ...f,
-      nombrePaciente:  pacientesMap.get(f.pacienteId)?.nombre,
-      especiePaciente: pacientesMap.get(f.pacienteId)?.especie,
-      razaPaciente:    pacientesMap.get(f.pacienteId)?.raza,
-      nombreDueno:     duenosMap.get(f.duenoId)?.nombre,
-      telefonoDueno:   duenosMap.get(f.duenoId)?.telefono,
+      nombrePaciente:  f.pacienteId ? pacientesMap.get(f.pacienteId)?.nombre    : undefined,
+      especiePaciente: f.pacienteId ? pacientesMap.get(f.pacienteId)?.especie   : undefined,
+      razaPaciente:    f.pacienteId ? pacientesMap.get(f.pacienteId)?.raza      : undefined,
+      nombreDueno:     f.duenoId    ? duenosMap.get(f.duenoId)?.nombre          : undefined,
+      telefonoDueno:   f.duenoId    ? duenosMap.get(f.duenoId)?.telefono        : undefined,
     }));
   }, [filtros?.estado, filtros?.pacienteId, filtros?.duenoId, filtros?.fechaDesde, filtros?.fechaHasta]);
 
@@ -60,11 +60,11 @@ export function useFacturas(filtros?: {
 
 export function useFactura(id: string) {
   const resultado = useLiveQuery(async () => {
-    const f = await db.facturas.get(id);
+    const f = await db.invoices.get(id);
     if (!f || f.deletedAt) return null;
 
-    const paciente = await db.pacientes.get(f.pacienteId);
-    const dueno    = f.duenoId ? await db.duenos.get(f.duenoId) : undefined;
+    const paciente = f.pacienteId ? await db.patients.get(f.pacienteId) : undefined;
+    const dueno    = f.duenoId ? await db.owners.get(f.duenoId) : undefined;
 
     return {
       ...f,
@@ -84,7 +84,7 @@ export function useFactura(id: string) {
 
 export function useFacturasPaciente(pacienteId: string) {
   const resultado = useLiveQuery(async () => {
-    const facturas = await db.facturas
+    const facturas = await db.invoices
       .where('pacienteId')
       .equals(pacienteId)
       .filter((f) => !f.deletedAt)
@@ -157,12 +157,12 @@ export async function crearFactura(input: CrearFacturaInput): Promise<string> {
   };
 
   await db.transaction('rw',
-    [db.facturas, db.pagos, db.consultas, db.syncQueue],
+    [db.invoices, db.payments, db.consultations, db.syncQueue],
     async () => {
-      await db.facturas.add(factura);
+      await db.invoices.add(factura);
 
       // Enlazar factura a la consulta
-      await db.consultas.update(input.consulta.id, {
+      await db.consultations.update(input.consulta.id, {
         facturaId:  id,
         updatedAt:  ahora,
         syncStatus: 'pending',
@@ -180,7 +180,7 @@ export async function crearFactura(input: CrearFacturaInput): Promise<string> {
         const estadoPago =
           input.estado === 'pagada' ? 'pagado' : 'pendiente';
 
-        await db.pagos.add({
+        await db.payments.add({
           id:          pagoId,
           pacienteId:  input.consulta.pacienteId,
           clinicaId:   CLINICA_ID,
@@ -197,11 +197,11 @@ export async function crearFactura(input: CrearFacturaInput): Promise<string> {
           updatedAt:   ahora,
         });
 
-        await db.facturas.update(id, { pagoId });
+        await db.invoices.update(id, { pagoId });
       }
 
       // Sync queue
-      const final = await db.facturas.get(id);
+      const final = await db.invoices.get(id);
       if (final) {
         await encolarSync({ coleccion: 'facturas', documentoId: id, operacion: 'create', datos: final, intentos: 0, creadoEn: ahora });
       }
@@ -218,11 +218,11 @@ export async function marcarFacturaPagada(
   notas?: string
 ): Promise<void> {
   const ahora   = Date.now();
-  const factura = await db.facturas.get(id);
+  const factura = await db.invoices.get(id);
   if (!factura) throw new Error('Factura no encontrada');
 
-  await db.transaction('rw', [db.facturas, db.pagos, db.syncQueue], async () => {
-    await db.facturas.update(id, {
+  await db.transaction('rw', [db.invoices, db.payments, db.syncQueue], async () => {
+    await db.invoices.update(id, {
       estado:      'pagada',
       montoPagado: factura.total,
       metodoPago,
@@ -233,7 +233,7 @@ export async function marcarFacturaPagada(
 
     if (factura.pagoId) {
       const metodoPagoPago = metodoPago === 'mixto' ? 'otro' : metodoPago;
-      await db.pagos.update(factura.pagoId, {
+      await db.payments.update(factura.pagoId, {
         estado:     'pagado',
         metodoPago: metodoPagoPago,
         monto:      factura.total,
@@ -249,7 +249,7 @@ export async function marcarFacturaPagada(
 /** Cancela una factura */
 export async function cancelarFactura(id: string): Promise<void> {
   const ahora = Date.now();
-  await db.facturas.update(id, { estado: 'cancelada', updatedAt: ahora, syncStatus: 'pending' });
+  await db.invoices.update(id, { estado: 'cancelada', updatedAt: ahora, syncStatus: 'pending' });
   await encolarSync({ coleccion: 'facturas', documentoId: id, operacion: 'update', datos: { id, estado: 'cancelada', updatedAt: ahora }, intentos: 0, creadoEn: ahora });
 }
 
@@ -259,7 +259,7 @@ export async function cancelarFactura(id: string): Promise<void> {
 
 async function generarNumeroFactura(): Promise<string> {
   const year  = new Date().getFullYear();
-  const count = await db.facturas.where('clinicaId').equals(CLINICA_ID).count();
+  const count = await db.invoices.where('clinicaId').equals(CLINICA_ID).count();
   return `FAC-${year}-${String(count + 1).padStart(4, '0')}`;
 }
 

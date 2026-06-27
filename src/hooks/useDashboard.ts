@@ -3,7 +3,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db/database';
 
-const CLINICA_ID = 'house-of-pets';
+const CLINICA_ID = process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
 
 /** Retorna todos los KPIs del dashboard en una sola query reactiva. */
 export function useDashboard() {
@@ -18,19 +18,19 @@ export function useDashboard() {
       consultasEsteMes,
     ] = await Promise.all([
       // Pacientes activos
-      db.pacientes
+      db.patients
         .where('clinicaId').equals(CLINICA_ID)
         .filter((p) => !p.deletedAt && p.activo)
         .count(),
 
       // Citas de hoy (todas)
-      db.citas
+      db.appointments
         .where('fecha').equals(hoy)
         .filter((c) => !c.deletedAt && c.clinicaId === CLINICA_ID)
         .count(),
 
       // Citas de hoy pendientes o confirmadas
-      db.citas
+      db.appointments
         .where('fecha').equals(hoy)
         .filter(
           (c) =>
@@ -41,13 +41,13 @@ export function useDashboard() {
         .count(),
 
       // Productos con stock bajo o sin stock
-      db.productos
+      db.products
         .where('clinicaId').equals(CLINICA_ID)
         .filter((p) => !p.deletedAt && p.activo && p.stockActual <= p.stockMinimo)
         .count(),
 
       // Consultas registradas este mes
-      db.consultas
+      db.consultations
         .where('clinicaId').equals(CLINICA_ID)
         .filter((c) => {
           if (c.deletedAt) return false;
@@ -82,7 +82,7 @@ export function useProximasCitasDia() {
   const horaActual = new Date().toTimeString().slice(0, 5);
 
   const resultado = useLiveQuery(async () => {
-    const citas = await db.citas
+    const citas = await db.appointments
       .where('fecha').equals(hoy)
       .filter(
         (c) =>
@@ -96,7 +96,7 @@ export function useProximasCitasDia() {
     citas.sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
 
     const pacienteIds = [...new Set(citas.map((c) => c.pacienteId))];
-    const pacientes   = await db.pacientes.bulkGet(pacienteIds);
+    const pacientes   = await db.patients.bulkGet(pacienteIds);
     const pacientesMap = new Map(pacientes.filter(Boolean).map((p) => [p!.id, p!]));
 
     return citas.slice(0, 6).map((c) => ({
@@ -115,7 +115,7 @@ export function useProximasCitasDia() {
 /** Últimas 5 consultas registradas en la clínica. */
 export function useUltimasConsultasDashboard() {
   const resultado = useLiveQuery(async () => {
-    const consultas = await db.consultas
+    const consultas = await db.consultations
       .where('clinicaId').equals(CLINICA_ID)
       .filter((c) => !c.deletedAt)
       .reverse()
@@ -123,7 +123,7 @@ export function useUltimasConsultasDashboard() {
       .then((arr) => arr.slice(0, 5));
 
     const pacienteIds = [...new Set(consultas.map((c) => c.pacienteId))];
-    const pacientes   = await db.pacientes.bulkGet(pacienteIds);
+    const pacientes   = await db.patients.bulkGet(pacienteIds);
     const pacientesMap = new Map(pacientes.filter(Boolean).map((p) => [p!.id, p!]));
 
     return consultas.map((c) => ({

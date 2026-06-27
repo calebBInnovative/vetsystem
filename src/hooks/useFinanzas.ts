@@ -6,7 +6,7 @@ import type { PagoLocal, EstadoPago } from '@/types/finanzas';
 import type { EstadoFactura } from '@/types/factura';
 import type { PagoFormData } from '@/lib/validations/finanzas.schema';
 
-const CLINICA_ID = 'house-of-pets';
+const CLINICA_ID = process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HOOKS DE LECTURA
@@ -22,20 +22,31 @@ export function usePagos(fechaInicio?: string, fechaFin?: string) {
   const hasta = fechaFin    ?? new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().slice(0, 10);
 
   const resultado = useLiveQuery(async () => {
-    const pagos = await db.pagos
+    // Pagos del rango de fechas (mes actual por defecto)
+    const pagosMes = await db.payments
       .where('fecha')
       .between(desde, hasta, true, true)
       .filter((p) => !p.deletedAt && p.clinicaId === CLINICA_ID)
       .toArray();
 
-    pagos.sort((a, b) => b.fecha.localeCompare(a.fecha));
+    // Cuentas por cobrar de meses anteriores (pendientes históricos)
+    const pendientesHistoricos = await db.payments
+      .where('clinicaId')
+      .equals(CLINICA_ID)
+      .filter((p) => !p.deletedAt && p.estado === 'pendiente' && p.fecha < desde)
+      .toArray();
+
+    // Combinar sin duplicados (los pendientes del mes ya están en pagosMes)
+    const idsEnMes = new Set(pagosMes.map((p) => p.id));
+    const todos = [...pagosMes, ...pendientesHistoricos.filter((p) => !idsEnMes.has(p.id))];
+    todos.sort((a, b) => b.fecha.localeCompare(a.fecha));
 
     // Join con pacientes
-    const pacienteIds  = [...new Set(pagos.map((p) => p.pacienteId))];
-    const pacientes    = await db.pacientes.bulkGet(pacienteIds);
+    const pacienteIds  = [...new Set(todos.map((p) => p.pacienteId))];
+    const pacientes    = await db.patients.bulkGet(pacienteIds);
     const pacientesMap = new Map(pacientes.filter(Boolean).map((p) => [p!.id, p!]));
 
-    return pagos.map((p) => ({
+    return todos.map((p) => ({
       ...p,
       nombrePaciente:  pacientesMap.get(p.pacienteId)?.nombre ?? 'Paciente',
       especiePaciente: pacientesMap.get(p.pacienteId)?.especie,
@@ -64,7 +75,7 @@ export function useResumenFinanciero() {
   const semanaStr = inicioSemana.toISOString().slice(0, 10);
 
   const resultado = useLiveQuery(async () => {
-    const pagosMes = await db.pagos
+    const pagosMes = await db.payments
       .where('fecha')
       .between(mesStr, mesFinStr, true, true)
       .filter((p) => !p.deletedAt && p.clinicaId === CLINICA_ID && p.estado === 'pagado')
@@ -73,7 +84,7 @@ export function useResumenFinanciero() {
     const totalHoy     = pagosMes.filter((p) => p.fecha === hoyStr).reduce((s, p) => s + p.monto, 0);
     const totalSemana  = pagosMes.filter((p) => p.fecha >= semanaStr).reduce((s, p) => s + p.monto, 0);
     const totalMes     = pagosMes.reduce((s, p) => s + p.monto, 0);
-    const pendientes   = await db.pagos
+    const pendientes   = await db.payments
       .where('clinicaId').equals(CLINICA_ID)
       .filter((p) => !p.deletedAt && p.estado === 'pendiente')
       .count();
@@ -104,7 +115,7 @@ export function useResumenFinanciero() {
  */
 export function usePagosPaciente(pacienteId: string) {
   const resultado = useLiveQuery(async () => {
-    return db.pagos
+    return db.payments
       .where('pacienteId').equals(pacienteId)
       .filter((p) => !p.deletedAt)
       .reverse()
@@ -141,7 +152,7 @@ export async function crearPago(datos: PagoFormData): Promise<string> {
     updatedAt:  ahora,
   };
 
-  await db.pagos.add(nuevo);
+  await db.payments.add(nuevo);
   await encolarSync({ coleccion: 'pagos', documentoId: pagoId, operacion: 'create', datos: nuevo, intentos: 0, creadoEn: ahora });
   return pagoId;
 }
@@ -149,20 +160,20 @@ export async function crearPago(datos: PagoFormData): Promise<string> {
 export async function cambiarEstadoPago(id: string, estado: EstadoPago): Promise<void> {
   const ahora = Date.now();
 
-  await db.transaction('rw', [db.pagos, db.consultas, db.facturas, db.syncQueue], async () => {
-    await db.pagos.update(id, { estado, updatedAt: ahora, syncStatus: 'pending' });
+  await db.transaction('rw', [db.payments, db.consultations, db.invoices, db.syncQueue], async () => {
+    await db.payments.update(id, { estado, updatedAt: ahora, syncStatus: 'pending' });
 
     // Sincronizar la factura vinculada: pago → consulta → factura
-    const pago = await db.pagos.get(id);
+    const pago = await db.payments.get(id);
     if (pago?.consultaId) {
-      const consulta = await db.consultas.get(pago.consultaId);
+      const consulta = await db.consultations.get(pago.consultaId);
       if (consulta?.facturaId) {
         const estadoFactura: EstadoFactura =
           estado === 'pagado'    ? 'pagada'   :
           estado === 'cancelado' ? 'cancelada' : 'pendiente';
 
-        const factura = await db.facturas.get(consulta.facturaId);
-        await db.facturas.update(consulta.facturaId, {
+        const factura = await db.invoices.get(consulta.facturaId);
+        await db.invoices.update(consulta.facturaId, {
           estado:      estadoFactura,
           montoPagado: estadoFactura === 'pagada' ? (factura?.total ?? 0) : (factura?.montoPagado ?? 0),
           updatedAt:   ahora,
@@ -177,7 +188,7 @@ export async function cambiarEstadoPago(id: string, estado: EstadoPago): Promise
 
 export async function eliminarPago(id: string): Promise<void> {
   const ahora = Date.now();
-  await db.pagos.update(id, { deletedAt: ahora, syncStatus: 'pending', updatedAt: ahora });
+  await db.payments.update(id, { deletedAt: ahora, syncStatus: 'pending', updatedAt: ahora });
   await encolarSync({ coleccion: 'pagos', documentoId: id, operacion: 'delete', datos: { id, deletedAt: ahora }, intentos: 0, creadoEn: ahora });
 }
 

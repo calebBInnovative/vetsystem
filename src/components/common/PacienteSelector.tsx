@@ -26,7 +26,7 @@ export function PacienteSelector({
 
   // Paciente actualmente seleccionado
   const pacienteSeleccionado = useLiveQuery<import('@/types/paciente').PacienteLocal | undefined>(
-    async () => (value ? db.pacientes.get(value) : undefined),
+    async () => (value ? db.patients.get(value) : undefined),
     [value]
   );
 
@@ -36,8 +36,8 @@ export function PacienteSelector({
     if (!termino) return [];
 
     const [todosPacientes, todosDuenos] = await Promise.all([
-      db.pacientes.filter((p) => !p.deletedAt && p.activo).toArray(),
-      db.duenos.toArray(),
+      db.patients.filter((p) => !p.deletedAt && p.activo).toArray(),
+      db.owners.toArray(),
     ]);
     const duenosMap = new Map(todosDuenos.map((d) => [d.id, d]));
 

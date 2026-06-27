@@ -17,7 +17,7 @@ import type { PacienteLocal, DuenoLocal, PacienteConDueno } from '@/types/pacien
 import type { PacienteFormData } from '@/lib/validations/paciente.schema';
 
 // TODO: en producción este valor vendrá del contexto de autenticación
-const CLINICA_ID = 'house-of-pets';
+const CLINICA_ID = process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HOOKS DE LECTURA (reactivos — se actualizan solos cuando cambia Dexie)
@@ -36,14 +36,14 @@ export function usePacientes(busqueda = '') {
 
     if (!termino) {
       // Sin búsqueda: ruta optimizada usando índice de Dexie
-      const pacientes = await db.pacientes
+      const pacientes = await db.patients
         .filter((p) => !p.deletedAt && p.activo)
         .reverse()
         .sortBy('updatedAt');
 
       // Cargar dueños en una sola consulta (bulkGet es más eficiente que N gets)
       const duenoIds = [...new Set(pacientes.map((p) => p.duenoId))];
-      const duenos   = await db.duenos.bulkGet(duenoIds);
+      const duenos   = await db.owners.bulkGet(duenoIds);
       const duenosMap = new Map(
         duenos.filter(Boolean).map((d) => [d!.id, d!])
       );
@@ -57,8 +57,8 @@ export function usePacientes(busqueda = '') {
     // Con búsqueda: carga todo en memoria y filtra (datos pequeños en IndexedDB,
     // esto es más rápido que múltiples queries con índices parciales)
     const [todosPacientes, todosDuenos] = await Promise.all([
-      db.pacientes.filter((p) => !p.deletedAt && p.activo).toArray(),
-      db.duenos.toArray(),
+      db.patients.filter((p) => !p.deletedAt && p.activo).toArray(),
+      db.owners.toArray(),
     ]);
 
     const duenosMap = new Map(todosDuenos.map((d) => [d.id, d]));
@@ -92,9 +92,9 @@ export function usePacientes(busqueda = '') {
  */
 export function usePaciente(id: string) {
   const resultado = useLiveQuery(async () => {
-    const paciente = await db.pacientes.get(id);
+    const paciente = await db.patients.get(id);
     if (!paciente || paciente.deletedAt) return null;
-    const dueno = await db.duenos.get(paciente.duenoId);
+    const dueno = await db.owners.get(paciente.duenoId);
     return { ...paciente, dueno } as PacienteConDueno;
   }, [id]);
 
@@ -120,7 +120,7 @@ export async function crearPaciente(datos: PacienteFormData): Promise<string> {
   const ahora = Date.now();
 
   // ── 1. Gestionar dueño ─────────────────────────────────────────────────────
-  const duenoExistente = await db.duenos
+  const duenoExistente = await db.owners
     .filter(
       (d) => d.telefono === datos.dueno.telefono && d.clinicaId === CLINICA_ID
     )
@@ -131,7 +131,7 @@ export async function crearPaciente(datos: PacienteFormData): Promise<string> {
   if (duenoExistente) {
     // El dueño ya existe — solo actualizar sus datos por si cambiaron
     duenoId = duenoExistente.id;
-    await db.duenos.update(duenoId, {
+    await db.owners.update(duenoId, {
       nombre:    datos.dueno.nombre,
       email:     datos.dueno.email     || undefined,
       direccion: datos.dueno.direccion || undefined,
@@ -159,7 +159,7 @@ export async function crearPaciente(datos: PacienteFormData): Promise<string> {
       syncStatus: 'pending',
       updatedAt:  ahora,
     };
-    await db.duenos.add(nuevoDueno);
+    await db.owners.add(nuevoDueno);
     await encolarSync({
       coleccion: 'duenos', documentoId: duenoId, operacion: 'create',
       datos: nuevoDueno,
@@ -188,7 +188,7 @@ export async function crearPaciente(datos: PacienteFormData): Promise<string> {
     updatedAt:       ahora,
   };
 
-  await db.pacientes.add(nuevoPaciente);
+  await db.patients.add(nuevoPaciente);
   await encolarSync({
     coleccion: 'pacientes', documentoId: pacienteId, operacion: 'create',
     datos: nuevoPaciente,
@@ -209,7 +209,7 @@ export async function actualizarPaciente(
   const ahora   = Date.now();
   const payload = { ...cambios, updatedAt: ahora, syncStatus: 'pending' as const };
 
-  await db.pacientes.update(id, payload);
+  await db.patients.update(id, payload);
   await encolarSync({
     coleccion: 'pacientes', documentoId: id, operacion: 'update',
     datos: { id, ...payload },
@@ -224,7 +224,7 @@ export async function actualizarPaciente(
 export async function eliminarPaciente(id: string): Promise<void> {
   const ahora = Date.now();
 
-  await db.pacientes.update(id, {
+  await db.patients.update(id, {
     deletedAt:  ahora,
     syncStatus: 'pending',
     updatedAt:  ahora,

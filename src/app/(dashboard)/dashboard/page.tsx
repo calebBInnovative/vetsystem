@@ -63,7 +63,7 @@ export default function DashboardPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold capitalize">{hoy}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Pet's House · Panel de control</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Pet&apos;s House · Panel de control</p>
         </div>
         <div className="flex gap-2">
           <Link href="/pacientes/nuevo">

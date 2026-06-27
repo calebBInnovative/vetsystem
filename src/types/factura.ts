@@ -32,9 +32,13 @@ export interface Factura {
   id: string;
   /** Número legible: FAC-2024-0001 */
   numero: string;
-  consultaId: string;
-  pacienteId: string;
-  duenoId: string;
+  /** Presente cuando la factura proviene de una consulta */
+  consultaId?: string;
+  /** Presente cuando la factura proviene de una venta de productos */
+  ventaId?: string;
+  /** Vacío para ventas anónimas sin paciente */
+  pacienteId?: string;
+  duenoId?: string;
   clinicaId: string;
   /** ISO date "YYYY-MM-DD" */
   fecha: string;

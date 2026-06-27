@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type SyncQueueItem } from '@/lib/db/database';
 import type { ServicioLocal, CategoriaServicio } from '@/types/servicio';
 
-const CLINICA_ID = 'house-of-pets';
+const CLINICA_ID = process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HOOKS DE LECTURA
@@ -12,7 +12,7 @@ const CLINICA_ID = 'house-of-pets';
 
 export function useServicios() {
   const resultado = useLiveQuery(async () => {
-    const servicios = await db.servicios
+    const servicios = await db.services
       .where('clinicaId')
       .equals(CLINICA_ID)
       .filter((s) => !s.deletedAt)
@@ -29,7 +29,7 @@ export function useServicios() {
 /** Solo los servicios activos — para el selector rápido en ConsultaForm */
 export function useServiciosActivos() {
   const resultado = useLiveQuery(async () => {
-    const servicios = await db.servicios
+    const servicios = await db.services
       .where('clinicaId')
       .equals(CLINICA_ID)
       .filter((s) => !s.deletedAt && s.activo)
@@ -68,26 +68,26 @@ export async function crearServicio(input: ServicioInput): Promise<string> {
     updatedAt:   ahora,
   };
 
-  await db.servicios.add(servicio);
+  await db.services.add(servicio);
   await encolarSync({ coleccion: 'servicios', documentoId: id, operacion: 'create', datos: servicio, intentos: 0, creadoEn: ahora });
   return id;
 }
 
 export async function actualizarServicio(id: string, cambios: Partial<Pick<ServicioLocal, 'nombre' | 'descripcion' | 'categoria' | 'precio' | 'activo'>>): Promise<void> {
   const ahora = Date.now();
-  await db.servicios.update(id, { ...cambios, updatedAt: ahora, syncStatus: 'pending' });
+  await db.services.update(id, { ...cambios, updatedAt: ahora, syncStatus: 'pending' });
   await encolarSync({ coleccion: 'servicios', documentoId: id, operacion: 'update', datos: { id, ...cambios, updatedAt: ahora }, intentos: 0, creadoEn: ahora });
 }
 
 export async function toggleServicioActivo(id: string): Promise<void> {
-  const s = await db.servicios.get(id);
+  const s = await db.services.get(id);
   if (!s) return;
   await actualizarServicio(id, { activo: !s.activo });
 }
 
 export async function eliminarServicio(id: string): Promise<void> {
   const ahora = Date.now();
-  await db.servicios.update(id, { deletedAt: ahora, syncStatus: 'pending', updatedAt: ahora });
+  await db.services.update(id, { deletedAt: ahora, syncStatus: 'pending', updatedAt: ahora });
   await encolarSync({ coleccion: 'servicios', documentoId: id, operacion: 'delete', datos: { id, deletedAt: ahora }, intentos: 0, creadoEn: ahora });
 }
 

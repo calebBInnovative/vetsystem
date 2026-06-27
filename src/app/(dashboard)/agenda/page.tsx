@@ -1,17 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { AgendaDia } from '@/components/agenda/AgendaDia';
-import { DatePicker } from '@/components/ui/date-picker';
+import { CalendarioCitas } from '@/components/agenda/CalendarioCitas';
 import { Button } from '@/components/ui/button';
 import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, addDays, subDays, isToday, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-export default function AgendaPage() {
-  const hoy = new Date().toISOString().slice(0, 10);
-  const [fecha, setFecha] = useState(hoy);
+function AgendaContent() {
+  const searchParams = useSearchParams();
+  const hoy          = new Date().toISOString().slice(0, 10);
+  const fechaInicial = searchParams.get('fecha') ?? hoy;
+
+  const [fecha, setFecha] = useState(fechaInicial);
 
   const fechaObj = parseISO(fecha);
   const esHoy    = isToday(fechaObj);
@@ -22,10 +26,10 @@ export default function AgendaPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
 
-      {/* ── Header ─────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Agenda</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
@@ -34,45 +38,70 @@ export default function AgendaPage() {
               : format(fechaObj, "EEEE d 'de' MMMM 'de' yyyy", { locale: es })}
           </p>
         </div>
-
         <Link href={`/agenda/nueva?fecha=${fecha}`}>
-          <Button className="gap-2 w-full sm:w-auto">
-            <Plus size={17} />
-            Nueva Cita
+          <Button className="gap-2">
+            <Plus size={16} /> Nueva cita
           </Button>
         </Link>
       </div>
 
-      {/* ── Navegación de fecha ────────────────────────── */}
-      <div className="flex items-center gap-2">
-        <Button variant="outline" size="icon" onClick={() => irADia(-1)} className="h-9 w-9">
-          <ChevronLeft size={16} />
-        </Button>
+      {/* Layout: calendario + vista del día */}
+      <div className="flex flex-col lg:flex-row gap-5 items-start">
 
-        <div className="flex-1 max-w-xs">
-          <DatePicker
-            value={fecha}
-            onChange={(v) => v && setFecha(v)}
-            placeholder="Selecciona un día"
-            toDate={new Date(new Date().getFullYear() + 2, 11, 31)}
-            fromDate={new Date(2020, 0, 1)}
-          />
+        {/* ── Calendario mensual ─────────────────────────── */}
+        <div className="w-full lg:w-64 shrink-0">
+          <CalendarioCitas fecha={fecha} onFechaChange={setFecha} />
         </div>
 
-        <Button variant="outline" size="icon" onClick={() => irADia(1)} className="h-9 w-9">
-          <ChevronRight size={16} />
-        </Button>
+        {/* ── Vista del día seleccionado ─────────────────── */}
+        <div className="flex-1 min-w-0 space-y-3">
+          {/* Navegación de día */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => irADia(-1)}
+              className="w-8 h-8 rounded-xl border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+            >
+              <ChevronLeft size={15} />
+            </button>
 
-        {!esHoy && (
-          <Button variant="ghost" size="sm" onClick={() => setFecha(hoy)} className="text-xs">
-            Hoy
-          </Button>
-        )}
+            <div className="flex-1 text-center">
+              <p className="font-semibold text-sm capitalize">
+                {format(fechaObj, "EEEE d 'de' MMMM", { locale: es })}
+              </p>
+              {esHoy && (
+                <p className="text-xs text-primary font-medium">Hoy</p>
+              )}
+            </div>
+
+            <button
+              onClick={() => irADia(1)}
+              className="w-8 h-8 rounded-xl border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+            >
+              <ChevronRight size={15} />
+            </button>
+
+            {!esHoy && (
+              <button
+                onClick={() => setFecha(hoy)}
+                className="text-xs px-3 py-1.5 rounded-xl border border-border hover:bg-muted/40 transition-colors text-muted-foreground"
+              >
+                Hoy
+              </button>
+            )}
+          </div>
+
+          {/* Citas del día */}
+          <AgendaDia fecha={fecha} />
+        </div>
       </div>
-
-      {/* ── Citas del día ─────────────────────────────── */}
-      <AgendaDia fecha={fecha} />
-
     </div>
+  );
+}
+
+export default function AgendaPage() {
+  return (
+    <Suspense>
+      <AgendaContent />
+    </Suspense>
   );
 }

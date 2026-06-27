@@ -70,6 +70,11 @@ export default function FacturaDetallePage({ params }: { params: Promise<{ id: s
               Ver consulta
             </Button>
           )}
+          {factura.ventaId && (
+            <Button variant="outline" size="sm" onClick={() => router.push('/ventas')}>
+              Ver ventas
+            </Button>
+          )}
           {puedeMarcarPagada && (
             <Button size="sm" onClick={() => setAccion('cobrar')}>
               Registrar cobro

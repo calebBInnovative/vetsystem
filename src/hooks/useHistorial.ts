@@ -14,7 +14,7 @@ import type { ConsultaLocal } from '@/types/consulta';
 import type { ConsultaFormData } from '@/lib/validations/historial.schema';
 
 // TODO: en producción vendrá del contexto de autenticación
-const CLINICA_ID = 'house-of-pets';
+const CLINICA_ID = process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HOOKS DE LECTURA
@@ -26,7 +26,7 @@ const CLINICA_ID = 'house-of-pets';
  */
 export function useHistorialPaciente(pacienteId: string) {
   const resultado = useLiveQuery(async () => {
-    return db.consultas
+    return db.consultations
       .where('pacienteId')
       .equals(pacienteId)
       .filter((c) => !c.deletedAt)
@@ -46,7 +46,7 @@ export function useHistorialPaciente(pacienteId: string) {
  */
 export function useConsulta(id: string) {
   const resultado = useLiveQuery(async () => {
-    const consulta = await db.consultas.get(id);
+    const consulta = await db.consultations.get(id);
     if (!consulta || consulta.deletedAt) return null;
     return consulta;
   }, [id]);
@@ -63,7 +63,7 @@ export function useConsulta(id: string) {
  */
 export function useUltimasConsultas(limite = 10) {
   const resultado = useLiveQuery(async () => {
-    return db.consultas
+    return db.consultations
       .where('clinicaId')
       .equals(CLINICA_ID)
       .filter((c) => !c.deletedAt)
@@ -96,7 +96,7 @@ export async function crearConsulta(
   const ahora      = Date.now();
   const consultaId = crypto.randomUUID();
 
-  const paciente = await db.pacientes.get(pacienteId);
+  const paciente = await db.patients.get(pacienteId);
 
   const nuevaConsulta: ConsultaLocal = {
     id:            consultaId,
@@ -122,7 +122,7 @@ export async function crearConsulta(
     updatedAt:     ahora,
   };
 
-  await db.consultas.add(nuevaConsulta);
+  await db.consultations.add(nuevaConsulta);
   await encolarSync({
     coleccion: 'consultas', documentoId: consultaId, operacion: 'create',
     datos: nuevaConsulta,
@@ -143,7 +143,7 @@ export async function actualizarConsulta(
   const ahora   = Date.now();
   const payload = { ...cambios, updatedAt: ahora, syncStatus: 'pending' as const };
 
-  await db.consultas.update(id, payload);
+  await db.consultations.update(id, payload);
   await encolarSync({
     coleccion: 'consultas', documentoId: id, operacion: 'update',
     datos: { id, ...payload },
@@ -157,7 +157,7 @@ export async function actualizarConsulta(
 export async function eliminarConsulta(id: string): Promise<void> {
   const ahora = Date.now();
 
-  await db.consultas.update(id, {
+  await db.consultations.update(id, {
     deletedAt:  ahora,
     syncStatus: 'pending',
     updatedAt:  ahora,

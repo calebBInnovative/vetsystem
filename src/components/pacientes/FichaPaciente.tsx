@@ -1,11 +1,14 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePaciente } from '@/hooks/usePacientes';
 import { ESPECIES } from '@/types/paciente';
 import { Phone, Mail, MapPin, Weight, Calendar, Palette, Edit, ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { IniciarConsultaModal } from '@/components/pacientes/IniciarConsultaModal';
+import { AgendarCitaModal } from '@/components/pacientes/AgendarCitaModal';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -16,6 +19,10 @@ interface FichaPacienteProps {
 
 export function FichaPaciente({ pacienteId }: FichaPacienteProps) {
   const { paciente, cargando } = usePaciente(pacienteId);
+
+  // Todos los hooks antes de cualquier return condicional
+  const [modalConsulta, setModalConsulta] = useState(false);
+  const [modalCita,     setModalCita]     = useState(false);
 
   if (cargando) {
     return (
@@ -38,7 +45,6 @@ export function FichaPaciente({ pacienteId }: FichaPacienteProps) {
   }
 
   const especie = ESPECIES[paciente.especie];
-  const sincronizado = paciente.syncStatus === 'synced';
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -79,16 +85,6 @@ export function FichaPaciente({ pacienteId }: FichaPacienteProps) {
             {paciente.color && (
               <Badge variant="secondary">{paciente.color}</Badge>
             )}
-            <Badge
-              variant="outline"
-              className={cn(
-                sincronizado
-                  ? 'text-green-700 border-green-200 bg-green-50 dark:text-green-400 dark:border-green-800 dark:bg-green-950/40'
-                  : 'text-amber-700 border-amber-200 bg-amber-50 dark:text-amber-400 dark:border-amber-800 dark:bg-amber-950/40'
-              )}
-            >
-              {sincronizado ? '✓ Sincronizado' : '⏳ Pendiente'}
-            </Badge>
           </div>
         </div>
       </div>
@@ -146,31 +142,47 @@ export function FichaPaciente({ pacienteId }: FichaPacienteProps) {
 
       {/* ── Acciones rápidas ───────────────────────────── */}
       <div className="grid grid-cols-3 gap-3">
-        {[
-          { emoji: '📋', label: 'Historial', href: `/pacientes/${pacienteId}/historial` },
-          { emoji: '📅', label: 'Nueva Cita',  href: undefined },
-          { emoji: '💬', label: 'WhatsApp',    href: undefined },
-        ].map(({ emoji, label, href }) => (
-          <Button
-            key={label}
-            variant="outline"
-            className="h-auto py-4 flex-col gap-1.5"
-            asChild={!!href}
-          >
-            {href ? (
-              <Link href={href}>
-                <span className="text-xl">{emoji}</span>
-                <span className="text-xs font-medium">{label}</span>
-              </Link>
-            ) : (
-              <>
-                <span className="text-xl">{emoji}</span>
-                <span className="text-xs font-medium">{label}</span>
-              </>
-            )}
-          </Button>
-        ))}
+        <Button
+          variant="outline"
+          className="h-auto py-4 flex-col gap-1.5"
+          onClick={() => setModalConsulta(true)}
+        >
+          <span className="text-xl">🩺</span>
+          <span className="text-xs font-medium">Iniciar consulta</span>
+        </Button>
+
+        <Button
+          variant="outline"
+          className="h-auto py-4 flex-col gap-1.5"
+          onClick={() => setModalCita(true)}
+        >
+          <span className="text-xl">📅</span>
+          <span className="text-xs font-medium">Agendar cita</span>
+        </Button>
+
+        <Button
+          variant="outline"
+          className="h-auto py-4 flex-col gap-1.5"
+          asChild
+        >
+          <Link href={`/pacientes/${pacienteId}/historial`}>
+            <span className="text-xl">📋</span>
+            <span className="text-xs font-medium">Historial</span>
+          </Link>
+        </Button>
       </div>
+
+      {/* Modales */}
+      <IniciarConsultaModal
+        open={modalConsulta}
+        onClose={() => setModalConsulta(false)}
+        paciente={paciente}
+      />
+      <AgendarCitaModal
+        open={modalCita}
+        onClose={() => setModalCita(false)}
+        paciente={paciente}
+      />
 
     </div>
   );

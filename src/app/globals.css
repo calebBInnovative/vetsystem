@@ -178,3 +178,25 @@ body {
 .dark .bg-card {
   box-shadow: none;
 }
+
+/* ── Impresión: recibo térmico 80 mm ─────────────────── */
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 3mm 4mm;
+  }
+
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+}
+
+/* Nav loading bar animation */
+@keyframes nav-bar {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(450%); }
+}
+.nav-loading-bar {
+  animation: nav-bar 1.4s ease-in-out infinite;
+}

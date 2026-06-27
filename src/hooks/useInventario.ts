@@ -5,7 +5,7 @@ import { db, type SyncQueueItem } from '@/lib/db/database';
 import type { ProductoLocal, MovimientoStockLocal, CategoriaProducto } from '@/types/inventario';
 import type { ProductoFormData, AjusteStockFormData } from '@/lib/validations/inventario.schema';
 
-const CLINICA_ID = 'house-of-pets';
+const CLINICA_ID = process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HOOKS DE LECTURA
@@ -16,7 +16,7 @@ const CLINICA_ID = 'house-of-pets';
  */
 export function useProductos(busqueda = '', categoria?: CategoriaProducto) {
   const resultado = useLiveQuery(async () => {
-    let productos = await db.productos
+    let productos = await db.products
       .where('clinicaId')
       .equals(CLINICA_ID)
       .filter((p) => !p.deletedAt && p.activo)
@@ -50,7 +50,7 @@ export function useProductos(busqueda = '', categoria?: CategoriaProducto) {
  */
 export function useAlertasStock() {
   const resultado = useLiveQuery(async () => {
-    return db.productos
+    return db.products
       .where('clinicaId')
       .equals(CLINICA_ID)
       .filter((p) => !p.deletedAt && p.activo && p.stockActual <= p.stockMinimo)
@@ -68,7 +68,7 @@ export function useAlertasStock() {
  */
 export function useProducto(id: string) {
   const resultado = useLiveQuery(async () => {
-    const p = await db.productos.get(id);
+    const p = await db.products.get(id);
     return p?.deletedAt ? null : (p ?? null);
   }, [id]);
 
@@ -83,7 +83,7 @@ export function useProducto(id: string) {
  */
 export function useMovimientosProducto(productoId: string) {
   const resultado = useLiveQuery(async () => {
-    return db.movimientos
+    return db.movements
       .where('productoId')
       .equals(productoId)
       .reverse()
@@ -127,7 +127,7 @@ export async function crearProducto(datos: ProductoFormData): Promise<string> {
     updatedAt:        ahora,
   };
 
-  await db.productos.add(nuevo);
+  await db.products.add(nuevo);
 
   // Registrar movimiento inicial si hay stock
   if (nuevo.stockActual > 0) {
@@ -154,7 +154,7 @@ export async function actualizarProducto(
 ): Promise<void> {
   const ahora   = Date.now();
   const payload = { ...cambios, updatedAt: ahora, syncStatus: 'pending' as const };
-  await db.productos.update(id, payload);
+  await db.products.update(id, payload);
   await encolarSync({ coleccion: 'productos', documentoId: id, operacion: 'update', datos: { id, ...payload }, intentos: 0, creadoEn: ahora });
 }
 
@@ -163,14 +163,14 @@ export async function actualizarProducto(
  * Actualiza `stockActual` del producto automáticamente.
  */
 export async function ajustarStock(productoId: string, datos: AjusteStockFormData): Promise<void> {
-  const producto = await db.productos.get(productoId);
+  const producto = await db.products.get(productoId);
   if (!producto) throw new Error(`Producto ${productoId} no encontrado`);
 
   const cantidad     = datos.tipo === 'salida' ? -datos.cantidad : datos.cantidad as number;
   const stockAntes   = producto.stockActual;
   const stockDespues = Math.max(0, stockAntes + cantidad);
 
-  await db.productos.update(productoId, {
+  await db.products.update(productoId, {
     stockActual: stockDespues,
     updatedAt:   Date.now(),
     syncStatus:  'pending',
@@ -189,7 +189,7 @@ export async function ajustarStock(productoId: string, datos: AjusteStockFormDat
 /** Soft delete */
 export async function eliminarProducto(id: string): Promise<void> {
   const ahora = Date.now();
-  await db.productos.update(id, { deletedAt: ahora, syncStatus: 'pending', updatedAt: ahora });
+  await db.products.update(id, { deletedAt: ahora, syncStatus: 'pending', updatedAt: ahora });
   await encolarSync({ coleccion: 'productos', documentoId: id, operacion: 'delete', datos: { id, deletedAt: ahora }, intentos: 0, creadoEn: ahora });
 }
 
@@ -209,7 +209,7 @@ async function registrarMovimiento(
     updatedAt:    ahora,
     ...datos,
   };
-  await db.movimientos.add(movimiento);
+  await db.movements.add(movimiento);
   await encolarSync({ coleccion: 'movimientos', documentoId: movimiento.id, operacion: 'create', datos: movimiento, intentos: 0, creadoEn: ahora });
 }
 

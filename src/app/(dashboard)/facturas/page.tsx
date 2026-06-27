@@ -47,7 +47,15 @@ function FacturaRow({ factura }: { factura: FacturaCompleta }) {
           </span>
         </div>
         <p className="text-sm text-muted-foreground truncate mt-0.5">
-          {factura.nombrePaciente ?? '—'} · {factura.nombreDueno ?? '—'}
+          {factura.ventaId
+            ? (() => {
+                const items = factura.items ?? [];
+                const resumen = items.slice(0, 2).map((i) => `${i.descripcion} ×${i.cantidad}`).join(', ');
+                const extra   = items.length > 2 ? ` +${items.length - 2} más` : '';
+                return `🛒 ${resumen}${extra}` || 'Venta de productos';
+              })()
+            : `${factura.nombrePaciente ?? '—'} · ${factura.nombreDueno ?? '—'}`
+          }
         </p>
       </div>
 
@@ -73,7 +81,8 @@ export default function FacturasPage() {
         return (
           f.numero.toLowerCase().includes(q) ||
           f.nombrePaciente?.toLowerCase().includes(q) ||
-          f.nombreDueno?.toLowerCase().includes(q)
+          f.nombreDueno?.toLowerCase().includes(q) ||
+          f.items?.some((i) => i.descripcion.toLowerCase().includes(q))
         );
       })
     : facturas;

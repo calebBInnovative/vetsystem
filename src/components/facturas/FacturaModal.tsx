@@ -7,6 +7,7 @@ import { Loader2 } from 'lucide-react';
 import { crearFactura } from '@/hooks/useFacturas';
 import { METODOS_PAGO_FACTURA, type MetodoPagoFactura, type EstadoFactura } from '@/types/factura';
 import type { ConsultaConPaciente } from '@/types/consulta';
+import { DescuentoInput } from '@/components/common/DescuentoInput';
 import { cn } from '@/lib/utils';
 
 interface FacturaModalProps {
@@ -113,15 +114,12 @@ export function FacturaModal({ consulta, open, onGuardada }: FacturaModalProps) 
                 <span>Subtotal</span>
                 <span>{fmt(subtotal)}</span>
               </div>
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>Descuento (C$)</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={descuento}
-                  onChange={(e) => setDescuento(e.target.value)}
-                  className="w-24 text-right rounded-lg border border-input bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              <div className="space-y-1.5">
+                <span className="text-sm text-muted-foreground">Descuento</span>
+                <DescuentoInput
+                  subtotal={subtotal}
+                  value={descuentoNum}
+                  onChange={(monto) => setDescuento(String(monto))}
                 />
               </div>
               <div className="flex justify-between font-bold text-base pt-1 border-t border-border">

@@ -20,6 +20,8 @@ import type { ProductoLocal, MovimientoStockLocal } from '@/types/inventario';
 import type { PagoLocal } from '@/types/finanzas';
 import type { FacturaLocal } from '@/types/factura';
 import type { ServicioLocal } from '@/types/servicio';
+import type { VentaLocal }    from '@/types/venta';
+import type { SessionLocal }  from '@/types/licencia';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TIPOS INTERNOS
@@ -33,7 +35,7 @@ import type { ServicioLocal } from '@/types/servicio';
 export interface SyncQueueItem {
   /** Auto-incremental — no necesita UUID */
   id?: number;
-  /** Nombre de la colección en Firestore: "pacientes", "duenos", etc. */
+  /** Nombre de la colección en Firestore */
   coleccion: string;
   /** ID del documento que se debe sincronizar */
   documentoId: string;
@@ -51,29 +53,35 @@ export interface SyncQueueItem {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class VetSystemDB extends Dexie {
-  // Módulo Pacientes
-  pacientes!: EntityTable<PacienteLocal, 'id'>;
-  duenos!:    EntityTable<DuenoLocal,    'id'>;
+  // Patients module
+  patients!:      EntityTable<PacienteLocal,        'id'>;
+  owners!:        EntityTable<DuenoLocal,            'id'>;
 
-  // Módulo Historial Clínico
-  consultas!: EntityTable<ConsultaLocal, 'id'>;
+  // Clinical history module
+  consultations!: EntityTable<ConsultaLocal,         'id'>;
 
-  // Módulo Agenda
-  citas!: EntityTable<CitaLocal, 'id'>;
+  // Agenda module
+  appointments!:  EntityTable<CitaLocal,             'id'>;
 
-  // Módulo Inventario
-  productos!:   EntityTable<ProductoLocal,        'id'>;
-  movimientos!: EntityTable<MovimientoStockLocal, 'id'>;
+  // Inventory module
+  products!:      EntityTable<ProductoLocal,         'id'>;
+  movements!:     EntityTable<MovimientoStockLocal,  'id'>;
 
-  // Módulo Finanzas
-  pagos!:    EntityTable<PagoLocal,    'id'>;
-  facturas!: EntityTable<FacturaLocal, 'id'>;
+  // Finance module
+  payments!:      EntityTable<PagoLocal,             'id'>;
+  invoices!:      EntityTable<FacturaLocal,          'id'>;
 
-  // Catálogo de servicios
-  servicios!: EntityTable<ServicioLocal, 'id'>;
+  // Services catalog
+  services!:      EntityTable<ServicioLocal,         'id'>;
 
-  // Infraestructura de sync
-  syncQueue!: EntityTable<SyncQueueItem, 'id'>;
+  // Product sales (POS)
+  sales!:         EntityTable<VentaLocal,            'id'>;
+
+  // Session & license (singleton — always id = 'singleton')
+  session!:       EntityTable<SessionLocal,          'id'>;
+
+  // Sync infrastructure
+  syncQueue!:     EntityTable<SyncQueueItem,         'id'>;
 
   constructor() {
     super('vetsystem-db');
@@ -92,31 +100,31 @@ class VetSystemDB extends Dexie {
      */
     this.version(1).stores({
       pacientes: [
-        'id',           // PK
-        'nombre',       // búsqueda por nombre
-        'especie',      // filtro por especie
-        'duenoId',      // join con duenos
-        'clinicaId',    // multi-clínica
-        'activo',       // filtrar activos/inactivos
-        'syncStatus',   // procesar pendientes
-        'updatedAt',    // ordenar por reciente
-        'deletedAt',    // soft delete
+        'id',
+        'nombre',
+        'especie',
+        'duenoId',
+        'clinicaId',
+        'activo',
+        'syncStatus',
+        'updatedAt',
+        'deletedAt',
       ].join(', '),
 
       duenos: [
-        'id',           // PK
-        'nombre',       // búsqueda por nombre de dueño
-        'telefono',     // deduplicación por teléfono
+        'id',
+        'nombre',
+        'telefono',
         'clinicaId',
         'syncStatus',
         'updatedAt',
       ].join(', '),
 
       syncQueue: [
-        '++id',         // auto-increment
-        'coleccion',    // para procesar por colección
-        'documentoId',  // para actualizar/cancelar items
-        'creadoEn',     // para procesar en orden FIFO
+        '++id',
+        'coleccion',
+        'documentoId',
+        'creadoEn',
       ].join(', '),
     });
 
@@ -151,11 +159,11 @@ class VetSystemDB extends Dexie {
     this.version(4).stores({
       productos: [
         'id',
-        'nombre',         // búsqueda por nombre
-        'categoria',      // filtrar por categoría
+        'nombre',
+        'categoria',
         'clinicaId',
         'activo',
-        'stockActual',    // ordenar/filtrar por stock
+        'stockActual',
         'syncStatus',
         'updatedAt',
         'deletedAt',
@@ -188,16 +196,15 @@ class VetSystemDB extends Dexie {
     });
 
     this.version(6).stores({
-      // Re-indexa consultas con los nuevos campos del módulo Atenciones
       consultas: [
         'id',
         'pacienteId',
-        'duenoId',       // nuevo — join con dueños
+        'duenoId',
         'clinicaId',
         'fecha',
         'tipo',
-        'estado',        // nuevo — filtrar en_proceso / completada / cancelada
-        'citaId',        // nuevo — link desde agenda
+        'estado',
+        'citaId',
         'syncStatus',
         'updatedAt',
         'deletedAt',
@@ -207,13 +214,13 @@ class VetSystemDB extends Dexie {
     this.version(7).stores({
       facturas: [
         'id',
-        'numero',        // FAC-YYYY-NNNN — búsqueda directa
-        'consultaId',    // link a la consulta origen
+        'numero',
+        'consultaId',
         'pacienteId',
         'duenoId',
         'clinicaId',
         'fecha',
-        'estado',        // pagada / pendiente / parcialmente_pagada / cancelada
+        'estado',
         'syncStatus',
         'updatedAt',
         'deletedAt',
@@ -230,6 +237,71 @@ class VetSystemDB extends Dexie {
         'updatedAt',
         'deletedAt',
       ].join(', '),
+    });
+
+    this.version(9).stores({
+      ventas: [
+        'id',
+        'clinicaId',
+        'fecha',
+        'estado',
+        'pacienteId',
+        'syncStatus',
+        'updatedAt',
+        'deletedAt',
+      ].join(', '),
+    });
+
+    this.version(10).stores({
+      sesion: 'id, uid, clinicaId',
+    });
+
+    this.version(11).stores({
+      patients:      'id, name, species, ownerId, clinicId, active, syncStatus, updatedAt, deletedAt',
+      owners:        'id, name, phone, clinicId, syncStatus, updatedAt',
+      consultations: 'id, patientId, ownerId, clinicId, date, type, status, appointmentId, syncStatus, updatedAt, deletedAt',
+      appointments:  'id, patientId, ownerId, clinicId, date, status, type, syncStatus, updatedAt, deletedAt',
+      products:      'id, name, category, clinicId, active, currentStock, syncStatus, updatedAt, deletedAt',
+      movements:     'id, productId, clinicId, type, createdAt, syncStatus, updatedAt',
+      payments:      'id, patientId, clinicId, date, type, status, paymentMethod, syncStatus, updatedAt, deletedAt',
+      invoices:      'id, number, consultationId, patientId, ownerId, clinicId, date, status, syncStatus, updatedAt, deletedAt',
+      services:      'id, clinicId, category, active, syncStatus, updatedAt, deletedAt',
+      sales:         'id, clinicId, date, status, patientId, syncStatus, updatedAt, deletedAt',
+      session:       'id, uid, clinicId',
+      // Drop old Spanish stores
+      pacientes:     null,
+      duenos:        null,
+      consultas:     null,
+      citas:         null,
+      productos:     null,
+      movimientos:   null,
+      pagos:         null,
+      facturas:      null,
+      servicios:     null,
+      ventas:        null,
+      sesion:        null,
+    }).upgrade(() => {
+      // No data migration needed — dev environment, data will be re-seeded
+    });
+
+    this.version(12).stores({
+      // Add 'intentos' index to syncQueue so .where('intentos').below(N) works
+      syncQueue: '++id, coleccion, documentoId, creadoEn, intentos',
+    });
+
+    // v11 used wrong (English) field names as indexes — Dexie indexes must match
+    // the actual property names on the stored objects (still Spanish in TypeScript types).
+    this.version(13).stores({
+      patients:      'id, nombre, especie, duenoId, clinicaId, activo, syncStatus, updatedAt, deletedAt',
+      owners:        'id, nombre, telefono, clinicaId, syncStatus, updatedAt',
+      consultations: 'id, pacienteId, duenoId, clinicaId, fecha, tipo, estado, citaId, syncStatus, updatedAt, deletedAt',
+      appointments:  'id, pacienteId, duenoId, clinicaId, fecha, estado, tipo, syncStatus, updatedAt, deletedAt',
+      products:      'id, nombre, categoria, clinicaId, activo, stockActual, syncStatus, updatedAt, deletedAt',
+      movements:     'id, productoId, clinicaId, tipo, creadoEn, syncStatus, updatedAt',
+      payments:      'id, pacienteId, clinicaId, fecha, tipo, estado, metodoPago, syncStatus, updatedAt, deletedAt',
+      invoices:      'id, numero, consultaId, pacienteId, duenoId, clinicaId, fecha, estado, syncStatus, updatedAt, deletedAt',
+      services:      'id, clinicaId, categoria, activo, syncStatus, updatedAt, deletedAt',
+      sales:         'id, clinicaId, fecha, estado, pacienteId, syncStatus, updatedAt, deletedAt',
     });
   }
 }

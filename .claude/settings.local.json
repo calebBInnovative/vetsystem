@@ -5,7 +5,30 @@
       "Bash(curl -s http://localhost:3000)",
       "Bash(npm install *)",
       "Read(//Users/macbookpro/.nvm/versions/node/**)",
-      "Bash(~/.nvm/versions/node/v20.16.0/bin/npm install *)"
+      "Bash(~/.nvm/versions/node/v20.16.0/bin/npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(git -C /Users/macbookpro/caleb/VetSystem/vetsystem/.claude/worktrees/agent-a4dd5dd957b4f7ba2 status --short)",
+      "Bash(sed -i '' 's/db\\\\.facturas/db.invoices/g; *)",
+      "Bash(sed -i '' 's/db\\\\.consultas/db.consultations/g; *)",
+      "Bash(sed -i '' 's/db\\\\.citas/db.appointments/g; *)",
+      "Bash(sed -i '' 's/db\\\\.productos/db.products/g; *)",
+      "Bash(sed -i '' 's/db\\\\.pagos/db.payments/g; *)",
+      "Bash(sed -i '' 's/.where\\('\\\\''clinicaId'\\\\''\\).equals\\('\\\\''house-of-pets'\\\\''\\)/.where\\('\\\\''clinicaId'\\\\''\\).equals\\(process.env.NEXT_PUBLIC_CLINIC_ID ?? '\\\\''house-of-pets'\\\\''\\)/' '/Users/macbookpro/caleb/VetSystem/vetsystem/src/app/\\(dashboard\\)/ventas/page.tsx')",
+      "Bash(sed -i '' 's/session?.clinicId ?? '\\\\''house-of-pets'\\\\''/session?.clinicId ?? process.env.NEXT_PUBLIC_CLINIC_ID ?? '\\\\''house-of-pets'\\\\''/' '/Users/macbookpro/caleb/VetSystem/vetsystem/src/app/\\(dashboard\\)/admin/page.tsx')",
+      "Bash(/Users/macbookpro/google-cloud-sdk/bin/gsutil ls *)",
+      "Bash(npx firebase *)",
+      "Bash(firebase projects:list)",
+      "Bash(/Users/macbookpro/google-cloud-sdk/bin/gcloud auth *)",
+      "Bash(/Users/macbookpro/google-cloud-sdk/bin/gcloud config *)",
+      "Bash(/Users/macbookpro/google-cloud-sdk/bin/gsutil cors *)",
+      "Bash(git -C /Users/macbookpro/caleb/VetSystem/vetsystem/.claude/worktrees/agent-aa8335204ad3a602e status --short)",
+      "Bash(git -C /Users/macbookpro/caleb/VetSystem/vetsystem/.claude/worktrees/agent-aa8335204ad3a602e diff --name-only HEAD)",
+      "Bash(git -C /Users/macbookpro/caleb/VetSystem/vetsystem/.claude/worktrees/agent-aa8335204ad3a602e branch)",
+      "Bash(git -C /Users/macbookpro/caleb/VetSystem/vetsystem/.claude/worktrees/agent-aa8335204ad3a602e sparse-checkout list)",
+      "Bash(git -C /Users/macbookpro/caleb/VetSystem/vetsystem show HEAD:src/app/\\\\\\(dashboard\\\\\\)/admin/page.tsx)",
+      "Bash(git -C /Users/macbookpro/caleb/VetSystem/vetsystem show development:src/app/\\\\\\(dashboard\\\\\\)/admin/page.tsx)",
+      "Bash(git -C /Users/macbookpro/caleb/VetSystem/vetsystem/.claude/worktrees/agent-aa8335204ad3a602e log --oneline -3)",
+      "Bash(git -C /Users/macbookpro/caleb/VetSystem/vetsystem/.claude/worktrees/agent-aa8335204ad3a602e show HEAD:src/app/\\\\\\(dashboard\\\\\\)/admin/page.tsx)"
     ]
   }
 }

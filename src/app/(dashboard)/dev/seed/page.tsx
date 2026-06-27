@@ -1,16 +1,28 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { sembrarDatos, limpiarDatos } from '@/lib/dev/seed';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Loader2, Sprout, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
 
 type Estado = 'idle' | 'cargando' | 'ok' | 'error';
 
 export default function SeedPage() {
+  const { session, cargando } = useAuth();
+  const router = useRouter();
+  const esMaster = session?.role === 'master';
+
   const [estado, setEstado]   = useState<Estado>('idle');
   const [mensaje, setMensaje] = useState('');
   const [conteos, setConteos] = useState<Record<string, number> | null>(null);
+
+  useEffect(() => {
+    if (!cargando && !esMaster) router.replace('/dashboard');
+  }, [cargando, esMaster, router]);
+
+  if (cargando || !esMaster) return null;
 
   async function handleSembrar() {
     setEstado('cargando');

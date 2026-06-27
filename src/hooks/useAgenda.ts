@@ -5,11 +5,37 @@ import { db, type SyncQueueItem } from '@/lib/db/database';
 import type { CitaLocal, EstadoCita } from '@/types/agenda';
 import type { CitaFormData } from '@/lib/validations/agenda.schema';
 
-const CLINICA_ID = 'house-of-pets';
+const CLINICA_ID = process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HOOKS DE LECTURA
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Retorna un mapa fecha→conteo de citas activas para todo un mes.
+ * Usado por el calendario mensual de la agenda.
+ */
+export function useCitasMes(year: number, month: number) {
+  // month es 0-indexed (como JS Date)
+  const primerDia = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+  const ultimoDia = `${year}-${String(month + 1).padStart(2, '0')}-${String(new Date(year, month + 1, 0).getDate()).padStart(2, '0')}`;
+
+  const resultado = useLiveQuery(async () => {
+    const citas = await db.appointments
+      .where('fecha')
+      .between(primerDia, ultimoDia, true, true)
+      .filter((c) => !c.deletedAt && c.clinicaId === CLINICA_ID && c.estado !== 'cancelada')
+      .toArray();
+
+    const map = new Map<string, number>();
+    for (const c of citas) {
+      map.set(c.fecha, (map.get(c.fecha) ?? 0) + 1);
+    }
+    return map;
+  }, [primerDia, ultimoDia]);
+
+  return resultado ?? new Map<string, number>();
+}
 
 /**
  * Retorna todas las citas activas de un día específico, ordenadas por hora.
@@ -17,7 +43,7 @@ const CLINICA_ID = 'house-of-pets';
  */
 export function useCitasDelDia(fecha: string) {
   const resultado = useLiveQuery(async () => {
-    const citas = await db.citas
+    const citas = await db.appointments
       .where('fecha')
       .equals(fecha)
       .filter((c) => !c.deletedAt && c.clinicaId === CLINICA_ID)
@@ -31,8 +57,8 @@ export function useCitasDelDia(fecha: string) {
     const duenoIds    = [...new Set(citas.map((c) => c.duenoId))];
 
     const [pacientes, duenos] = await Promise.all([
-      db.pacientes.bulkGet(pacienteIds),
-      db.duenos.bulkGet(duenoIds),
+      db.patients.bulkGet(pacienteIds),
+      db.owners.bulkGet(duenoIds),
     ]);
 
     const pacientesMap = new Map(pacientes.filter(Boolean).map((p) => [p!.id, p!]));
@@ -60,7 +86,7 @@ export function useCitasProximas(limite = 5) {
   const hoy = new Date().toISOString().slice(0, 10);
 
   const resultado = useLiveQuery(async () => {
-    const citas = await db.citas
+    const citas = await db.appointments
       .where('fecha')
       .aboveOrEqual(hoy)
       .filter(
@@ -79,7 +105,7 @@ export function useCitasProximas(limite = 5) {
     );
 
     const pacienteIds = [...new Set(citas.map((c) => c.pacienteId))];
-    const pacientes   = await db.pacientes.bulkGet(pacienteIds);
+    const pacientes   = await db.patients.bulkGet(pacienteIds);
     const pacientesMap = new Map(pacientes.filter(Boolean).map((p) => [p!.id, p!]));
 
     return citas.map((c) => ({
@@ -100,7 +126,7 @@ export function useCitasProximas(limite = 5) {
  */
 export function useCitasPaciente(pacienteId: string) {
   const resultado = useLiveQuery(async () => {
-    return db.citas
+    return db.appointments
       .where('pacienteId')
       .equals(pacienteId)
       .filter((c) => !c.deletedAt)
@@ -128,7 +154,7 @@ export async function crearCita(datos: CitaFormData): Promise<string> {
   const citaId = crypto.randomUUID();
 
   // Obtener el dueñoId del paciente
-  const paciente = await db.pacientes.get(datos.pacienteId);
+  const paciente = await db.patients.get(datos.pacienteId);
   if (!paciente) throw new Error(`Paciente ${datos.pacienteId} no encontrado`);
 
   const nuevaCita: CitaLocal = {
@@ -149,7 +175,7 @@ export async function crearCita(datos: CitaFormData): Promise<string> {
     updatedAt:        ahora,
   };
 
-  await db.citas.add(nuevaCita);
+  await db.appointments.add(nuevaCita);
   await encolarSync({
     coleccion: 'citas', documentoId: citaId, operacion: 'create',
     datos: nuevaCita, intentos: 0, creadoEn: ahora,
@@ -163,7 +189,7 @@ export async function crearCita(datos: CitaFormData): Promise<string> {
  */
 export async function cambiarEstadoCita(id: string, estado: EstadoCita): Promise<void> {
   const ahora = Date.now();
-  await db.citas.update(id, { estado, updatedAt: ahora, syncStatus: 'pending' });
+  await db.appointments.update(id, { estado, updatedAt: ahora, syncStatus: 'pending' });
   await encolarSync({
     coleccion: 'citas', documentoId: id, operacion: 'update',
     datos: { id, estado, updatedAt: ahora },
@@ -180,7 +206,7 @@ export async function actualizarCita(
 ): Promise<void> {
   const ahora   = Date.now();
   const payload = { ...cambios, updatedAt: ahora, syncStatus: 'pending' as const };
-  await db.citas.update(id, payload);
+  await db.appointments.update(id, payload);
   await encolarSync({
     coleccion: 'citas', documentoId: id, operacion: 'update',
     datos: { id, ...payload }, intentos: 0, creadoEn: ahora,
@@ -190,7 +216,7 @@ export async function actualizarCita(
 /** Soft delete */
 export async function eliminarCita(id: string): Promise<void> {
   const ahora = Date.now();
-  await db.citas.update(id, { deletedAt: ahora, syncStatus: 'pending', updatedAt: ahora });
+  await db.appointments.update(id, { deletedAt: ahora, syncStatus: 'pending', updatedAt: ahora });
   await encolarSync({
     coleccion: 'citas', documentoId: id, operacion: 'delete',
     datos: { id, deletedAt: ahora }, intentos: 0, creadoEn: ahora,

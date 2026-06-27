@@ -72,7 +72,7 @@ export function PacienteForm({
                 <button
                   key={valor}
                   type="button"
-                  onClick={() => setValue('especie', valor as any, { shouldValidate: true })}
+                  onClick={() => setValue('especie', valor as PacienteFormData['especie'], { shouldValidate: true })}
                   className={cn(
                     "flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all hover:border-primary/50",
                     especieActual === valor 
