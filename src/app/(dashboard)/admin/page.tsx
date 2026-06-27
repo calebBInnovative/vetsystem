@@ -183,7 +183,7 @@ const ROLES_STAFF: { value: RolUsuario; label: string }[] = [
   { value: 'recepcion',   label: 'Recepción'   },
 ];
 
-function TabUsuarios({ esMaster }: { esMaster: boolean }) {
+function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
   const { session } = useAuth();
   const clinicId = session?.clinicId ?? process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
 

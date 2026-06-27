@@ -1,5 +1,9 @@
 import { FichaPaciente } from '@/components/pacientes/FichaPaciente';
 
+export function generateStaticParams() {
+  return [{ id: "_" }];
+}
+
 interface Props {
   params: Promise<{ id: string }>;
 }

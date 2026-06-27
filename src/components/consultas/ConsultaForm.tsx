@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@/lib/zod-resolver';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -18,7 +18,7 @@ import { DescuentoInput } from '@/components/common/DescuentoInput';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
-  Loader2, Save, CheckCircle, Search, Plus, Minus, Trash2,
+  Loader2, Save, CheckCircle, Search, Plus, Minus,
   Activity, FileText, Package, Receipt, X,
 } from 'lucide-react';
 

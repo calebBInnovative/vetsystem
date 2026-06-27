@@ -6,11 +6,10 @@ import { pacienteSchema, type PacienteFormData } from '@/lib/validations/pacient
 import { ESPECIES } from '@/types/paciente';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { DatePicker } from '@/components/ui/date-picker';
 import { cn } from '@/lib/utils';
-import { Loader2, Camera } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 interface PacienteFormProps {
   onSubmit: (datos: PacienteFormData) => Promise<void>;

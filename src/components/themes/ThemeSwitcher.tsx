@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 export function ThemeSwitcher() {
-  const { palette, mode, setPalette, toggleMode, currentTheme } = useTheme();
+  const { mode, setPalette, toggleMode, currentTheme } = useTheme();
 
   return (
     <div className="flex items-center gap-2">

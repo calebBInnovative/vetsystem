@@ -11,7 +11,6 @@ import { IniciarConsultaModal } from '@/components/pacientes/IniciarConsultaModa
 import { AgendarCitaModal } from '@/components/pacientes/AgendarCitaModal';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
 
 interface FichaPacienteProps {
   pacienteId: string;

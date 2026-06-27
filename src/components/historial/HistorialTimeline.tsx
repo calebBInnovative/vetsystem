@@ -6,7 +6,6 @@ import { ConsultaCard } from './ConsultaCard';
 import { Button } from '@/components/ui/button';
 import { Loader2, Plus, ClipboardList } from 'lucide-react';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 
 interface HistorialTimelineProps {
   pacienteId: string;

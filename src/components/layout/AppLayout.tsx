@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { syncService } from '@/lib/sync/sync.service';
 import { useAuth } from '@/contexts/AuthContext';
@@ -186,10 +187,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <FlaskConical size={20} className="text-primary" />
               </div>
             ) : (
-              <img
+              <Image
                 src="/logo.jpeg"
                 alt="Pets House"
-                className="w-10 h-10 rounded-xl object-cover shrink-0 bg-white"
+                width={40}
+                height={40}
+                className="rounded-xl object-cover shrink-0 bg-white"
               />
             )}
             <div>

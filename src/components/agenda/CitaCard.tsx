@@ -7,7 +7,7 @@ import { cambiarEstadoCita, eliminarCita } from '@/hooks/useAgenda';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Phone, Clock, ChevronDown, Trash2 } from 'lucide-react';
+import { Phone, Clock, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useState } from 'react';
 
