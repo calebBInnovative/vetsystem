@@ -1,4 +1,4 @@
-import { db } from '@/lib/db/database';
+import { db, getClinicaId } from '@/lib/db/database';
 import type { PacienteLocal, DuenoLocal } from '@/types/paciente';
 import type { ConsultaLocal, ConsultaItem } from '@/types/consulta';
 import type { CitaLocal } from '@/types/agenda';
@@ -6,8 +6,6 @@ import type { ProductoLocal, MovimientoStockLocal } from '@/types/inventario';
 import type { PagoLocal } from '@/types/finanzas';
 import type { FacturaLocal, FacturaItem } from '@/types/factura';
 import type { ServicioLocal } from '@/types/servicio';
-
-const CLINICA_ID = process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -171,6 +169,7 @@ const MONTOS_POR_TIPO: Record<string, number[]> = {
 // ─── Función principal ────────────────────────────────────────────────────────
 
 export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record<string, number> }> {
+  const CLINICA_ID = await getClinicaId();
   const ahora = ts();
 
   // Dueños

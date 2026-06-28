@@ -22,7 +22,7 @@ import {
 // import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { getFirebaseApp, getFirestoreDb } from '@/lib/firebase/firebase.config';
 import { db } from '@/lib/db/database';
-import type { SessionLocal, PermisosModulos, RolUsuario } from '@/types/licencia';
+import type { SessionLocal, Permissions, RolUsuario } from '@/types/licencia';
 
 // ─── Firestore structure ──────────────────────────────────────────────────────
 //
@@ -31,7 +31,7 @@ import type { SessionLocal, PermisosModulos, RolUsuario } from '@/types/licencia
 //    name:         string
 //    email:        string
 //    role:         'master' | 'admin' | 'veterinario' | 'recepcion'
-//    permisos:     PermisosModulos | null  (null = full access)
+//    permissions:  Permissions | null  (null = full access)
 //    createdAt:    serverTimestamp()
 //
 //  clinics/{clinicId}
@@ -60,8 +60,8 @@ export class UserNotFoundError extends Error {
   override name = 'UserNotFoundError';
 }
 
-// Default permissions for staff users whose Firestore doc is missing the permisos field
-const DEFAULT_STAFF_PERMISOS: PermisosModulos = {
+// Default permissions for staff users whose Firestore doc is missing the permissions field
+const DEFAULT_STAFF_PERMISSIONS: Permissions = {
   pacientes: true, agenda: true, consultas: true, ventas: true,
   inventario: false, finanzas: false, facturas: false, servicios: false,
 };
@@ -148,10 +148,10 @@ export async function refrescarSesion(user: User): Promise<SessionLocal | null> 
     const userData = userDoc.data();
     const clinicId: string  = userData.clinicId;
     const role:     RolUsuario = userData.role ?? 'recepcion';
-    const permisos: PermisosModulos | null =
+    const permissions: Permissions | null =
       (role === 'master' || role === 'admin')
         ? null
-        : ((userData.permisos as PermisosModulos | null | undefined) ?? DEFAULT_STAFF_PERMISOS);
+        : ((userData.permissions as Permissions | null | undefined) ?? DEFAULT_STAFF_PERMISSIONS);
 
     const licenseDoc  = await getDoc(doc(fs, 'clinics', clinicId, 'license', 'data'));
     const licenseData = licenseDoc.exists() ? licenseDoc.data() : _licenciaDev();
@@ -173,7 +173,7 @@ export async function refrescarSesion(user: User): Promise<SessionLocal | null> 
       userTel:        userData.telefono ?? undefined,
       userName:       userData.name ?? user.email ?? 'User',
       role,
-      permisos,
+      permissions,
       plan:           licenseData.plan ?? 'Basic',
       expirationDate: licenseData.expirationDate ?? '2099-12-31',
       subscription:   licenseData.subscription !== false,
@@ -201,22 +201,22 @@ export async function getSesionLocal(): Promise<SessionLocal | null> {
 // ─── User management (from admin) ────────────────────────────────────────────
 
 export interface NuevoUsuario {
-  email:    string;
-  password: string;
-  name:     string;
-  role:     RolUsuario;
-  clinicId: string;
-  permisos: PermisosModulos | null;
+  email:       string;
+  password:    string;
+  name:        string;
+  role:        RolUsuario;
+  clinicId:    string;
+  permissions: Permissions | null;
 }
 
 export interface UsuarioFirestore {
-  uid:       string;
-  email:     string;
-  name:      string;
-  role:      RolUsuario;
-  clinicId:  string;
-  permisos:  PermisosModulos | null;
-  createdAt?: unknown;
+  uid:         string;
+  email:       string;
+  name:        string;
+  role:        RolUsuario;
+  clinicId:    string;
+  permissions: Permissions | null;
+  createdAt?:  unknown;
 }
 
 /**
@@ -255,9 +255,9 @@ export async function crearUsuario(datos: NuevoUsuario): Promise<string> {
     email:     datos.email,
     name:      datos.name,
     role:      datos.role,
-    clinicId:  datos.clinicId,
-    permisos:  datos.permisos,
-    createdAt: serverTimestamp(),
+    clinicId:    datos.clinicId,
+    permissions: datos.permissions,
+    createdAt:   serverTimestamp(),
   });
 
   return uid;
@@ -310,7 +310,7 @@ export async function configurarLicencia(params: {
 /** Updates a user's name, role, permissions and optionally personal phone */
 export async function actualizarUsuario(
   uid:      string,
-  datos:    { name: string; role: RolUsuario; permisos: PermisosModulos | null; telefono?: string },
+  datos:    { name: string; role: RolUsuario; permissions: Permissions | null; telefono?: string },
 ): Promise<void> {
   const fs = getFirestoreDb();
   await setDoc(doc(fs, 'users', uid), datos, { merge: true });
@@ -370,21 +370,21 @@ async function _crearClinica(params: {
 }
 
 async function _crearDocUsuario(
-  user:     User,
-  name:     string,
-  role:     RolUsuario,
-  clinicId: string,
-  permisos: PermisosModulos | null,
+  user:        User,
+  name:        string,
+  role:        RolUsuario,
+  clinicId:    string,
+  permissions: Permissions | null,
 ): Promise<void> {
   const fs = getFirestoreDb();
   await setDoc(doc(fs, 'users', user.uid), {
-    uid:       user.uid,
-    email:     user.email,
+    uid:         user.uid,
+    email:       user.email,
     name,
     role,
     clinicId,
-    permisos,
-    createdAt: serverTimestamp(),
+    permissions,
+    createdAt:   serverTimestamp(),
   });
 }
 
@@ -429,7 +429,7 @@ async function _crearSesionDev(user: User): Promise<SessionLocal> {
     clinicName:     license.clinicName,
     userName:       user.displayName ?? user.email ?? 'Dev Admin',
     role:           'master',
-    permisos:       null,
+    permissions:    null,
     plan:           license.plan,
     expirationDate: license.expirationDate,
     subscription:   true,

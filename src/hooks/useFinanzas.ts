@@ -1,12 +1,10 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type SyncQueueItem } from '@/lib/db/database';
+import { db, getClinicaId, type SyncQueueItem } from '@/lib/db/database';
 import type { PagoLocal, EstadoPago } from '@/types/finanzas';
 import type { EstadoFactura } from '@/types/factura';
 import type { PagoFormData } from '@/lib/validations/finanzas.schema';
-
-const CLINICA_ID = process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HOOKS DE LECTURA
@@ -22,17 +20,18 @@ export function usePagos(fechaInicio?: string, fechaFin?: string) {
   const hasta = fechaFin    ?? new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().slice(0, 10);
 
   const resultado = useLiveQuery(async () => {
+    const clinicaId = await getClinicaId();
     // Pagos del rango de fechas (mes actual por defecto)
     const pagosMes = await db.payments
       .where('fecha')
       .between(desde, hasta, true, true)
-      .filter((p) => !p.deletedAt && p.clinicaId === CLINICA_ID)
+      .filter((p) => !p.deletedAt && p.clinicaId === clinicaId)
       .toArray();
 
     // Cuentas por cobrar de meses anteriores (pendientes históricos)
     const pendientesHistoricos = await db.payments
       .where('clinicaId')
-      .equals(CLINICA_ID)
+      .equals(clinicaId)
       .filter((p) => !p.deletedAt && p.estado === 'pendiente' && p.fecha < desde)
       .toArray();
 
@@ -75,17 +74,18 @@ export function useResumenFinanciero() {
   const semanaStr = inicioSemana.toISOString().slice(0, 10);
 
   const resultado = useLiveQuery(async () => {
+    const clinicaId = await getClinicaId();
     const pagosMes = await db.payments
       .where('fecha')
       .between(mesStr, mesFinStr, true, true)
-      .filter((p) => !p.deletedAt && p.clinicaId === CLINICA_ID && p.estado === 'pagado')
+      .filter((p) => !p.deletedAt && p.clinicaId === clinicaId && p.estado === 'pagado')
       .toArray();
 
     const totalHoy     = pagosMes.filter((p) => p.fecha === hoyStr).reduce((s, p) => s + p.monto, 0);
     const totalSemana  = pagosMes.filter((p) => p.fecha >= semanaStr).reduce((s, p) => s + p.monto, 0);
     const totalMes     = pagosMes.reduce((s, p) => s + p.monto, 0);
     const pendientes   = await db.payments
-      .where('clinicaId').equals(CLINICA_ID)
+      .where('clinicaId').equals(clinicaId)
       .filter((p) => !p.deletedAt && p.estado === 'pendiente')
       .count();
 
@@ -135,11 +135,12 @@ export function usePagosPaciente(pacienteId: string) {
 export async function crearPago(datos: PagoFormData): Promise<string> {
   const ahora  = Date.now();
   const pagoId = crypto.randomUUID();
+  const clinicaId = await getClinicaId();
 
   const nuevo: PagoLocal = {
     id:         pagoId,
     pacienteId: datos.pacienteId,
-    clinicaId:  CLINICA_ID,
+    clinicaId:  clinicaId,
     fecha:      datos.fecha,
     concepto:   datos.concepto,
     tipo:       datos.tipo,

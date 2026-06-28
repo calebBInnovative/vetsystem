@@ -1,15 +1,14 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '@/lib/db/database';
-
-const CLINICA_ID = process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
+import { db, getClinicaId } from '@/lib/db/database';
 
 /** Retorna todos los KPIs del dashboard en una sola query reactiva. */
 export function useDashboard() {
   const hoy = new Date().toISOString().slice(0, 10);
 
   const datos = useLiveQuery(async () => {
+    const clinicaId = await getClinicaId();
     const [
       totalPacientes,
       citasHoy,
@@ -19,14 +18,14 @@ export function useDashboard() {
     ] = await Promise.all([
       // Pacientes activos
       db.patients
-        .where('clinicaId').equals(CLINICA_ID)
+        .where('clinicaId').equals(clinicaId)
         .filter((p) => !p.deletedAt && p.activo)
         .count(),
 
       // Citas de hoy (todas)
       db.appointments
         .where('fecha').equals(hoy)
-        .filter((c) => !c.deletedAt && c.clinicaId === CLINICA_ID)
+        .filter((c) => !c.deletedAt && c.clinicaId === clinicaId)
         .count(),
 
       // Citas de hoy pendientes o confirmadas
@@ -35,20 +34,20 @@ export function useDashboard() {
         .filter(
           (c) =>
             !c.deletedAt &&
-            c.clinicaId === CLINICA_ID &&
+            c.clinicaId === clinicaId &&
             (c.estado === 'pendiente' || c.estado === 'confirmada' || c.estado === 'en_curso')
         )
         .count(),
 
       // Productos con stock bajo o sin stock
       db.products
-        .where('clinicaId').equals(CLINICA_ID)
+        .where('clinicaId').equals(clinicaId)
         .filter((p) => !p.deletedAt && p.activo && p.stockActual <= p.stockMinimo)
         .count(),
 
       // Consultas registradas este mes
       db.consultations
-        .where('clinicaId').equals(CLINICA_ID)
+        .where('clinicaId').equals(clinicaId)
         .filter((c) => {
           if (c.deletedAt) return false;
           const fecha = new Date(c.fecha);
@@ -82,12 +81,13 @@ export function useProximasCitasDia() {
   const horaActual = new Date().toTimeString().slice(0, 5);
 
   const resultado = useLiveQuery(async () => {
+    const clinicaId = await getClinicaId();
     const citas = await db.appointments
       .where('fecha').equals(hoy)
       .filter(
         (c) =>
           !c.deletedAt &&
-          c.clinicaId === CLINICA_ID &&
+          c.clinicaId === clinicaId &&
           (c.estado === 'pendiente' || c.estado === 'confirmada' || c.estado === 'en_curso') &&
           c.horaInicio >= horaActual
       )
@@ -115,8 +115,9 @@ export function useProximasCitasDia() {
 /** Últimas 5 consultas registradas en la clínica. */
 export function useUltimasConsultasDashboard() {
   const resultado = useLiveQuery(async () => {
+    const clinicaId = await getClinicaId();
     const consultas = await db.consultations
-      .where('clinicaId').equals(CLINICA_ID)
+      .where('clinicaId').equals(clinicaId)
       .filter((c) => !c.deletedAt)
       .reverse()
       .sortBy('fecha')

@@ -1,13 +1,11 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type SyncQueueItem } from '@/lib/db/database';
+import { db, getClinicaId, type SyncQueueItem } from '@/lib/db/database';
 import type { FacturaLocal, FacturaCompleta, EstadoFactura, MetodoPagoFactura } from '@/types/factura';
 import type { ConsultaLocal } from '@/types/consulta';
 import type { TipoIngreso } from '@/types/finanzas';
 import { TIPO_PAGO_POR_CONSULTA } from '@/types/consulta';
-
-const CLINICA_ID = process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HOOKS DE LECTURA
@@ -21,9 +19,10 @@ export function useFacturas(filtros?: {
   fechaHasta?: string;
 }) {
   const resultado = useLiveQuery(async () => {
+    const clinicaId = await getClinicaId();
     let facturas = await db.invoices
       .where('clinicaId')
-      .equals(CLINICA_ID)
+      .equals(clinicaId)
       .filter((f) => !f.deletedAt)
       .toArray();
 
@@ -117,7 +116,8 @@ export interface CrearFacturaInput {
 export async function crearFactura(input: CrearFacturaInput): Promise<string> {
   const ahora     = Date.now();
   const id        = crypto.randomUUID();
-  const numero    = await generarNumeroFactura();
+  const clinicaId = await getClinicaId();
+  const numero    = await generarNumeroFactura(clinicaId);
   const descuento = input.descuento ?? input.consulta.descuento;
   const subtotal  = input.consulta.subtotal;
   const total     = Math.max(0, subtotal - descuento);
@@ -133,7 +133,7 @@ export async function crearFactura(input: CrearFacturaInput): Promise<string> {
     consultaId:  input.consulta.id,
     pacienteId:  input.consulta.pacienteId,
     duenoId:     input.consulta.duenoId,
-    clinicaId:   CLINICA_ID,
+    clinicaId:   clinicaId,
     fecha:       new Date(ahora).toISOString().slice(0, 10),
     items:       input.consulta.items.map((item) => ({
       id:              item.id,
@@ -183,7 +183,7 @@ export async function crearFactura(input: CrearFacturaInput): Promise<string> {
         await db.payments.add({
           id:          pagoId,
           pacienteId:  input.consulta.pacienteId,
-          clinicaId:   CLINICA_ID,
+          clinicaId:   clinicaId,
           consultaId:  input.consulta.id,
           fecha:       factura.fecha,
           concepto:    `${numero} — ${input.consulta.motivo?.slice(0, 120) ?? ''}`,
@@ -257,9 +257,9 @@ export async function cancelarFactura(id: string): Promise<void> {
 // HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function generarNumeroFactura(): Promise<string> {
+async function generarNumeroFactura(clinicaId: string): Promise<string> {
   const year  = new Date().getFullYear();
-  const count = await db.invoices.where('clinicaId').equals(CLINICA_ID).count();
+  const count = await db.invoices.where('clinicaId').equals(clinicaId).count();
   return `FAC-${year}-${String(count + 1).padStart(4, '0')}`;
 }
 

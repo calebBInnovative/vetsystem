@@ -36,7 +36,7 @@ export async function setupDemo(): Promise<void> {
     clinicName:     'Clínica Veterinaria Demo',
     userName:       'Dr. Demo',
     role:           'admin',
-    permisos:       null,
+    permissions:    null,
     plan:           'Demo',
     expirationDate: '2099-12-31',
     subscription:   true,

@@ -22,7 +22,7 @@ export type ModuloApp =
   | 'servicios';
 
 /** Per-module access flags. `master` and `admin` bypass this entirely. */
-export type PermisosModulos = Record<ModuloApp, boolean>;
+export type Permissions = Record<ModuloApp, boolean>;
 
 /** Roles in the system (ordered by privilege) */
 export type RolUsuario = 'master' | 'admin' | 'veterinario' | 'recepcion';
@@ -43,7 +43,7 @@ export interface SessionLocal {
   userName:       string;
   role:           RolUsuario;
   /** null = full access (master / admin). Defined = custom module restrictions. */
-  permisos:       PermisosModulos | null;
+  permissions:    Permissions | null;
   plan:           string;
   expirationDate: string; // YYYY-MM-DD
   /** true = active/trial, false = expired/suspended */

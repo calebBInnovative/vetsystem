@@ -1,11 +1,9 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type SyncQueueItem } from '@/lib/db/database';
+import { db, getClinicaId, type SyncQueueItem } from '@/lib/db/database';
 import type { ProductoLocal, MovimientoStockLocal, CategoriaProducto } from '@/types/inventario';
 import type { ProductoFormData, AjusteStockFormData } from '@/lib/validations/inventario.schema';
-
-const CLINICA_ID = process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HOOKS DE LECTURA
@@ -16,9 +14,10 @@ const CLINICA_ID = process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
  */
 export function useProductos(busqueda = '', categoria?: CategoriaProducto) {
   const resultado = useLiveQuery(async () => {
+    const clinicaId = await getClinicaId();
     let productos = await db.products
       .where('clinicaId')
-      .equals(CLINICA_ID)
+      .equals(clinicaId)
       .filter((p) => !p.deletedAt && p.activo)
       .toArray();
 
@@ -50,9 +49,10 @@ export function useProductos(busqueda = '', categoria?: CategoriaProducto) {
  */
 export function useAlertasStock() {
   const resultado = useLiveQuery(async () => {
+    const clinicaId = await getClinicaId();
     return db.products
       .where('clinicaId')
-      .equals(CLINICA_ID)
+      .equals(clinicaId)
       .filter((p) => !p.deletedAt && p.activo && p.stockActual <= p.stockMinimo)
       .toArray();
   }, []);
@@ -106,6 +106,7 @@ export function useMovimientosProducto(productoId: string) {
 export async function crearProducto(datos: ProductoFormData): Promise<string> {
   const ahora     = Date.now();
   const productoId = crypto.randomUUID();
+  const clinicaId = await getClinicaId();
 
   const nuevo: ProductoLocal = {
     id:               productoId,
@@ -121,7 +122,7 @@ export async function crearProducto(datos: ProductoFormData): Promise<string> {
     lote:             datos.lote             || undefined,
     proveedor:        datos.proveedor        || undefined,
     activo:           true,
-    clinicaId:        CLINICA_ID,
+    clinicaId:        clinicaId,
     creadoEn:         ahora,
     syncStatus:       'pending',
     updatedAt:        ahora,
@@ -201,9 +202,10 @@ async function registrarMovimiento(
   datos: Omit<MovimientoStockLocal, 'id' | 'clinicaId' | 'creadoEn' | 'syncStatus' | 'updatedAt'>
 ): Promise<void> {
   const ahora      = Date.now();
+  const clinicaId  = await getClinicaId();
   const movimiento: MovimientoStockLocal = {
     id:           crypto.randomUUID(),
-    clinicaId:    CLINICA_ID,
+    clinicaId:    clinicaId,
     creadoEn:     ahora,
     syncStatus:   'pending',
     updatedAt:    ahora,

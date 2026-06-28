@@ -1,10 +1,8 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type SyncQueueItem } from '@/lib/db/database';
+import { db, getClinicaId, type SyncQueueItem } from '@/lib/db/database';
 import type { ServicioLocal, CategoriaServicio } from '@/types/servicio';
-
-const CLINICA_ID = process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HOOKS DE LECTURA
@@ -12,9 +10,10 @@ const CLINICA_ID = process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
 
 export function useServicios() {
   const resultado = useLiveQuery(async () => {
+    const clinicaId = await getClinicaId();
     const servicios = await db.services
       .where('clinicaId')
-      .equals(CLINICA_ID)
+      .equals(clinicaId)
       .filter((s) => !s.deletedAt)
       .toArray();
     return servicios.sort((a, b) => a.categoria.localeCompare(b.categoria) || a.nombre.localeCompare(b.nombre));
@@ -29,9 +28,10 @@ export function useServicios() {
 /** Solo los servicios activos — para el selector rápido en ConsultaForm */
 export function useServiciosActivos() {
   const resultado = useLiveQuery(async () => {
+    const clinicaId = await getClinicaId();
     const servicios = await db.services
       .where('clinicaId')
-      .equals(CLINICA_ID)
+      .equals(clinicaId)
       .filter((s) => !s.deletedAt && s.activo)
       .toArray();
     return servicios.sort((a, b) => a.categoria.localeCompare(b.categoria) || a.nombre.localeCompare(b.nombre));
@@ -54,6 +54,7 @@ export interface ServicioInput {
 export async function crearServicio(input: ServicioInput): Promise<string> {
   const ahora = Date.now();
   const id    = crypto.randomUUID();
+  const clinicaId = await getClinicaId();
 
   const servicio: ServicioLocal = {
     id,
@@ -62,7 +63,7 @@ export async function crearServicio(input: ServicioInput): Promise<string> {
     categoria:   input.categoria,
     precio:      input.precio,
     activo:      true,
-    clinicaId:   CLINICA_ID,
+    clinicaId:   clinicaId,
     creadoEn:    ahora,
     syncStatus:  'pending',
     updatedAt:   ahora,

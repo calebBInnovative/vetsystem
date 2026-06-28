@@ -9,12 +9,9 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type SyncQueueItem } from '@/lib/db/database';
+import { db, getClinicaId, type SyncQueueItem } from '@/lib/db/database';
 import type { ConsultaLocal } from '@/types/consulta';
 import type { ConsultaFormData } from '@/lib/validations/historial.schema';
-
-// TODO: en producción vendrá del contexto de autenticación
-const CLINICA_ID = process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HOOKS DE LECTURA
@@ -63,9 +60,10 @@ export function useConsulta(id: string) {
  */
 export function useUltimasConsultas(limite = 10) {
   const resultado = useLiveQuery(async () => {
+    const clinicaId = await getClinicaId();
     return db.consultations
       .where('clinicaId')
-      .equals(CLINICA_ID)
+      .equals(clinicaId)
       .filter((c) => !c.deletedAt)
       .reverse()
       .sortBy('fecha')
@@ -95,6 +93,7 @@ export async function crearConsulta(
 ): Promise<string> {
   const ahora      = Date.now();
   const consultaId = crypto.randomUUID();
+  const clinicaId  = await getClinicaId();
 
   const paciente = await db.patients.get(pacienteId);
 
@@ -102,7 +101,7 @@ export async function crearConsulta(
     id:            consultaId,
     pacienteId,
     duenoId:       paciente?.duenoId ?? '',
-    clinicaId:     CLINICA_ID,
+    clinicaId:     clinicaId,
     fecha:         new Date(datos.fecha).getTime(),
     tipo:          datos.tipo,
     estado:        'completada',

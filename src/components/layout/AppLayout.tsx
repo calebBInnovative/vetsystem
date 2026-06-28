@@ -104,10 +104,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     setPerfilAccion('cargando');
     try {
       await actualizarUsuario(session.uid, {
-        name:     perfilNombre.trim() || session.userName,
-        role:     session.role,
-        permisos: session.permisos,
-        telefono: perfilTel.trim() || undefined,
+        name:        perfilNombre.trim() || session.userName,
+        role:        session.role,
+        permissions: session.permissions,
+        telefono:    perfilTel.trim() || undefined,
       });
       // Update Dexie session
       const local = await db.session.get('singleton');
@@ -130,9 +130,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     if (!modulo) return true;
     if (!session) return false;
     if (session.role === 'master' || session.role === 'admin') return true;
-    // null permisos for a staff user means the Firestore doc was missing the field — grant default access
-    if (session.permisos === null) return true;
-    return session.permisos[modulo] === true;
+    // null permissions for a staff user means the Firestore doc was missing the field — grant default access
+    if (session.permissions === null) return true;
+    return session.permissions[modulo] === true;
   }
 
   async function handleLogout() {

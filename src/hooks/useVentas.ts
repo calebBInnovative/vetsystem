@@ -1,11 +1,9 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type SyncQueueItem } from '@/lib/db/database';
+import { db, getClinicaId, type SyncQueueItem } from '@/lib/db/database';
 import type { VentaLocal, VentaItem, MetodoPagoVenta } from '@/types/venta';
 import type { FacturaLocal, FacturaItem } from '@/types/factura';
-
-const CLINICA_ID = process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HOOKS DE LECTURA
@@ -17,9 +15,10 @@ export function useVentas(filtros?: {
   pacienteId?: string;
 }) {
   const resultado = useLiveQuery(async () => {
+    const clinicaId = await getClinicaId();
     let ventas = await db.sales
       .where('clinicaId')
-      .equals(CLINICA_ID)
+      .equals(clinicaId)
       .filter((v) => !v.deletedAt && v.estado !== 'cancelada')
       .toArray();
 
@@ -51,10 +50,11 @@ export async function crearVenta(input: CrearVentaInput): Promise<string> {
   const ahora   = Date.now();
   const id      = crypto.randomUUID();
   const fecha   = new Date(ahora).toISOString().slice(0, 10);
+  const clinicaId = await getClinicaId();
 
   const venta: VentaLocal = {
     id,
-    clinicaId:  CLINICA_ID,
+    clinicaId:  clinicaId,
     fecha,
     items:      input.items,
     subtotal:   input.subtotal,
@@ -83,7 +83,7 @@ export async function crearVenta(input: CrearVentaInput): Promise<string> {
         await db.movements.add({
           id:           crypto.randomUUID(),
           productoId:   item.productoId,
-          clinicaId:    CLINICA_ID,
+          clinicaId:    clinicaId,
           tipo:         'salida',
           cantidad:     item.cantidad,
           stockAntes:   prod.stockActual,
@@ -115,7 +115,7 @@ export async function crearVenta(input: CrearVentaInput): Promise<string> {
         ventaId:     id,
         pacienteId:  input.pacienteId || undefined,
         duenoId:     undefined,
-        clinicaId:   CLINICA_ID,
+        clinicaId:   clinicaId,
         fecha,
         items:       facturaItems,
         subtotal:    input.subtotal,
@@ -138,7 +138,7 @@ export async function crearVenta(input: CrearVentaInput): Promise<string> {
         await db.payments.add({
           id:         pagoId,
           pacienteId: input.pacienteId ?? 'anonimo',
-          clinicaId:  CLINICA_ID,
+          clinicaId:  clinicaId,
           fecha,
           concepto:   construirConcepto(numero, input.items),
           tipo:       'producto',
@@ -174,8 +174,9 @@ function construirConcepto(numero: string, items: VentaItem[]): string {
 }
 
 async function generarNumeroFactura(): Promise<string> {
-  const year  = new Date().getFullYear();
-  const count = await db.invoices.where('clinicaId').equals(CLINICA_ID).count();
+  const year      = new Date().getFullYear();
+  const clinicaId = await getClinicaId();
+  const count     = await db.invoices.where('clinicaId').equals(clinicaId).count();
   return `FAC-${year}-${String(count + 1).padStart(4, '0')}`;
 }
 

@@ -312,3 +312,9 @@ class VetSystemDB extends Dexie {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const db = new VetSystemDB();
+
+/** Returns the current session's clinicId from Dexie, falling back to env var. */
+export async function getClinicaId(): Promise<string> {
+  const s = await db.session.get('singleton');
+  return s?.clinicId ?? process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
+}

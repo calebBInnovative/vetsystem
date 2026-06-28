@@ -1,11 +1,9 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type SyncQueueItem } from '@/lib/db/database';
+import { db, getClinicaId, type SyncQueueItem } from '@/lib/db/database';
 import type { CitaLocal, EstadoCita } from '@/types/agenda';
 import type { CitaFormData } from '@/lib/validations/agenda.schema';
-
-const CLINICA_ID = process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HOOKS DE LECTURA
@@ -21,10 +19,11 @@ export function useCitasMes(year: number, month: number) {
   const ultimoDia = `${year}-${String(month + 1).padStart(2, '0')}-${String(new Date(year, month + 1, 0).getDate()).padStart(2, '0')}`;
 
   const resultado = useLiveQuery(async () => {
+    const clinicaId = await getClinicaId();
     const citas = await db.appointments
       .where('fecha')
       .between(primerDia, ultimoDia, true, true)
-      .filter((c) => !c.deletedAt && c.clinicaId === CLINICA_ID && c.estado !== 'cancelada')
+      .filter((c) => !c.deletedAt && c.clinicaId === clinicaId && c.estado !== 'cancelada')
       .toArray();
 
     const map = new Map<string, number>();
@@ -43,10 +42,11 @@ export function useCitasMes(year: number, month: number) {
  */
 export function useCitasDelDia(fecha: string) {
   const resultado = useLiveQuery(async () => {
+    const clinicaId = await getClinicaId();
     const citas = await db.appointments
       .where('fecha')
       .equals(fecha)
-      .filter((c) => !c.deletedAt && c.clinicaId === CLINICA_ID)
+      .filter((c) => !c.deletedAt && c.clinicaId === clinicaId)
       .toArray();
 
     // Ordenar por horaInicio
@@ -86,13 +86,14 @@ export function useCitasProximas(limite = 5) {
   const hoy = new Date().toISOString().slice(0, 10);
 
   const resultado = useLiveQuery(async () => {
+    const clinicaId = await getClinicaId();
     const citas = await db.appointments
       .where('fecha')
       .aboveOrEqual(hoy)
       .filter(
         (c) =>
           !c.deletedAt &&
-          c.clinicaId === CLINICA_ID &&
+          c.clinicaId === clinicaId &&
           (c.estado === 'pendiente' || c.estado === 'confirmada')
       )
       .limit(limite)
@@ -152,6 +153,7 @@ export function useCitasPaciente(pacienteId: string) {
 export async function crearCita(datos: CitaFormData): Promise<string> {
   const ahora  = Date.now();
   const citaId = crypto.randomUUID();
+  const clinicaId = await getClinicaId();
 
   // Obtener el dueñoId del paciente
   const paciente = await db.patients.get(datos.pacienteId);
@@ -161,7 +163,7 @@ export async function crearCita(datos: CitaFormData): Promise<string> {
     id:               citaId,
     pacienteId:       datos.pacienteId,
     duenoId:          paciente.duenoId,
-    clinicaId:        CLINICA_ID,
+    clinicaId:        clinicaId,
     fecha:            datos.fecha,
     horaInicio:       datos.horaInicio,
     duracionMinutos:  datos.duracionMinutos as number,

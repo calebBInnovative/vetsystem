@@ -20,7 +20,7 @@ import {
   UserPlus, Users, KeyRound, ShieldAlert, Pencil, KeySquare, Phone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ModuloApp, PermisosModulos, RolUsuario } from '@/types/licencia';
+import type { ModuloApp, Permissions, RolUsuario } from '@/types/licencia';
 
 // ─── Module permission config ─────────────────────────────────────────────────
 
@@ -35,14 +35,14 @@ const MODULOS: { key: ModuloApp; label: string }[] = [
   { key: 'servicios',  label: 'Servicios'  },
 ];
 
-const PERMISOS_DEFAULT: PermisosModulos = {
+const DEFAULT_PERMISSIONS: Permissions = {
   pacientes: true, agenda: true, consultas: true, ventas: true,
   inventario: false, finanzas: false, facturas: false, servicios: false,
 };
 
-function permisosParaRol(role: RolUsuario, current: PermisosModulos | null): PermisosModulos | null {
+function permissionsForRole(role: RolUsuario, current: Permissions | null): Permissions | null {
   if (role === 'admin') return null;
-  return current ?? { ...PERMISOS_DEFAULT };
+  return current ?? { ...DEFAULT_PERMISSIONS };
 }
 
 type Accion = 'idle' | 'cargando' | 'ok' | 'error';
@@ -150,10 +150,10 @@ function EnvBadge() {
 // ─── Permissions editor ───────────────────────────────────────────────────────
 
 function PermisosEditor({
-  permisos, onChange,
+  permissions, onChange,
 }: {
-  permisos: PermisosModulos;
-  onChange: (p: PermisosModulos) => void;
+  permissions: Permissions;
+  onChange: (p: Permissions) => void;
 }) {
   return (
     <div className="space-y-2">
@@ -163,8 +163,8 @@ function PermisosEditor({
           <label key={key} className="flex items-center gap-2 cursor-pointer select-none rounded-lg px-2.5 py-1.5 hover:bg-muted/60 transition-colors">
             <input
               type="checkbox"
-              checked={permisos[key] ?? false}
-              onChange={(e) => onChange({ ...permisos, [key]: e.target.checked })}
+              checked={permissions[key] ?? false}
+              onChange={(e) => onChange({ ...permissions, [key]: e.target.checked })}
               className="accent-primary h-3.5 w-3.5"
             />
             <span className="text-xs">{label}</span>
@@ -193,15 +193,15 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
   // ── Create form state ──────────────────────────────────────────────────────
   const [form, setForm] = useState<NuevoUsuario>({
     email: '', password: '', name: '', role: 'veterinario',
-    clinicId, permisos: { ...PERMISOS_DEFAULT },
+    clinicId, permissions: { ...DEFAULT_PERMISSIONS },
   });
   const [accionCrear, setAccionCrear] = useState<Accion>('idle');
   const [mensajeCrear, setMensajeCrear] = useState('');
 
   // ── Edit modal ─────────────────────────────────────────────────────────────
   const [editTarget, setEditTarget] = useState<UsuarioFirestore | null>(null);
-  const [editForm,   setEditForm]   = useState<{ name: string; role: RolUsuario; permisos: PermisosModulos | null }>({
-    name: '', role: 'veterinario', permisos: { ...PERMISOS_DEFAULT },
+  const [editForm,   setEditForm]   = useState<{ name: string; role: RolUsuario; permissions: Permissions | null }>({
+    name: '', role: 'veterinario', permissions: { ...DEFAULT_PERMISSIONS },
   });
   const [accionEdit, setAccionEdit] = useState<Accion>('idle');
 
@@ -231,7 +231,7 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
       await crearUsuario({ ...form, clinicId });
       setMensajeCrear(`Usuario ${form.email} creado.`);
       setAccionCrear('ok');
-      setForm({ email: '', password: '', name: '', role: 'veterinario', clinicId, permisos: { ...PERMISOS_DEFAULT } });
+      setForm({ email: '', password: '', name: '', role: 'veterinario', clinicId, permissions: { ...DEFAULT_PERMISSIONS } });
       cargarUsuarios();
     } catch (err) {
       setMensajeCrear((err as Error).message);
@@ -244,7 +244,7 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
     setEditForm({
       name:    u.name,
       role:    u.role,
-      permisos: u.role === 'admin' ? null : (u.permisos ?? { ...PERMISOS_DEFAULT }),
+      permissions: u.role === 'admin' ? null : (u.permissions ?? { ...DEFAULT_PERMISSIONS }),
     });
     setAccionEdit('idle');
   }
@@ -389,7 +389,7 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
                 value={form.role}
                 onChange={(e) => {
                   const role = e.target.value as RolUsuario;
-                  setForm({ ...form, role, permisos: permisosParaRol(role, form.permisos) });
+                  setForm({ ...form, role, permissions: permissionsForRole(role, form.permissions) });
                 }}
                 className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               >
@@ -428,11 +428,11 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
             <p className="text-[10px] text-muted-foreground">El usuario puede cambiarla desde su perfil.</p>
           </div>
 
-          {form.role !== 'admin' && form.permisos && (
+          {form.role !== 'admin' && form.permissions && (
             <div className="rounded-xl border border-border p-3">
               <PermisosEditor
-                permisos={form.permisos}
-                onChange={(p) => setForm({ ...form, permisos: p })}
+                permissions={form.permissions}
+                onChange={(p) => setForm({ ...form, permissions: p })}
               />
             </div>
           )}
@@ -473,7 +473,7 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
                 value={editForm.role}
                 onChange={(e) => {
                   const role = e.target.value as RolUsuario;
-                  setEditForm({ ...editForm, role, permisos: permisosParaRol(role, editForm.permisos) });
+                  setEditForm({ ...editForm, role, permissions: permissionsForRole(role, editForm.permissions) });
                 }}
                 className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               >
@@ -483,11 +483,11 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
               </select>
             </div>
 
-            {editForm.role !== 'admin' && editForm.permisos ? (
+            {editForm.role !== 'admin' && editForm.permissions ? (
               <div className="rounded-xl border border-border p-3">
                 <PermisosEditor
-                  permisos={editForm.permisos}
-                  onChange={(p) => setEditForm({ ...editForm, permisos: p })}
+                  permissions={editForm.permissions}
+                  onChange={(p) => setEditForm({ ...editForm, permissions: p })}
                 />
               </div>
             ) : (

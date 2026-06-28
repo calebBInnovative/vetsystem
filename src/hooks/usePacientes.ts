@@ -12,12 +12,9 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type SyncQueueItem } from '@/lib/db/database';
+import { db, getClinicaId, type SyncQueueItem } from '@/lib/db/database';
 import type { PacienteLocal, DuenoLocal, PacienteConDueno } from '@/types/paciente';
 import type { PacienteFormData } from '@/lib/validations/paciente.schema';
-
-// TODO: en producción este valor vendrá del contexto de autenticación
-const CLINICA_ID = process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HOOKS DE LECTURA (reactivos — se actualizan solos cuando cambia Dexie)
@@ -118,11 +115,12 @@ export function usePaciente(id: string) {
  */
 export async function crearPaciente(datos: PacienteFormData): Promise<string> {
   const ahora = Date.now();
+  const clinicaId = await getClinicaId();
 
   // ── 1. Gestionar dueño ─────────────────────────────────────────────────────
   const duenoExistente = await db.owners
     .filter(
-      (d) => d.telefono === datos.dueno.telefono && d.clinicaId === CLINICA_ID
+      (d) => d.telefono === datos.dueno.telefono && d.clinicaId === clinicaId
     )
     .first();
 
@@ -154,7 +152,7 @@ export async function crearPaciente(datos: PacienteFormData): Promise<string> {
       email:      datos.dueno.email     || undefined,
       direccion:  datos.dueno.direccion || undefined,
       notas:      datos.dueno.notas     || undefined,
-      clinicaId:  CLINICA_ID,
+      clinicaId:  clinicaId,
       creadoEn:   ahora,
       syncStatus: 'pending',
       updatedAt:  ahora,
@@ -182,7 +180,7 @@ export async function crearPaciente(datos: PacienteFormData): Promise<string> {
     fotoUrl:         undefined,
     duenoId,
     activo:          true,
-    clinicaId:       CLINICA_ID,
+    clinicaId:       clinicaId,
     creadoEn:        ahora,
     syncStatus:      'pending',
     updatedAt:       ahora,

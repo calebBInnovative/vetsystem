@@ -1,11 +1,10 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type SyncQueueItem } from '@/lib/db/database';
+import { db, getClinicaId, type SyncQueueItem } from '@/lib/db/database';
 import type { ConsultaLocal, ConsultaConPaciente, EstadoConsulta, TipoConsulta } from '@/types/consulta';
 import type { ConsultaFormData } from '@/lib/validations/consulta.schema';
 
-const CLINICA_ID = process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
 const VETERINARIO  = 'Dra. Patricia Vega';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -20,9 +19,10 @@ export function useConsultas(filtros?: {
   fechaHasta?: number;
 }) {
   const resultado = useLiveQuery(async () => {
+    const clinicaId = await getClinicaId();
     let consultas = await db.consultations
       .where('clinicaId')
-      .equals(CLINICA_ID)
+      .equals(clinicaId)
       .filter((c) => !c.deletedAt)
       .toArray();
 
@@ -58,10 +58,11 @@ export function useConsultas(filtros?: {
 /** Consultas en proceso (activas ahora) */
 export function useConsultasEnProceso() {
   const resultado = useLiveQuery(async () => {
+    const clinicaId = await getClinicaId();
     const consultas = await db.consultations
       .where('estado')
       .equals('en_proceso')
-      .filter((c) => !c.deletedAt && c.clinicaId === CLINICA_ID)
+      .filter((c) => !c.deletedAt && c.clinicaId === clinicaId)
       .toArray();
 
     const pacienteIds  = [...new Set(consultas.map((c) => c.pacienteId))];
@@ -132,6 +133,7 @@ export async function iniciarConsulta(datos: {
 }): Promise<string> {
   const ahora = Date.now();
   const id    = crypto.randomUUID();
+  const clinicaId = await getClinicaId();
 
   const paciente = await db.patients.get(datos.pacienteId);
   if (!paciente) throw new Error('Paciente no encontrado');
@@ -140,7 +142,7 @@ export async function iniciarConsulta(datos: {
     id,
     pacienteId: datos.pacienteId,
     duenoId:    paciente.duenoId,
-    clinicaId:  CLINICA_ID,
+    clinicaId:  clinicaId,
     citaId:     datos.citaId,
     fecha:      ahora,
     tipo:       datos.tipo ?? 'consulta_general',
@@ -205,6 +207,7 @@ export async function finalizarConsulta(id: string, datos: ConsultaFormData): Pr
   const subtotal = calcularSubtotal(datos.items ?? []);
   const descuento = datos.descuento ?? 0;
   const total    = Math.max(0, subtotal - descuento);
+  const clinicaId = await getClinicaId();
 
   await db.transaction('rw',
     [db.consultations, db.products, db.movements, db.syncQueue],
@@ -249,7 +252,7 @@ export async function finalizarConsulta(id: string, datos: ConsultaFormData): Pr
         await db.movements.add({
           id:           crypto.randomUUID(),
           productoId:   item.productoId!,
-          clinicaId:    CLINICA_ID,
+          clinicaId:    clinicaId,
           tipo:         'salida',
           cantidad:     item.cantidad,
           stockAntes:   prod.stockActual,
