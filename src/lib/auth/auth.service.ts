@@ -15,6 +15,7 @@ import {
   getDocs,
   setDoc,
   deleteDoc,
+  writeBatch,
   collection,
   serverTimestamp,
 } from 'firebase/firestore';
@@ -86,7 +87,6 @@ export async function registrarse(params: {
   telefono?:  string;
   logo?:      File | null;
 }): Promise<void> {
-  // Create Firebase Auth user first
   const credential = await createUserWithEmailAndPassword(getAuth_(), params.email, params.password);
   const user       = credential.user;
   const clinicId   = _slugify(params.clinicName) || user.uid.slice(0, 8);
@@ -99,15 +99,43 @@ export async function registrarse(params: {
     //   catch (err) { console.warn('[auth] Logo upload failed:', err); }
     // }
 
-    await _crearClinica({ clinicId, clinicName: params.clinicName, logoUrl, telefono: params.telefono });
-    // Self-registration always creates an admin — master is assigned manually in Firebase
-    await _crearDocUsuario(user, params.name, 'admin', clinicId, null);
+    const expiry = new Date();
+    expiry.setFullYear(expiry.getFullYear() + 1);
+
+    const fs    = getFirestoreDb();
+    const batch = writeBatch(fs);
+
+    // All 3 documents written atomically — either all succeed or none do
+    batch.set(doc(fs, 'clinics', clinicId), {
+      name:      params.clinicName,
+      logoUrl,
+      telefono:  params.telefono ?? null,
+      createdAt: serverTimestamp(),
+    }, { merge: true });
+
+    batch.set(doc(fs, 'clinics', clinicId, 'license', 'data'), {
+      clinicName:     params.clinicName,
+      plan:           'Trial',
+      expirationDate: expiry.toISOString().slice(0, 10),
+      subscription:   true,
+      updatedAt:      serverTimestamp(),
+    }, { merge: true });
+
+    batch.set(doc(fs, 'users', user.uid), {
+      uid:         user.uid,
+      email:       user.email,
+      name:        params.name,
+      role:        'admin',
+      clinicId,
+      permissions: null,
+      createdAt:   serverTimestamp(),
+    });
+
+    await batch.commit();
     await refrescarSesion(user);
   } catch (err) {
-    // Firestore writes failed — roll back the Auth user so the user can retry cleanly.
-    // Without this, retrying registration with the same email would fail on Auth
-    // while Firestore remains incomplete, leaving the account permanently broken.
-    try { await user.delete(); } catch { /* ignore delete error, surface original */ }
+    // Batch failed — roll back the Auth user so the person can retry with the same email.
+    try { await user.delete(); } catch { /* ignore, surface the original error */ }
     throw err;
   }
 }

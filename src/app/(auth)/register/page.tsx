@@ -108,16 +108,19 @@ export default function RegisterPage() {
       router.replace('/dashboard');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
+      console.error('[register] error:', msg);
       if (msg.includes('email-already-in-use')) {
         setError('Ya existe una cuenta con ese email.');
       } else if (msg.includes('weak-password')) {
         setError('La contraseña debe tener al menos 6 caracteres.');
       } else if (msg.includes('invalid-email')) {
         setError('El email no es válido.');
-      } else if (msg.includes('network')) {
-        setError('Sin conexión a internet.');
+      } else if (msg.includes('network') || msg.includes('fetch')) {
+        setError('Sin conexión a internet. Intenta de nuevo.');
+      } else if (msg.includes('permission') || msg.includes('PERMISSION')) {
+        setError('Error de permisos al guardar los datos. Contacta al administrador.');
       } else {
-        setError('Error al crear la cuenta. Intenta de nuevo.');
+        setError(`Error al crear la cuenta: ${msg}`);
       }
     } finally {
       setCargando(false);

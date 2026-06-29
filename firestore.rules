@@ -48,9 +48,7 @@ service cloud.firestore {
       );
 
       // New registration: authenticated user writes their own doc for the first time.
-      allow create: if isAuth()
-        && myUid() == uid
-        && request.resource.data.uid == uid;
+      allow create: if isAuth() && myUid() == uid;
 
       allow update: if isAuth() && (
         myUid() == uid
