@@ -86,21 +86,30 @@ export async function registrarse(params: {
   telefono?:  string;
   logo?:      File | null;
 }): Promise<void> {
+  // Create Firebase Auth user first
   const credential = await createUserWithEmailAndPassword(getAuth_(), params.email, params.password);
   const user       = credential.user;
-  const clinicId = _slugify(params.clinicName) || user.uid.slice(0, 8);
+  const clinicId   = _slugify(params.clinicName) || user.uid.slice(0, 8);
 
-  // TODO: enable when Firebase Storage plan is upgraded
-  const logoUrl: string | null = null;
-  // if (params.logo) {
-  //   try { logoUrl = await _subirLogo(clinicId, params.logo); }
-  //   catch (err) { console.warn('[auth] Logo upload failed:', err); }
-  // }
+  try {
+    // TODO: enable when Firebase Storage plan is upgraded
+    const logoUrl: string | null = null;
+    // if (params.logo) {
+    //   try { logoUrl = await _subirLogo(clinicId, params.logo); }
+    //   catch (err) { console.warn('[auth] Logo upload failed:', err); }
+    // }
 
-  await _crearClinica({ clinicId, clinicName: params.clinicName, logoUrl, telefono: params.telefono });
-  // Self-registration always creates an admin — master is assigned manually in Firebase
-  await _crearDocUsuario(user, params.name, 'admin', clinicId, null);
-  await refrescarSesion(user);
+    await _crearClinica({ clinicId, clinicName: params.clinicName, logoUrl, telefono: params.telefono });
+    // Self-registration always creates an admin — master is assigned manually in Firebase
+    await _crearDocUsuario(user, params.name, 'admin', clinicId, null);
+    await refrescarSesion(user);
+  } catch (err) {
+    // Firestore writes failed — roll back the Auth user so the user can retry cleanly.
+    // Without this, retrying registration with the same email would fail on Auth
+    // while Firestore remains incomplete, leaving the account permanently broken.
+    try { await user.delete(); } catch { /* ignore delete error, surface original */ }
+    throw err;
+  }
 }
 
 /** Sign in or register with Google popup. Creates clinic + user doc on first login. */
@@ -114,8 +123,10 @@ export async function loginConGoogle(): Promise<void> {
   if (!userDoc.exists()) {
     const name     = user.displayName ?? user.email ?? 'Usuario';
     const clinicId = _slugify(name) || user.uid.slice(0, 8);
+    // Google auth can't be rolled back, so we must ensure both writes succeed.
+    // If either fails, the error propagates and the user sees it — on retry,
+    // setDoc is idempotent so re-running is safe.
     await _crearClinica({ clinicId, clinicName: name, logoUrl: user.photoURL ?? null });
-    // Google first-time login → admin; master is assigned manually in Firebase
     await _crearDocUsuario(user, name, 'admin', clinicId, null);
   }
 

@@ -3,17 +3,139 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // This rule allows anyone with your Firestore database reference to view, edit,
-    // and delete all data in your Firestore database. It is useful for getting
-    // started, but it is configured to expire after 30 days because it
-    // leaves your app open to attackers. At that time, all client
-    // requests to your Firestore database will be denied.
-    //
-    // Make sure to write security rules for your app before that time, or else
-    // all client requests to your Firestore database will be denied until you Update
-    // your rules
-    match /{document=**} {
-      allow read, write: if request.time < timestamp.date(2026, 7, 20);
+    // ── Helpers ────────────────────────────────────────────────────────────────
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function myUid() {
+      return request.auth.uid;
+    }
+
+    function callerDoc() {
+      return get(/databases/$(database)/documents/users/$(myUid())).data;
+    }
+
+    function isMaster() {
+      return isAuth() && callerDoc().role == 'master';
+    }
+
+    function isAdmin(clinicId) {
+      return isAuth()
+        && callerDoc().role == 'admin'
+        && callerDoc().clinicId == clinicId;
+    }
+
+    function belongsToClinic(clinicId) {
+      return isAuth() && callerDoc().clinicId == clinicId;
+    }
+
+    function ownClinic() {
+      return isAuth() && callerDoc().clinicId == resource.data.clinicId;
+    }
+
+    function ownClinicOnWrite() {
+      return isAuth() && callerDoc().clinicId == request.resource.data.clinicId;
+    }
+
+    // ── users/{uid} ────────────────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read: if isAuth() && (
+        myUid() == uid
+        || isMaster()
+        || (callerDoc().role == 'admin' && callerDoc().clinicId == resource.data.clinicId)
+      );
+
+      // New registration: authenticated user writes their own doc for the first time.
+      allow create: if isAuth()
+        && myUid() == uid
+        && request.resource.data.uid == uid;
+
+      allow update: if isAuth() && (
+        myUid() == uid
+        || isMaster()
+        || (callerDoc().role == 'admin' && callerDoc().clinicId == resource.data.clinicId)
+      );
+
+      allow delete: if isMaster()
+        || (callerDoc().role == 'admin' && callerDoc().clinicId == resource.data.clinicId);
+    }
+
+    // ── clinics/{clinicId} ─────────────────────────────────────────────────────
+    match /clinics/{clinicId} {
+      allow read: if belongsToClinic(clinicId) || isMaster();
+
+      // create is allowed during self-registration (clinic is written before
+      // the user doc exists, so callerDoc() would fail — allow any authed user).
+      allow create: if isAuth();
+
+      allow update: if isAdmin(clinicId) || isMaster();
+      allow delete: if isMaster();
+
+      match /license/{doc} {
+        allow read:   if belongsToClinic(clinicId) || isMaster();
+        allow create: if isAuth();
+        allow update: if isMaster();
+        allow delete: if isMaster();
+      }
+    }
+
+    // ── Business data collections ──────────────────────────────────────────────
+    match /pacientes/{id} {
+      allow read:   if ownClinic()        || isMaster();
+      allow create: if ownClinicOnWrite() || isMaster();
+      allow update: if ownClinic()        || isMaster();
+      allow delete: if ownClinic()        || isMaster();
+    }
+
+    match /consultas/{id} {
+      allow read:   if ownClinic()        || isMaster();
+      allow create: if ownClinicOnWrite() || isMaster();
+      allow update: if ownClinic()        || isMaster();
+      allow delete: if ownClinic()        || isMaster();
+    }
+
+    match /citas/{id} {
+      allow read:   if ownClinic()        || isMaster();
+      allow create: if ownClinicOnWrite() || isMaster();
+      allow update: if ownClinic()        || isMaster();
+      allow delete: if ownClinic()        || isMaster();
+    }
+
+    match /facturas/{id} {
+      allow read:   if ownClinic()        || isMaster();
+      allow create: if ownClinicOnWrite() || isMaster();
+      allow update: if ownClinic()        || isMaster();
+      allow delete: if ownClinic()        || isMaster();
+    }
+
+    match /ventas/{id} {
+      allow read:   if ownClinic()        || isMaster();
+      allow create: if ownClinicOnWrite() || isMaster();
+      allow update: if ownClinic()        || isMaster();
+      allow delete: if ownClinic()        || isMaster();
+    }
+
+    match /inventario/{id} {
+      allow read:   if ownClinic()        || isMaster();
+      allow create: if ownClinicOnWrite() || isMaster();
+      allow update: if ownClinic()        || isMaster();
+      allow delete: if ownClinic()        || isMaster();
+    }
+
+    match /servicios/{id} {
+      allow read:   if ownClinic()        || isMaster();
+      allow create: if ownClinicOnWrite() || isMaster();
+      allow update: if ownClinic()        || isMaster();
+      allow delete: if ownClinic()        || isMaster();
+    }
+
+    match /pagos/{id} {
+      allow read:   if ownClinic()        || isMaster();
+      allow create: if ownClinicOnWrite() || isMaster();
+      allow update: if ownClinic()        || isMaster();
+      allow delete: if ownClinic()        || isMaster();
     }
   }
 }
