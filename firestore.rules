@@ -64,17 +64,22 @@ service cloud.firestore {
     match /clinics/{clinicId} {
       allow read: if belongsToClinic(clinicId) || isMaster();
 
-      // create is allowed during self-registration (clinic is written before
-      // the user doc exists, so callerDoc() would fail — allow any authed user).
       allow create: if isAuth();
 
-      allow update: if isAdmin(clinicId) || isMaster();
+      // During registration the clinic doc may already exist (from a previous
+      // failed attempt) while the user doc does not yet. In that case
+      // callerDoc() would throw, so we allow the update when the user doc
+      // is absent — meaning this must be a registration retry.
+      allow update: if isAdmin(clinicId) || isMaster() ||
+                    (isAuth() && !exists(/databases/$(database)/documents/users/$(myUid())));
+
       allow delete: if isMaster();
 
       match /license/{doc} {
         allow read:   if belongsToClinic(clinicId) || isMaster();
         allow create: if isAuth();
-        allow update: if isMaster();
+        allow update: if isMaster() ||
+                      (isAuth() && !exists(/databases/$(database)/documents/users/$(myUid())));
         allow delete: if isMaster();
       }
     }

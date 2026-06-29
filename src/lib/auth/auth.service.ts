@@ -111,7 +111,7 @@ export async function registrarse(params: {
       logoUrl,
       telefono:  params.telefono ?? null,
       createdAt: serverTimestamp(),
-    }, { merge: true });
+    });
 
     batch.set(doc(fs, 'clinics', clinicId, 'license', 'data'), {
       clinicName:     params.clinicName,
@@ -119,7 +119,7 @@ export async function registrarse(params: {
       expirationDate: expiry.toISOString().slice(0, 10),
       subscription:   true,
       updatedAt:      serverTimestamp(),
-    }, { merge: true });
+    });
 
     batch.set(doc(fs, 'users', user.uid), {
       uid:         user.uid,
@@ -178,9 +178,6 @@ export async function refrescarSesion(user: User): Promise<SessionLocal | null> 
 
     const userDoc = await getDoc(doc(fs, 'users', user.uid));
     if (!userDoc.exists()) {
-      if (process.env.NODE_ENV === 'development') {
-        return await _crearSesionDev(user);
-      }
       throw new UserNotFoundError(`User ${user.uid} not found in Firestore.`);
     }
 
@@ -457,24 +454,3 @@ function _licenciaDev() {
   };
 }
 
-async function _crearSesionDev(user: User): Promise<SessionLocal> {
-  const ahora   = Date.now();
-  const license = _licenciaDev();
-  const session: SessionLocal = {
-    id:             'singleton',
-    uid:            user.uid,
-    email:          user.email ?? '',
-    clinicId:       process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets',
-    clinicName:     license.clinicName,
-    userName:       user.displayName ?? user.email ?? 'Dev Admin',
-    role:           'master',
-    permissions:    null,
-    plan:           license.plan,
-    expirationDate: license.expirationDate,
-    subscription:   true,
-    lastSync:       ahora,
-    cachedAt:       ahora,
-  };
-  await db.session.put(session);
-  return session;
-}

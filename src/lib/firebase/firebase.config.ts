@@ -1,5 +1,6 @@
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
-import { getFirestore, type Firestore } from 'firebase/firestore';
+import { getFirestore, connectFirestoreEmulator, type Firestore } from 'firebase/firestore';
+import { getAuth, connectAuthEmulator } from 'firebase/auth';
 // TODO: enable when Firebase Storage plan is upgraded
 // import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
@@ -15,6 +16,7 @@ const firebaseConfig = {
 // Singleton — Next.js puede importar este módulo varias veces (HMR, SSR)
 let app: FirebaseApp;
 let firestore: Firestore;
+let emulatorsConnected = false;
 // let storage: FirebaseStorage;
 
 export function getFirebaseApp(): FirebaseApp {
@@ -27,6 +29,11 @@ export function getFirebaseApp(): FirebaseApp {
 export function getFirestoreDb(): Firestore {
   if (!firestore) {
     firestore = getFirestore(getFirebaseApp());
+    if (process.env.NEXT_PUBLIC_USE_EMULATOR === 'true' && !emulatorsConnected) {
+      connectFirestoreEmulator(firestore, 'localhost', 8080);
+      connectAuthEmulator(getAuth(getFirebaseApp()), 'http://localhost:9099');
+      emulatorsConnected = true;
+    }
   }
   return firestore;
 }
