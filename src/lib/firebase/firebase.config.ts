@@ -22,6 +22,14 @@ let emulatorsConnected = false;
 export function getFirebaseApp(): FirebaseApp {
   if (!app) {
     app = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig);
+
+    // Connect emulators immediately after app init, before Auth or Firestore
+    // are used anywhere. Must run before any auth/firestore operation.
+    if (process.env.NEXT_PUBLIC_USE_EMULATOR === 'true' && !emulatorsConnected) {
+      emulatorsConnected = true;
+      connectAuthEmulator(getAuth(app), 'http://localhost:9099', { disableWarnings: true });
+      connectFirestoreEmulator(getFirestore(app), 'localhost', 8080);
+    }
   }
   return app;
 }
@@ -29,11 +37,6 @@ export function getFirebaseApp(): FirebaseApp {
 export function getFirestoreDb(): Firestore {
   if (!firestore) {
     firestore = getFirestore(getFirebaseApp());
-    if (process.env.NEXT_PUBLIC_USE_EMULATOR === 'true' && !emulatorsConnected) {
-      connectFirestoreEmulator(firestore, 'localhost', 8080);
-      connectAuthEmulator(getAuth(getFirebaseApp()), 'http://localhost:9099');
-      emulatorsConnected = true;
-    }
   }
   return firestore;
 }

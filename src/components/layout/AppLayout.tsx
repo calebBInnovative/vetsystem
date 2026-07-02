@@ -33,7 +33,17 @@ import {
   BarChart3, Settings, Search, DollarSign, Stethoscope, Receipt,
   ClipboardList, ShoppingBag, Shield, Database, LogOut, ChevronDown,
   FlaskConical, PlayCircle, UserCircle, Loader2, CheckCircle2, Phone,
+  Wallet, Bell,
 } from 'lucide-react';
+import {
+  Popover, PopoverContent, PopoverTrigger,
+} from '@/components/ui/popover';
+import { useAlertasGastos, useGastosFijos } from '@/hooks/useGastosFijos';
+import {
+  nivelAlerta,
+  diasHastaVencimiento,
+  CATEGORIAS_GASTO,
+} from '@/types/gasto';
 
 // nav-id is used by TourGuide to spotlight each item
 const menuItems: {
@@ -52,10 +62,84 @@ const menuItems: {
   { icon: Stethoscope,   label: 'Consultas',     href: '/consultas',     disponible: true,  modulo: 'consultas', navId: 'nav-consultas'  },
   { icon: DollarSign,    label: 'Finanzas',      href: '/finanzas',      disponible: true,  modulo: 'finanzas',  navId: 'nav-finanzas'   },
   { icon: Receipt,       label: 'Facturas',      href: '/facturas',      disponible: true,  modulo: 'facturas'                          },
+  { icon: Wallet,        label: 'Gastos Fijos',  href: '/gastos',        disponible: true,  modulo: 'finanzas'                          },
   { icon: ClipboardList, label: 'Servicios',     href: '/servicios',     disponible: true,  modulo: 'servicios'                         },
   { icon: BarChart3,     label: 'Reportes',      href: '/reportes',      disponible: false                                              },
   { icon: Settings,      label: 'Configuración', href: '/configuracion', disponible: false                                              },
 ];
+
+// ── Bell notification ─────────────────────────────────────────────────────────
+
+function BellNotification() {
+  const alertas = useAlertasGastos();
+  const { gastos } = useGastosFijos();
+
+  const en30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+
+  const gastosAlerta = gastos.filter(
+    (g) => g.activo && g.proximoVencimiento <= en30,
+  );
+
+  const nivelClases: Record<string, string> = {
+    vencido: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400',
+    urgente: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400',
+    proximo: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400',
+    normal:  'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400',
+  };
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className="relative p-1.5 rounded-lg hover:bg-muted/60 transition-colors">
+          <Bell size={18} className="text-muted-foreground" />
+          {alertas.total > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
+              {alertas.total > 99 ? '99+' : alertas.total}
+            </span>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72 p-0">
+        <div className="px-4 py-3 border-b border-border">
+          <p className="text-sm font-semibold">Gastos por vencer</p>
+          {alertas.total === 0 && (
+            <p className="text-xs text-muted-foreground mt-0.5">Todo al día</p>
+          )}
+        </div>
+        {gastosAlerta.length === 0 ? (
+          <div className="px-4 py-4 text-xs text-muted-foreground text-center">
+            No hay gastos próximos a vencer
+          </div>
+        ) : (
+          <ul className="divide-y divide-border max-h-64 overflow-y-auto">
+            {gastosAlerta.map((g) => {
+              const nivel = nivelAlerta(g.proximoVencimiento);
+              const dias  = diasHastaVencimiento(g.proximoVencimiento);
+              return (
+                <li key={g.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{g.nombre}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {CATEGORIAS_GASTO[g.categoria]} · {g.proximoVencimiento}
+                    </p>
+                  </div>
+                  <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${nivelClases[nivel]}`}>
+                    {nivel === 'vencido' ? 'Vencido' : `${dias}d`}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <div className="px-4 py-2.5 border-t border-border">
+          <a href="/gastos" className="text-xs text-primary hover:underline font-medium">
+            Ver todos los gastos →
+          </a>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 // ── Phone validation helpers ──────────────────────────────────────────────────
 function validarTelPersonal(tel: string): boolean {
@@ -318,6 +402,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 </span>
               )}
               <ThemeSwitcher />
+              <BellNotification />
 
               {/* ── User dropdown ── */}
               {session && (

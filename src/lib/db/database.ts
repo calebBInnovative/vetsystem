@@ -22,6 +22,7 @@ import type { FacturaLocal } from '@/types/factura';
 import type { ServicioLocal } from '@/types/servicio';
 import type { VentaLocal }    from '@/types/venta';
 import type { SessionLocal }  from '@/types/licencia';
+import type { GastoFijo, PagoGasto } from '@/types/gasto';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TIPOS INTERNOS
@@ -79,6 +80,10 @@ class VetSystemDB extends Dexie {
 
   // Session & license (singleton — always id = 'singleton')
   session!:       EntityTable<SessionLocal,          'id'>;
+
+  // Fixed expenses module
+  gastosFijos!:   EntityTable<GastoFijo,             'id'>;
+  pagosGastos!:   EntityTable<PagoGasto,             'id'>;
 
   // Sync infrastructure
   syncQueue!:     EntityTable<SyncQueueItem,         'id'>;
@@ -302,6 +307,11 @@ class VetSystemDB extends Dexie {
       invoices:      'id, numero, consultaId, pacienteId, duenoId, clinicaId, fecha, estado, syncStatus, updatedAt, deletedAt',
       services:      'id, clinicaId, categoria, activo, syncStatus, updatedAt, deletedAt',
       sales:         'id, clinicaId, fecha, estado, pacienteId, syncStatus, updatedAt, deletedAt',
+    });
+
+    this.version(14).stores({
+      gastosFijos: 'id, clinicaId, proximoVencimiento, activo, syncStatus, updatedAt, deletedAt',
+      pagosGastos: 'id, clinicaId, gastoFijoId, fechaPago, syncStatus, updatedAt',
     });
   }
 }

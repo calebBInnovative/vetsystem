@@ -186,6 +186,13 @@ export default function LoginPage() {
         </Button>
       </form>
 
+      <p className="text-center text-sm text-muted-foreground">
+        ¿No tienes cuenta?{' '}
+        <a href="/register" className="font-medium text-primary underline underline-offset-4">
+          Regístrate gratis
+        </a>
+      </p>
+
       <p className="text-center text-xs text-muted-foreground">
         ¿Problemas para acceder?{' '}
         <a href="mailto:soporte@vetsystem.app" className="underline">
