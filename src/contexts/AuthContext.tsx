@@ -4,9 +4,9 @@ import {
   createContext, useContext, useEffect, useState, useCallback, useRef,
   type ReactNode,
 } from 'react';
-import { onAuthChange, getSesionLocal, refrescarSesion, logout, UserNotFoundError } from '@/lib/auth/auth.service';
+import { onAuthChange, getSesionLocal, refrescarSesion, logout, UserNotFoundError, isUserCreationInFlight } from '@/lib/auth/auth.service';
 import { calcularLicencia } from '@/lib/license/license.service';
-import type { LicenseInfo, SessionLocal } from '@/types/licencia';
+import type { LicenseInfo, SessionLocal } from '@/types/license';
 import type { User } from 'firebase/auth';
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -15,21 +15,21 @@ interface AuthContextValue {
   firebaseUser:     User | null;
   session:          SessionLocal | null;
   license:          LicenseInfo;
-  cargando:         boolean;
+  loading:         boolean;
   /** true while a Firestore session refresh is in-flight with no cached session */
-  sincronizando:    boolean;
+  syncing:    boolean;
   refreshFromDexie: () => Promise<void>;
-  reintentarSesion: () => void;
+  retrySession: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue>({
   firebaseUser:     null,
   session:          null,
   license:          { modo: 'bloqueado', diasOffline: 0, diasParaVencer: null, session: null },
-  cargando:         true,
-  sincronizando:    false,
+  loading:         true,
+  syncing:    false,
   refreshFromDexie: async () => {},
-  reintentarSesion: () => {},
+  retrySession: () => {},
 });
 
 export function useAuth() {
@@ -41,10 +41,10 @@ export function useAuth() {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [firebaseUser,  setFirebaseUser]  = useState<User | null>(null);
   const [session,       setSession]       = useState<SessionLocal | null>(null);
-  const [cargando,      setCargando]      = useState(true);
-  const [sincronizando, setSincronizando] = useState(false);
+  const [loading,      setCargando]      = useState(true);
+  const [syncing, setSincronizando] = useState(false);
 
-  // Keep a ref to the current Firebase user so reintentarSesion can access it
+  // Keep a ref to the current Firebase user so retrySession can access it
   const firebaseUserRef = useRef<User | null>(null);
   firebaseUserRef.current = firebaseUser;
 
@@ -56,11 +56,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // ── Core Firestore refresh with retry ─────────────────────────────────────
-  const intentarRefrescar = useCallback(async (user: User) => {
+  const tryRefresh = useCallback(async (user: User) => {
     const local = await getSesionLocal();
     if (local?.isDemo) return;
 
-    // Only show sincronizando when there is no cached session to fall back on
+    // Only show syncing when there is no cached session to fall back on
     const sinCache = !local;
     if (sinCache) setSincronizando(true);
 
@@ -76,9 +76,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (local) { setSincronizando(false); return; }
       } catch (err) {
         if (err instanceof UserNotFoundError) {
-          await logout();
-          setFirebaseUser(null);
-          setSession(null);
+          // Email registrarse() is mid-write — wait for the batch to commit.
+          if (isUserCreationInFlight()) {
+            await new Promise<void>((r) => setTimeout(r, 3000));
+            continue;
+          }
+          if (local) {
+            // Had a prior session → user doc was deleted → force logout
+            await logout();
+            setFirebaseUser(null);
+            setSession(null);
+            setSincronizando(false);
+            return;
+          }
+          // No prior session, no write in flight → new Google user waiting for /setup
           setSincronizando(false);
           return;
         }
@@ -89,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // All retries exhausted — leave sincronizando=true so the UI shows retry screen
+    // All retries exhausted — leave syncing=true so the UI shows retry screen
     // (not "bloqueado")
   }, []);
 
@@ -101,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (user) {
         const local = await getSesionLocal();
         setSession(local);
-        await intentarRefrescar(user);
+        await tryRefresh(user);
       } else {
         const local = await getSesionLocal();
         if (local?.isDemo) {
@@ -116,26 +127,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return unsub;
-  }, [intentarRefrescar]);
+  }, [tryRefresh]);
 
   // ── Refresh when reconnecting ─────────────────────────────────────────────
   useEffect(() => {
     const handler = () => {
-      if (firebaseUser && !session?.isDemo) intentarRefrescar(firebaseUser);
+      if (firebaseUser && !session?.isDemo) tryRefresh(firebaseUser);
     };
     window.addEventListener('online', handler);
     return () => window.removeEventListener('online', handler);
-  }, [firebaseUser, session, intentarRefrescar]);
+  }, [firebaseUser, session, tryRefresh]);
 
-  const reintentarSesion = useCallback(() => {
+  const retrySession = useCallback(() => {
     const user = firebaseUserRef.current;
-    if (user) intentarRefrescar(user);
-  }, [intentarRefrescar]);
+    if (user) tryRefresh(user);
+  }, [tryRefresh]);
 
   return (
     <AuthContext.Provider value={{
-      firebaseUser, session, license, cargando,
-      sincronizando, refreshFromDexie, reintentarSesion,
+      firebaseUser, session, license, loading,
+      syncing, refreshFromDexie, retrySession,
     }}>
       {children}
     </AuthContext.Provider>

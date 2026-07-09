@@ -20,32 +20,32 @@ import {
   UserPlus, Users, KeyRound, ShieldAlert, Pencil, KeySquare, Phone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ModuloApp, Permissions, RolUsuario } from '@/types/licencia';
+import type { AppModule, Permissions, UserRole } from '@/types/license';
 
 // ─── Module permission config ─────────────────────────────────────────────────
 
-const MODULOS: { key: ModuloApp; label: string }[] = [
-  { key: 'pacientes',  label: 'Pacientes'  },
-  { key: 'agenda',     label: 'Agenda'     },
-  { key: 'consultas',  label: 'Consultas'  },
-  { key: 'ventas',     label: 'Ventas'     },
-  { key: 'inventario', label: 'Inventario' },
-  { key: 'finanzas',   label: 'Finanzas'   },
-  { key: 'facturas',   label: 'Facturas'   },
-  { key: 'servicios',  label: 'Servicios'  },
+const MODULOS: { key: AppModule; label: string }[] = [
+  { key: 'patients',  label: 'Pacientes'  },
+  { key: 'schedule',     label: 'Agenda'     },
+  { key: 'consultations',  label: 'Consultas'  },
+  { key: 'sales',     label: 'Ventas'     },
+  { key: 'inventory', label: 'Inventario' },
+  { key: 'finances',   label: 'Finanzas'   },
+  { key: 'invoices',   label: 'Facturas'   },
+  { key: 'services',  label: 'Servicios'  },
 ];
 
 const DEFAULT_PERMISSIONS: Permissions = {
-  pacientes: true, agenda: true, consultas: true, ventas: true,
-  inventario: false, finanzas: false, facturas: false, servicios: false,
+  patients: true, schedule: true, consultations: true, sales: true,
+  inventory: false, finances: false, invoices: false, services: false,
 };
 
-function permissionsForRole(role: RolUsuario, current: Permissions | null): Permissions | null {
+function permissionsForRole(role: UserRole, current: Permissions | null): Permissions | null {
   if (role === 'admin') return null;
   return current ?? { ...DEFAULT_PERMISSIONS };
 }
 
-type Accion = 'idle' | 'cargando' | 'ok' | 'error';
+type Accion = 'idle' | 'loading' | 'ok' | 'error';
 
 interface QueueEstado {
   pendientes: number;
@@ -59,7 +59,7 @@ const ES_PROD     = PROYECTO_ID && !PROYECTO_ID.startsWith('REEMPLAZAR');
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
-  const { session, cargando } = useAuth();
+  const { session, loading } = useAuth();
   const router = useRouter();
   const esMaster = session?.role === 'master';
   const esAdmin  = session?.role === 'admin' || esMaster;
@@ -67,10 +67,10 @@ export default function AdminPage() {
   const [tab, setTab] = useState<'clinica' | 'usuarios' | 'plan' | 'datos' | 'firebase' | 'estado'>('clinica');
 
   useEffect(() => {
-    if (!cargando && !esAdmin) router.replace('/dashboard');
-  }, [cargando, esAdmin, router]);
+    if (!loading && !esAdmin) router.replace('/dashboard');
+  }, [loading, esAdmin, router]);
 
-  if (cargando) return null;
+  if (loading) return null;
   if (!esAdmin) return null;
 
   type TabKey = 'clinica' | 'usuarios' | 'plan' | 'datos' | 'firebase' | 'estado';
@@ -177,7 +177,7 @@ function PermisosEditor({
 
 // ─── Tab: Usuarios ────────────────────────────────────────────────────────────
 
-const ROLES_STAFF: { value: RolUsuario; label: string }[] = [
+const ROLES_STAFF: { value: UserRole; label: string }[] = [
   { value: 'admin',       label: 'Admin'       },
   { value: 'veterinario', label: 'Veterinario' },
   { value: 'recepcion',   label: 'Recepción'   },
@@ -200,7 +200,7 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
 
   // ── Edit modal ─────────────────────────────────────────────────────────────
   const [editTarget, setEditTarget] = useState<UsuarioFirestore | null>(null);
-  const [editForm,   setEditForm]   = useState<{ name: string; role: RolUsuario; permissions: Permissions | null }>({
+  const [editForm,   setEditForm]   = useState<{ name: string; role: UserRole; permissions: Permissions | null }>({
     name: '', role: 'veterinario', permissions: { ...DEFAULT_PERMISSIONS },
   });
   const [accionEdit, setAccionEdit] = useState<Accion>('idle');
@@ -226,7 +226,7 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
   // ── Create ─────────────────────────────────────────────────────────────────
   async function handleCrear(e: React.FormEvent) {
     e.preventDefault();
-    setAccionCrear('cargando'); setMensajeCrear('');
+    setAccionCrear('loading'); setMensajeCrear('');
     try {
       await crearUsuario({ ...form, clinicId });
       setMensajeCrear(`Usuario ${form.email} creado.`);
@@ -253,7 +253,7 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
   async function handleGuardarEdit(e: React.FormEvent) {
     e.preventDefault();
     if (!editTarget) return;
-    setAccionEdit('cargando');
+    setAccionEdit('loading');
     try {
       await actualizarUsuario(editTarget.uid, editForm);
       setAccionEdit('ok');
@@ -268,7 +268,7 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
   // ── Reset password ─────────────────────────────────────────────────────────
   async function handleReset() {
     if (!resetTarget) return;
-    setAccionReset('cargando');
+    setAccionReset('loading');
     try {
       await enviarResetPassword(resetTarget.email);
       setAccionReset('ok');
@@ -282,7 +282,7 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
   // ── Delete ─────────────────────────────────────────────────────────────────
   async function handleDelete() {
     if (!deleteTarget) return;
-    setAccionDelete('cargando');
+    setAccionDelete('loading');
     try {
       await eliminarUsuario(deleteTarget.uid);
       setDeleteTarget(null);
@@ -388,7 +388,7 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
               <select
                 value={form.role}
                 onChange={(e) => {
-                  const role = e.target.value as RolUsuario;
+                  const role = e.target.value as UserRole;
                   setForm({ ...form, role, permissions: permissionsForRole(role, form.permissions) });
                 }}
                 className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
@@ -442,8 +442,8 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
             </p>
           )}
 
-          <Button type="submit" disabled={accionCrear === 'cargando'} className="w-full gap-2">
-            {accionCrear === 'cargando' ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+          <Button type="submit" disabled={accionCrear === 'loading'} className="w-full gap-2">
+            {accionCrear === 'loading' ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
             Crear usuario
           </Button>
           <ResultadoBox accion={accionCrear} mensaje={mensajeCrear} />
@@ -472,7 +472,7 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
               <select
                 value={editForm.role}
                 onChange={(e) => {
-                  const role = e.target.value as RolUsuario;
+                  const role = e.target.value as UserRole;
                   setEditForm({ ...editForm, role, permissions: permissionsForRole(role, editForm.permissions) });
                 }}
                 className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
@@ -509,8 +509,8 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
               <Button type="button" variant="outline" onClick={() => setEditTarget(null)}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={accionEdit === 'cargando'}>
-                {accionEdit === 'cargando' && <Loader2 size={13} className="animate-spin mr-1.5" />}
+              <Button type="submit" disabled={accionEdit === 'loading'}>
+                {accionEdit === 'loading' && <Loader2 size={13} className="animate-spin mr-1.5" />}
                 Guardar cambios
               </Button>
             </DialogFooter>
@@ -543,10 +543,10 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
             <Button variant="outline" onClick={() => setResetTarget(null)}>Cancelar</Button>
             <Button
               onClick={handleReset}
-              disabled={accionReset === 'cargando' || accionReset === 'ok'}
+              disabled={accionReset === 'loading' || accionReset === 'ok'}
               className="gap-2"
             >
-              {accionReset === 'cargando'
+              {accionReset === 'loading'
                 ? <Loader2 size={13} className="animate-spin" />
                 : <KeySquare size={13} />}
               Enviar email
@@ -576,10 +576,10 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
             <Button
               variant="destructive"
               onClick={handleDelete}
-              disabled={accionDelete === 'cargando'}
+              disabled={accionDelete === 'loading'}
               className="gap-2"
             >
-              {accionDelete === 'cargando'
+              {accionDelete === 'loading'
                 ? <Loader2 size={13} className="animate-spin" />
                 : <Trash2 size={13} />}
               Eliminar
@@ -628,7 +628,7 @@ function TabClinica() {
       setTelError('Número inválido. Usa formato 8163-0097 o +50581630097.');
       return;
     }
-    setAccion('cargando');
+    setAccion('loading');
     try {
       await actualizarPerfilClinica(clinicId, {
         nombre:   nombre.trim(),
@@ -679,8 +679,8 @@ function TabClinica() {
               : <p className="text-xs text-muted-foreground">Formato: 8163-0097 · Se muestra en los recibos de impresión.</p>
             }
           </div>
-          <Button type="submit" variant="outline" disabled={accion === 'cargando'} className="gap-2">
-            {accion === 'cargando' && <Loader2 size={13} className="animate-spin" />}
+          <Button type="submit" variant="outline" disabled={accion === 'loading'} className="gap-2">
+            {accion === 'loading' && <Loader2 size={13} className="animate-spin" />}
             Guardar cambios
           </Button>
           {accion === 'ok' && (
@@ -720,7 +720,7 @@ function TabPlan({ esMaster }: { esMaster: boolean }) {
 
   async function handleGuardarLicencia(e: React.FormEvent) {
     e.preventDefault();
-    setAccionLic('cargando');
+    setAccionLic('loading');
     try {
       await configurarLicencia({ clinicId, ...lic });
       setAccionLic('ok');
@@ -728,7 +728,7 @@ function TabPlan({ esMaster }: { esMaster: boolean }) {
   }
 
   async function handlePausa() {
-    setAccionPausa('cargando');
+    setAccionPausa('loading');
     try {
       await configurarLicencia({
         clinicId,
@@ -798,10 +798,10 @@ function TabPlan({ esMaster }: { esMaster: boolean }) {
                 </Button>
                 <Button
                   variant={activa ? 'destructive' : 'default'}
-                  disabled={accionPausa === 'cargando'}
+                  disabled={accionPausa === 'loading'}
                   onClick={handlePausa}
                 >
-                  {accionPausa === 'cargando' && <Loader2 size={13} className="animate-spin mr-1.5" />}
+                  {accionPausa === 'loading' && <Loader2 size={13} className="animate-spin mr-1.5" />}
                   {activa ? 'Sí, pausar' : 'Sí, reactivar'}
                 </Button>
               </div>
@@ -878,8 +878,8 @@ function TabPlan({ esMaster }: { esMaster: boolean }) {
                 </select>
               </div>
             </div>
-            <Button type="submit" variant="outline" disabled={accionLic === 'cargando'} className="w-full gap-2">
-              {accionLic === 'cargando' && <Loader2 size={14} className="animate-spin" />}
+            <Button type="submit" variant="outline" disabled={accionLic === 'loading'} className="w-full gap-2">
+              {accionLic === 'loading' && <Loader2 size={14} className="animate-spin" />}
               Guardar licencia
             </Button>
             {accionLic === 'ok' && (
@@ -902,7 +902,7 @@ function TabDatos() {
   const [conteos, setConteos] = useState<Record<string, number> | null>(null);
 
   async function sembrar() {
-    setAccion('cargando'); setConteos(null);
+    setAccion('loading'); setConteos(null);
     try {
       const r = await sembrarDatos();
       setMensaje(r.mensaje); setConteos(r.conteos); setAccion('ok');
@@ -911,7 +911,7 @@ function TabDatos() {
 
   async function limpiar() {
     if (!confirm('¿Limpiar TODOS los datos locales? No se puede deshacer.')) return;
-    setAccion('cargando'); setConteos(null);
+    setAccion('loading'); setConteos(null);
     try {
       await limpiarDatos();
       setMensaje('Base de datos local limpiada.'); setAccion('ok');
@@ -923,13 +923,13 @@ function TabDatos() {
       <Advertencia>
         Opera solo sobre <strong>IndexedDB local</strong> (este navegador). No toca Firebase.
       </Advertencia>
-      <Card titulo="Datos de prueba" desc="8 dueños · 12 pacientes · consultas · citas · 18 productos · 30 pagos">
+      <Card titulo="Datos de prueba" desc="8 dueños · 12 patients · consultations · appointments · 18 products · 30 payments">
         <div className="flex gap-3">
-          <Button onClick={sembrar} disabled={accion === 'cargando'} className="gap-2 flex-1">
-            {accion === 'cargando' ? <Loader2 size={14} className="animate-spin" /> : <Sprout size={14} />}
+          <Button onClick={sembrar} disabled={accion === 'loading'} className="gap-2 flex-1">
+            {accion === 'loading' ? <Loader2 size={14} className="animate-spin" /> : <Sprout size={14} />}
             Sembrar datos
           </Button>
-          <Button onClick={limpiar} variant="outline" disabled={accion === 'cargando'}
+          <Button onClick={limpiar} variant="outline" disabled={accion === 'loading'}
             className="gap-2 text-destructive border-destructive/30 hover:bg-destructive/5">
             <Trash2 size={14} /> Limpiar todo
           </Button>
@@ -962,7 +962,7 @@ function TabFirebase() {
   }, [cargarQueue]);
 
   async function handleFlush() {
-    setAccion('cargando');
+    setAccion('loading');
     try {
       await syncService.flush();
       await cargarQueue();
@@ -972,7 +972,7 @@ function TabFirebase() {
 
   async function handleSyncAll() {
     if (!online) return;
-    setAccion('cargando'); setProgress([]);
+    setAccion('loading'); setProgress([]);
     try {
       const r = await syncService.syncAll((p) =>
         setProgress((prev) => {
@@ -1014,7 +1014,7 @@ function TabFirebase() {
       )}
 
       <Card titulo="Drenar queue" desc="Envía los ítems pendientes en la cola">
-        <Button onClick={handleFlush} variant="outline" disabled={accion === 'cargando' || !online} className="gap-2">
+        <Button onClick={handleFlush} variant="outline" disabled={accion === 'loading' || !online} className="gap-2">
           <RefreshCw size={14} /> Flush ahora
         </Button>
       </Card>
@@ -1025,8 +1025,8 @@ function TabFirebase() {
             El proyecto Firebase apunta a <strong>PROD</strong>. Asegúrate de querer sobrescribir datos reales.
           </Advertencia>
         )}
-        <Button onClick={handleSyncAll} disabled={accion === 'cargando' || !online} className="gap-2 w-full">
-          {accion === 'cargando' ? <Loader2 size={14} className="animate-spin" /> : <CloudUpload size={14} />}
+        <Button onClick={handleSyncAll} disabled={accion === 'loading' || !online} className="gap-2 w-full">
+          {accion === 'loading' ? <Loader2 size={14} className="animate-spin" /> : <CloudUpload size={14} />}
           Sync todo a Firebase
         </Button>
         {progress.length > 0 && (
@@ -1062,7 +1062,7 @@ function TabFirebase() {
 
 function TabEstado() {
   const [conteos,  setConteos]  = useState<Record<string, number> | null>(null);
-  const [cargando, setCargando] = useState(true);
+  const [loading, setCargando] = useState(true);
 
   useEffect(() => {
     syncService.conteoTablas().then((c) => { setConteos(c); setCargando(false); });
@@ -1071,7 +1071,7 @@ function TabEstado() {
   return (
     <div className="space-y-4">
       <Card titulo="Registros en Dexie (IndexedDB local)" desc="Conteo actual por colección">
-        {cargando ? (
+        {loading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 size={14} className="animate-spin" /> Contando…
           </div>

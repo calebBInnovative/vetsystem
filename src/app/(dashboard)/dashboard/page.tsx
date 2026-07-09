@@ -2,9 +2,9 @@
 
 import Link from 'next/link';
 import { useDashboard } from '@/hooks/useDashboard';
-import { ProximasCitasDia } from '@/components/dashboard/ProximasCitasDia';
-import { UltimasConsultas } from '@/components/dashboard/UltimasConsultas';
-import { AlertasStock } from '@/components/inventario/AlertasStock';
+import { ProximasCitasDia } from '@/components/dashboard/UpcomingAppointments';
+import { UltimasConsultas } from '@/components/dashboard/RecentConsultations';
+import { AlertasStock } from '@/components/inventory/StockAlerts';
 import { Users, Calendar, Package, ClipboardList, Plus, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -12,7 +12,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 export default function DashboardPage() {
-  const { kpis, cargando } = useDashboard();
+  const { kpis, loading } = useDashboard();
   const hoy = format(new Date(), "EEEE d 'de' MMMM", { locale: es });
 
   const tarjetas = [
@@ -22,7 +22,7 @@ export default function DashboardPage() {
       icon:      Users,
       color:     'text-primary',
       bg:        'bg-primary/10',
-      href:      '/pacientes',
+      href:      '/patients',
       subtitulo: 'registrados',
     },
     {
@@ -31,7 +31,7 @@ export default function DashboardPage() {
       icon:      Calendar,
       color:     'text-blue-500',
       bg:        'bg-blue-500/10',
-      href:      '/agenda',
+      href:      '/schedule',
       subtitulo: kpis?.citasPendientesHoy
         ? `${kpis.citasPendientesHoy} pendiente${kpis.citasPendientesHoy !== 1 ? 's' : ''}`
         : 'sin pendientes',
@@ -42,8 +42,8 @@ export default function DashboardPage() {
       icon:      Package,
       color:     kpis?.productosStockBajo ? 'text-amber-500' : 'text-green-500',
       bg:        kpis?.productosStockBajo ? 'bg-amber-500/10' : 'bg-green-500/10',
-      href:      '/inventario',
-      subtitulo: kpis?.productosStockBajo ? 'productos' : 'todo en orden',
+      href:      '/inventory',
+      subtitulo: kpis?.productosStockBajo ? 'products' : 'todo en orden',
     },
     {
       label:     'Consultas este mes',
@@ -51,7 +51,7 @@ export default function DashboardPage() {
       icon:      ClipboardList,
       color:     'text-purple-500',
       bg:        'bg-purple-500/10',
-      href:      '/pacientes',
+      href:      '/patients',
       subtitulo: 'registradas',
     },
   ];
@@ -66,16 +66,16 @@ export default function DashboardPage() {
           <p className="text-sm text-muted-foreground mt-0.5">Pet&apos;s House · Panel de control</p>
         </div>
         <div className="flex gap-2">
-          <Link href="/pacientes/nuevo">
+          <Link href="/patients/new">
             <Button variant="outline" size="sm" className="gap-1.5 hidden sm:flex">
-              <Plus size={14} /> Paciente
+              <Plus size={14} /> Patient
             </Button>
           </Link>
-          <Link href="/agenda/nueva">
+          <Link href="/schedule/new">
             <Button size="sm" className="gap-1.5">
               <Plus size={14} />
               <span className="hidden sm:inline">Nueva cita</span>
-              <span className="sm:hidden">Cita</span>
+              <span className="sm:hidden">Appointment</span>
             </Button>
           </Link>
         </div>
@@ -93,7 +93,7 @@ export default function DashboardPage() {
                 <ArrowRight size={14} className="text-muted-foreground/0 group-hover:text-muted-foreground transition-colors mt-1" />
               </div>
               <div>
-                {cargando ? (
+                {loading ? (
                   <div className="h-8 w-12 bg-muted/60 rounded-lg animate-pulse mb-1" />
                 ) : (
                   <p className={cn('text-3xl font-bold', color)}>{valor}</p>
@@ -109,7 +109,7 @@ export default function DashboardPage() {
       {/* Alertas de stock */}
       <AlertasStock />
 
-      {/* Citas del día + Últimas consultas */}
+      {/* Citas del día + Últimas consultations */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ProximasCitasDia />
         <UltimasConsultas />

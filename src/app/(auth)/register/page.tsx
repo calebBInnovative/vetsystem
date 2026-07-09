@@ -28,7 +28,7 @@ function formatearTelefono(raw: string): string {
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { firebaseUser, session, cargando: authCargando } = useAuth();
+  const { session, loading: authCargando } = useAuth();
 
   const [nombre,     setNombre]     = useState('');
   const [clinicName, setClinicName] = useState('');
@@ -39,15 +39,19 @@ export default function RegisterPage() {
   const [confirmar,  setConfirmar]  = useState('');
   const [verPass,    setVerPass]    = useState(false);
   const [error,      setError]      = useState('');
-  const [cargando,   setCargando]   = useState(false);
+  const [loading,   setCargando]   = useState(false);
   const [cargandoG,  setCargandoG]  = useState(false);
   const [online,     setOnline]     = useState(true);
 
   useEffect(() => {
-    if (!authCargando && (firebaseUser || session?.isDemo)) {
+    if (!authCargando && session?.isDemo) {
       router.replace('/dashboard');
+      return;
     }
-  }, [authCargando, firebaseUser, session, router]);
+    if (!authCargando && session) {
+      router.replace(session.setupComplete === false ? '/setup' : '/dashboard');
+    }
+  }, [authCargando, session, router]);
 
   useEffect(() => {
     setOnline(navigator.onLine);
@@ -132,11 +136,15 @@ export default function RegisterPage() {
     if (!online) { setError('Requiere conexión a internet.'); return; }
     setCargandoG(true);
     try {
-      await loginConGoogle();
-      router.replace('/dashboard');
+      const { isNewUser } = await loginConGoogle();
+      router.replace(isNewUser ? '/setup' : '/dashboard');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (!msg.includes('popup-closed')) {
+      if (msg.includes('popup-closed') || msg.includes('cancelled')) {
+        // user dismissed the popup — no error message needed
+      } else if (msg.includes('network')) {
+        setError('Sin conexión a internet.');
+      } else {
         setError('Error al registrarse con Google.');
       }
     } finally {
@@ -314,9 +322,9 @@ export default function RegisterPage() {
         <Button
           type="submit"
           className="w-full h-11"
-          disabled={cargando || !online}
+          disabled={loading || !online}
         >
-          {cargando && <Loader2 size={14} className="mr-2 animate-spin" />}
+          {loading && <Loader2 size={14} className="mr-2 animate-spin" />}
           Crear clínica
         </Button>
       </form>

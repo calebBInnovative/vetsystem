@@ -122,7 +122,7 @@ function DashboardMockup() {
             <div className="bg-muted/30 rounded-xl p-2">
               <p className="text-[10px] font-semibold text-muted-foreground mb-1.5">Citas del día</p>
               {[
-                ['Luna', 'Golden R.', '9:00', 'Consulta'],
+                ['Luna', 'Golden R.', '9:00', 'Consultation'],
                 ['Mochi', 'Persa',    '10:30','Vacuna'],
                 ['Rex',  'Pastor A.','11:00','Control'],
               ].map(([name, breed, time, type]) => (
@@ -169,7 +169,7 @@ function Hero() {
             </h1>
 
             <p className="text-lg text-muted-foreground leading-relaxed max-w-md">
-              Gestiona pacientes, citas, inventario y cobros — aunque no tengas internet.
+              Gestiona patients, appointments, inventario y cobros — aunque no tengas internet.
               Simple, rápido y diseñado para la realidad de nuestras clínicas.
             </p>
 
@@ -210,25 +210,25 @@ const beneficios = [
   {
     icon: WifiOff,
     titulo: 'Funciona 100% sin internet',
-    desc:   'Atiende pacientes, registra consultas y cobra aunque se vaya la luz o el internet. Todo se sincroniza automáticamente cuando vuelve la conexión.',
+    desc:   'Atiende patients, registra consultations y cobra aunque se vaya la luz o el internet. Todo se sincroniza automáticamente cuando vuelve la conexión.',
     color:  'bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400',
   },
   {
     icon: FileText,
     titulo: 'Historial clínico completo',
-    desc:   'Pacientes, consultas, vacunas, diagnósticos y recetas en un solo lugar. Encuentra todo en segundos.',
+    desc:   'Pacientes, consultations, vacunas, diagnósticos y recetas en un solo lugar. Encuentra todo en segundos.',
     color:  'bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400',
   },
   {
     icon: Package,
-    titulo: 'Inventario con alertas',
-    desc:   'Controla tu stock de medicamentos y productos. Recibe alertas antes de quedarte sin lo esencial.',
+    titulo: 'Inventario con alerts',
+    desc:   'Controla tu stock de medicamentos y products. Recibe alerts antes de quedarte sin lo esencial.',
     color:  'bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-400',
   },
   {
     icon: Receipt,
     titulo: 'Facturación instantánea',
-    desc:   'Genera facturas desde la misma consulta. Lleva el control de cobros pendientes y pagados sin planillas.',
+    desc:   'Genera invoices desde la misma consulta. Lleva el control de cobros pendientes y pagados sin planillas.',
     color:  'bg-purple-50 text-purple-600 dark:bg-purple-950 dark:text-purple-400',
   },
 ];
@@ -299,10 +299,10 @@ function PacienteMockup() {
 }
 
 function AgendaMockup() {
-  const citas = [
+  const appointments = [
     { hora: '08:00', nombre: 'Mochi',   tipo: 'Vacuna',    estado: 'Atendida', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400' },
     { hora: '09:30', nombre: 'Rex',     tipo: 'Control',   estado: 'En curso', color: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400' },
-    { hora: '10:00', nombre: 'Simba',   tipo: 'Consulta',  estado: 'Espera',   color: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400' },
+    { hora: '10:00', nombre: 'Simba',   tipo: 'Consultation',  estado: 'Espera',   color: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400' },
     { hora: '11:30', nombre: 'Canela',  tipo: 'Revisión',  estado: 'Espera',   color: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400' },
   ];
   return (
@@ -315,7 +315,7 @@ function AgendaMockup() {
         <span className="text-xs text-muted-foreground">24 jun 2026</span>
       </div>
       <div className="p-3 space-y-1.5">
-        {citas.map(({ hora, nombre, tipo, estado, color }) => (
+        {appointments.map(({ hora, nombre, tipo, estado, color }) => (
           <div key={hora} className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-muted/40 transition-colors">
             <span className="text-xs font-mono text-muted-foreground w-10 shrink-0">{hora}</span>
             <div className="flex-1 min-w-0">
@@ -334,7 +334,7 @@ function AgendaMockup() {
 
 function FacturaMockup() {
   const items = [
-    { desc: 'Consulta general',   qty: 1, precio: 350 },
+    { desc: 'Consultation general',   qty: 1, precio: 350 },
     { desc: 'Vacuna antirrábica', qty: 1, precio: 280 },
     { desc: 'Desparasitante',     qty: 2, precio: 85  },
   ];
@@ -344,12 +344,12 @@ function FacturaMockup() {
       <div className="px-4 py-3 border-b border-border bg-muted/40 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-purple-500" />
-          <span className="text-xs font-semibold">Factura · FAC-2026-0042</span>
+          <span className="text-xs font-semibold">Invoice · FAC-2026-0042</span>
         </div>
       </div>
       <div className="p-4 space-y-3">
         <div className="flex justify-between text-xs text-muted-foreground">
-          <span>Paciente: Luna G.</span>
+          <span>Patient: Luna G.</span>
           <span>24 jun 2026</span>
         </div>
         <div className="space-y-1">
@@ -491,8 +491,8 @@ function Testimonios() {
 
 const incluye = [
   'Pacientes y historial clínico ilimitados',
-  'Agenda y citas',
-  'Inventario con alertas de stock',
+  'Agenda y appointments',
+  'Inventario con alerts de stock',
   'Facturación y control de cobros',
   'Funciona sin internet',
   'Usuarios ilimitados',

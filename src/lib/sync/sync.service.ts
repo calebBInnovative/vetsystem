@@ -25,16 +25,20 @@ const BATCH_SIZE   = 20;
 
 // All tables that are synced (in order for foreign keys)
 const TABLAS_SYNC = [
-  { nombre: 'owners',        tabla: () => db.owners        },
-  { nombre: 'patients',      tabla: () => db.patients      },
-  { nombre: 'products',      tabla: () => db.products      },
-  { nombre: 'services',      tabla: () => db.services      },
-  { nombre: 'consultations', tabla: () => db.consultations },
-  { nombre: 'appointments',  tabla: () => db.appointments  },
-  { nombre: 'movements',     tabla: () => db.movements     },
-  { nombre: 'payments',      tabla: () => db.payments      },
-  { nombre: 'invoices',      tabla: () => db.invoices      },
-  { nombre: 'sales',         tabla: () => db.sales         },
+  { nombre: 'owners',             tabla: () => db.owners             },
+  { nombre: 'patients',           tabla: () => db.patients           },
+  { nombre: 'products',           tabla: () => db.products           },
+  { nombre: 'services',           tabla: () => db.services           },
+  { nombre: 'consultations',      tabla: () => db.consultations      },
+  { nombre: 'appointments',       tabla: () => db.appointments       },
+  { nombre: 'movements',          tabla: () => db.movements          },
+  { nombre: 'payments',           tabla: () => db.payments           },
+  { nombre: 'invoices',           tabla: () => db.invoices           },
+  { nombre: 'sales',              tabla: () => db.sales              },
+  { nombre: 'fixedExpenses',        tabla: () => db.fixedExpenses        },
+  { nombre: 'expensePayments',        tabla: () => db.expensePayments        },
+  { nombre: 'collaborators',      tabla: () => db.collaborators      },
+  { nombre: 'collaboratorPayments', tabla: () => db.collaboratorPayments },
 ] as const;
 
 export type SyncAllProgress = {
@@ -66,11 +70,12 @@ class SyncService {
     // Fallback: reintentar items fallidos cada 30 s
     this.timer = setInterval(() => this.flush(), INTERVALO_MS);
 
-    // Flush al reconectar
+    // Push + pull al reconectar
     window.addEventListener('online', this.onOnline);
 
-    // Flush inicial (items que quedaron de sesión anterior)
+    // Flush inicial + pull (items que quedaron de sesión anterior o cambios remotos)
     this.flush();
+    this.pullAll();
   }
 
   detener() {
@@ -79,7 +84,10 @@ class SyncService {
     window.removeEventListener('online', this.onOnline);
   }
 
-  private onOnline = () => this.flush();
+  private onOnline = () => {
+    this.flush();
+    this.pullAll();
+  };
 
   // ── Flush de la queue ─────────────────────────────────────────────────────
 
@@ -106,6 +114,43 @@ class SyncService {
     } finally {
       this.corriendo = false;
     }
+  }
+
+  // ── Pull: Firebase → Dexie ────────────────────────────────────────────────
+
+  /**
+   * Descarga de Firebase todos los docs modificados desde el último pull
+   * y los upserta en Dexie (last-write-wins por updatedAt).
+   * Se llama automáticamente al arrancar y al reconectar.
+   */
+  async pullAll(): Promise<void> {
+    if (!navigator.onLine || await isDemoSession()) return;
+
+    const LAST_PULL_KEY = 'vetsystem_last_pull';
+    const lastPull = parseInt(localStorage.getItem(LAST_PULL_KEY) ?? '0', 10);
+
+    for (const { nombre, tabla } of TABLAS_SYNC) {
+      try {
+        const remoteDocs = await syncProvider.pull(nombre, lastPull);
+        if (remoteDocs.length === 0) continue;
+
+        const t = tabla() as unknown as { get(id: string): Promise<{ updatedAt: number } | undefined>; put(item: object): Promise<unknown> };
+
+        for (const remoteDoc of remoteDocs) {
+          const { _syncedAt, ...clean } = remoteDoc as Record<string, unknown>;
+          void _syncedAt;
+          const local = await t.get(clean.id as string);
+          // Remote wins when newer or doc doesn't exist locally yet
+          if (!local || (clean.updatedAt as number) > local.updatedAt) {
+            await t.put({ ...clean, syncStatus: 'synced' });
+          }
+        }
+      } catch (err) {
+        console.warn(`[sync] pull ${nombre} falló:`, err);
+      }
+    }
+
+    localStorage.setItem(LAST_PULL_KEY, Date.now().toString());
   }
 
   // ── Sync completo (dev workflow) ──────────────────────────────────────────

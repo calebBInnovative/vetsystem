@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "Bash(git mv *)",
+      "Bash(perl -pi -e \"s|from '\\\\@/types/history'|from '\\\\@/types/consultation'|g\" /Users/macbookpro/caleb/VetSystem/vetsystem/src/components/dashboard/RecentConsultations.tsx)",
+      "Bash(perl -pi -e \"s|from '\\\\@/types/history'|from '\\\\@/types/consultation'|g\" /Users/macbookpro/caleb/VetSystem/vetsystem/src/components/history/ConsultationForm.tsx)",
+      "Bash(xargs perl -pi -e ' *)",
+      "Bash(xargs perl -pi -e \"s|from './paciente'|from './patient'|g\")"
+    ]
+  }
+}

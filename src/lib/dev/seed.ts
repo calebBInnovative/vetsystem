@@ -1,11 +1,14 @@
 import { db, getClinicaId } from '@/lib/db/database';
-import type { PacienteLocal, DuenoLocal } from '@/types/paciente';
-import type { ConsultaLocal, ConsultaItem } from '@/types/consulta';
-import type { CitaLocal } from '@/types/agenda';
-import type { ProductoLocal, MovimientoStockLocal } from '@/types/inventario';
-import type { PagoLocal } from '@/types/finanzas';
-import type { FacturaLocal, FacturaItem } from '@/types/factura';
-import type { ServicioLocal } from '@/types/servicio';
+import type { PatientLocal, OwnerLocal } from '@/types/patient';
+import type { ConsultationLocal, ConsultationItem } from '@/types/consultation';
+import type { AppointmentLocal } from '@/types/appointment';
+import type { ProductLocal, StockMovementLocal } from '@/types/inventory';
+import type { PaymentLocal } from '@/types/finances';
+import type { InvoiceLocal, InvoiceItem } from '@/types/invoice';
+import type { ServiceLocal } from '@/types/service';
+import type { SaleLocal, SaleItem } from '@/types/sale';
+import type { FixedExpense, ExpensePayment } from '@/types/expense';
+import type { Collaborator, CollaboratorPayment } from '@/types/collaborator';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -80,10 +83,10 @@ const PRODUCTOS_DATA = [
   { nombre: 'Arena para gatos 5kg',      categoria: 'higiene'         as const, stock: 11,  min: 4,  unidad: 'kg'      as const, pv: 160,  pc: 90  },
 ];
 
-// Items por tipo de consulta: [servicio principal + posibles productos]
+// Items por tipo de consulta: [servicio principal + posibles products]
 const ITEMS_POR_TIPO: Record<string, { descripcion: string; precio: number; esServicio: boolean; prodNombre?: string }[]> = {
   consulta_general: [
-    { descripcion: 'Consulta General',          precio: 400,  esServicio: true },
+    { descripcion: 'Consultation General',          precio: 400,  esServicio: true },
     { descripcion: 'Amoxicilina 500mg',         precio: 15,   esServicio: false, prodNombre: 'Amoxicilina 500mg' },
   ],
   control: [
@@ -114,8 +117,8 @@ const ITEMS_POR_TIPO: Record<string, { descripcion: string; precio: number; esSe
   ],
 };
 
-const SERVICIOS_DEFAULT: Omit<ServicioLocal, 'id' | 'clinicaId' | 'creadoEn' | 'syncStatus' | 'updatedAt'>[] = [
-  { nombre: 'Consulta General',        categoria: 'consulta',        precio: 400,  activo: true },
+const SERVICIOS_DEFAULT: Omit<ServiceLocal, 'id' | 'clinicaId' | 'creadoEn' | 'syncStatus' | 'updatedAt'>[] = [
+  { nombre: 'Consultation General',        categoria: 'consulta',        precio: 400,  activo: true },
   { nombre: 'Control Médico',          categoria: 'consulta',        precio: 300,  activo: true },
   { nombre: 'Atención de Emergencia',  categoria: 'emergencia',      precio: 700,  activo: true },
   { nombre: 'Aplicación de Vacuna',    categoria: 'vacunacion',      precio: 80,   activo: true },
@@ -149,12 +152,12 @@ const MOTIVOS_CONSULTA = [
 ] as const;
 
 const CONCEPTOS_POR_TIPO: Record<string, string[]> = {
-  consulta:   ['Consulta general', 'Consulta de urgencia', 'Revisión dermatológica', 'Revisión dental'],
+  consulta:   ['Consultation general', 'Consultation de urgencia', 'Revisión dermatológica', 'Revisión dental'],
   vacunacion: ['Vacuna antirrábica', 'Vacuna DHPP', 'Vacuna triple felina', 'Vacuna bordetella'],
   cirugia:    ['Castración', 'Esterilización', 'Extracción dental', 'Limpieza dental profunda'],
   producto:   ['Alimento Royal Canin', 'Ivermectina', 'Shampoo medicado', 'Collar antipulgas'],
   estetica:   ['Baño y corte', 'Corte de uñas', 'Limpieza de oídos'],
-  otro:       ['Examen de laboratorio', 'Radiografía', 'Servicio varios'],
+  otro:       ['Examen de laboratorio', 'Radiografía', 'Service varios'],
 };
 
 const MONTOS_POR_TIPO: Record<string, number[]> = {
@@ -173,7 +176,7 @@ export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record
   const ahora = ts();
 
   // Dueños
-  const duenos: DuenoLocal[] = DUENOS_DATA.map((d) => ({
+  const duenos: OwnerLocal[] = DUENOS_DATA.map((d) => ({
     id:         uuid(),
     nombre:     d.nombre,
     telefono:   d.telefono,
@@ -186,7 +189,7 @@ export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record
   }));
 
   // Pacientes
-  const pacientes: PacienteLocal[] = PACIENTES_DATA.map((p) => ({
+  const patients: PatientLocal[] = PACIENTES_DATA.map((p) => ({
     id:              uuid(),
     nombre:          p.nombre,
     especie:         p.especie,
@@ -204,7 +207,7 @@ export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record
   }));
 
   // Servicios del catálogo
-  const servicios: ServicioLocal[] = SERVICIOS_DEFAULT.map((s) => ({
+  const services: ServiceLocal[] = SERVICIOS_DEFAULT.map((s) => ({
     ...s,
     id:         uuid(),
     clinicaId:  CLINICA_ID,
@@ -214,13 +217,13 @@ export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record
   }));
 
   // Productos
-  const productos: ProductoLocal[] = [];
-  const movimientos: MovimientoStockLocal[] = [];
-  const productosPorNombre = new Map<string, ProductoLocal>();
+  const products: ProductLocal[] = [];
+  const movements: StockMovementLocal[] = [];
+  const productosPorNombre = new Map<string, ProductLocal>();
 
   for (const p of PRODUCTOS_DATA) {
     const prodId = uuid();
-    const prod: ProductoLocal = {
+    const prod: ProductLocal = {
       id:          prodId,
       nombre:      p.nombre,
       categoria:   p.categoria,
@@ -235,11 +238,11 @@ export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record
       updatedAt:   ahora,
       creadoEn:    ahora,
     };
-    productos.push(prod);
+    products.push(prod);
     productosPorNombre.set(p.nombre, prod);
 
     if (p.stock > 0) {
-      movimientos.push({
+      movements.push({
         id:           uuid(),
         productoId:   prodId,
         clinicaId:    CLINICA_ID,
@@ -256,9 +259,9 @@ export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record
   }
 
   // Consultas con items reales
-  const consultas: ConsultaLocal[] = [];
+  const consultations: ConsultationLocal[] = [];
 
-  for (const pac of pacientes) {
+  for (const pac of patients) {
     const n = randInt(2, 4);
     for (let i = 0; i < n; i++) {
       const diasAtras  = randInt(7, 180);
@@ -267,7 +270,7 @@ export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record
 
       // Construir items: siempre el servicio principal, a veces el producto extra
       const itemsRaw = plantillas.filter((_, idx) => idx === 0 || Math.random() > 0.4);
-      const items: ConsultaItem[] = itemsRaw.map((tmpl) => {
+      const items: ConsultationItem[] = itemsRaw.map((tmpl) => {
         const cantidad = tmpl.esServicio ? 1 : randInt(1, 3);
         const prod     = tmpl.prodNombre ? productosPorNombre.get(tmpl.prodNombre) : undefined;
         return {
@@ -286,7 +289,7 @@ export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record
       const total     = Math.max(0, subtotal - descuento);
       const consultaId = uuid();
 
-      consultas.push({
+      consultations.push({
         id:            consultaId,
         pacienteId:    pac.id,
         duenoId:       pac.duenoId,
@@ -316,11 +319,11 @@ export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record
   }
 
   // Citas
-  const citas: CitaLocal[] = [];
+  const appointments: AppointmentLocal[] = [];
 
   for (let i = 0; i < 8; i++) {
-    const pac = rand(pacientes);
-    citas.push({
+    const pac = rand(patients);
+    appointments.push({
       id:              uuid(),
       pacienteId:      pac.id,
       duenoId:         pac.duenoId,
@@ -339,9 +342,9 @@ export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record
   }
 
   const horasHoy = [8, 9, 10, 11, 14, 15] as const;
-  const pacsCitasHoy = [...pacientes].sort(() => Math.random() - 0.5).slice(0, 5);
+  const pacsCitasHoy = [...patients].sort(() => Math.random() - 0.5).slice(0, 5);
   pacsCitasHoy.forEach((pac, i) => {
-    citas.push({
+    appointments.push({
       id:              uuid(),
       pacienteId:      pac.id,
       duenoId:         pac.duenoId,
@@ -360,8 +363,8 @@ export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record
   });
 
   for (let i = 0; i < 6; i++) {
-    const pac = rand(pacientes);
-    citas.push({
+    const pac = rand(patients);
+    appointments.push({
       id:              uuid(),
       pacienteId:      pac.id,
       duenoId:         pac.duenoId,
@@ -379,9 +382,9 @@ export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record
     });
   }
 
-  // Facturas + pagos vinculados, generados desde las consultas
-  const facturas:  FacturaLocal[] = [];
-  const pagos:     PagoLocal[]    = [];
+  // Facturas + payments vinculados, generados desde las consultations
+  const invoices:  InvoiceLocal[] = [];
+  const payments:     PaymentLocal[]    = [];
   let   numFactura = 1;
   const year       = new Date().getFullYear();
 
@@ -392,7 +395,7 @@ export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record
     ...Array(3).fill('parcialmente_pagada'),
   ] as const;
 
-  for (const consulta of consultas) {
+  for (const consulta of consultations) {
     if (consulta.total <= 0) continue;
 
     const facturaId = uuid();
@@ -407,7 +410,7 @@ export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record
       0;
 
     // Items de factura mapeados desde items de consulta
-    const facturaItems: FacturaItem[] = consulta.items.map((ci) => ({
+    const facturaItems: InvoiceItem[] = consulta.items.map((ci) => ({
       id:             ci.id,
       descripcion:    ci.descripcion,
       cantidad:       ci.cantidad,
@@ -417,7 +420,7 @@ export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record
       productoId:     ci.productoId,
     }));
 
-    const factura: FacturaLocal = {
+    const factura: InvoiceLocal = {
       id:          facturaId,
       numero,
       consultaId:  consulta.id,
@@ -437,12 +440,12 @@ export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record
       creadoEn:    ahora,
     };
 
-    // Pago vinculado
+    // Payment vinculado
     const pagoId  = uuid();
     const metodoPagoPago = metodo === 'mixto' ? 'otro' : metodo;
     const estadoPago     = estado === 'pagada' ? 'pagado' : 'pendiente';
 
-    const pago: PagoLocal = {
+    const pago: PaymentLocal = {
       id:         pagoId,
       pacienteId: consulta.pacienteId,
       clinicaId:  CLINICA_ID,
@@ -459,8 +462,8 @@ export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record
     };
 
     factura.pagoId = pagoId;
-    facturas.push(factura);
-    pagos.push(pago);
+    invoices.push(factura);
+    payments.push(pago);
 
     // Actualizar la consulta con facturaId y pagoId
     consulta.facturaId = facturaId;
@@ -470,9 +473,9 @@ export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record
   // Pagos standalone adicionales para el módulo Finanzas (sin factura)
   const diasEnMes = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
   for (let i = 0; i < 15; i++) {
-    const pac  = rand(pacientes);
+    const pac  = rand(patients);
     const tipo = rand(TIPOS_PAGO_SEED);
-    pagos.push({
+    payments.push({
       id:         uuid(),
       pacienteId: pac.id,
       clinicaId:  CLINICA_ID,
@@ -488,41 +491,218 @@ export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record
     });
   }
 
+  // ── Ventas (POS) ─────────────────────────────────────────────────────────────
+  const salesRaw: { prods: { idx: number; qty: number }[]; diasAtras: number; metodo: SaleLocal['metodoPago']; pacIdx?: number }[] = [
+    { prods: [{ idx: 1, qty: 1 }, { idx: 4, qty: 2 }], diasAtras: 1,  metodo: 'efectivo',     pacIdx: 1 },
+    { prods: [{ idx: 0, qty: 2 }, { idx: 7, qty: 1 }], diasAtras: 3,  metodo: 'tarjeta'                 },
+    { prods: [{ idx: 2, qty: 3 }],                      diasAtras: 5,  metodo: 'efectivo',     pacIdx: 4 },
+    { prods: [{ idx: 9, qty: 1 }, { idx: 3, qty: 2 }], diasAtras: 8,  metodo: 'transferencia'           },
+    { prods: [{ idx: 5, qty: 1 }],                      diasAtras: 11, metodo: 'efectivo',     pacIdx: 0 },
+    { prods: [{ idx: 6, qty: 4 }, { idx: 4, qty: 1 }], diasAtras: 14, metodo: 'tarjeta'                 },
+    { prods: [{ idx: 8, qty: 2 }, { idx: 2, qty: 1 }], diasAtras: 18, metodo: 'efectivo',     pacIdx: 3 },
+    { prods: [{ idx: 1, qty: 1 }, { idx: 9, qty: 2 }], diasAtras: 22, metodo: 'transferencia'           },
+    { prods: [{ idx: 0, qty: 3 }],                      diasAtras: 26, metodo: 'efectivo',     pacIdx: 7 },
+    { prods: [{ idx: 3, qty: 1 }, { idx: 7, qty: 2 }], diasAtras: 29, metodo: 'tarjeta'                 },
+  ];
+
+  const sales: SaleLocal[]         = [];
+  const salePayments: PaymentLocal[] = [];
+
+  for (const sr of salesRaw) {
+    const items: SaleItem[] = sr.prods.map(p => ({
+      id:             uuid(),
+      productoId:     products[p.idx].id,
+      descripcion:    products[p.idx].nombre,
+      cantidad:       p.qty,
+      precioUnitario: products[p.idx].precioVenta ?? 0,
+      subtotal:       (products[p.idx].precioVenta ?? 0) * p.qty,
+    }));
+    const subtotal  = items.reduce((s, i) => s + i.subtotal, 0);
+    const saleId    = uuid();
+    const pagoId    = uuid();
+    const fechaVenta = fechaStr(-sr.diasAtras);
+
+    sales.push({
+      id:         saleId,
+      clinicaId:  CLINICA_ID,
+      fecha:      fechaVenta,
+      items,
+      subtotal,
+      descuento:  0,
+      total:      subtotal,
+      metodoPago: sr.metodo,
+      estado:     'completada',
+      pacienteId: sr.pacIdx !== undefined ? patients[sr.pacIdx].id : undefined,
+      pagoId,
+      creadoEn:   ahora,
+      syncStatus: 'pending' as const,
+      updatedAt:  ahora,
+    });
+
+    salePayments.push({
+      id:         pagoId,
+      clinicaId:  CLINICA_ID,
+      pacienteId: sr.pacIdx !== undefined ? patients[sr.pacIdx].id : '',
+      fecha:      fechaVenta,
+      concepto:   `Venta mostrador — ${items.map(i => i.descripcion).join(', ')}`,
+      tipo:       'producto',
+      monto:      subtotal,
+      metodoPago: sr.metodo,
+      estado:     'pagado',
+      syncStatus: 'pending' as const,
+      updatedAt:  ahora,
+      creadoEn:   ahora,
+    });
+  }
+
+  // ── Gastos fijos ─────────────────────────────────────────────────────────────
+  const hoyStr = fechaStr(0);
+
+  function nextDue(diaPago: number): string {
+    const d = new Date();
+    d.setDate(diaPago);
+    if (d.toISOString().slice(0, 10) < hoyStr) d.setMonth(d.getMonth() + 1);
+    const ultimo = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    d.setDate(Math.min(diaPago, ultimo));
+    return d.toISOString().slice(0, 10);
+  }
+
+  const fixedExpensesData: { nombre: string; monto: number; categoria: FixedExpense['categoria']; frecuencia: FixedExpense['frecuencia']; diaPago: number }[] = [
+    { nombre: 'Renta del local',       monto: 12000, categoria: 'renta',         frecuencia: 'mensual',    diaPago: 5  },
+    { nombre: 'Electricidad',          monto: 2200,  categoria: 'services',     frecuencia: 'mensual',    diaPago: 10 },
+    { nombre: 'Internet + teléfono',   monto: 850,   categoria: 'services',     frecuencia: 'mensual',    diaPago: 15 },
+    { nombre: 'Seguro del local',      monto: 1800,  categoria: 'seguros',       frecuencia: 'mensual',    diaPago: 20 },
+    { nombre: 'Mantenimiento equipos', monto: 3500,  categoria: 'mantenimiento', frecuencia: 'trimestral', diaPago: 1  },
+  ];
+
+  const fixedExpenses: FixedExpense[] = fixedExpensesData.map(e => ({
+    id:          uuid(),
+    clinicaId:   CLINICA_ID,
+    nombre:      e.nombre,
+    monto:       e.monto,
+    categoria:   e.categoria,
+    frecuencia:  e.frecuencia,
+    diaPago:     e.diaPago,
+    nextDueDate: nextDue(e.diaPago),
+    activo:      true,
+    syncStatus:  'pending' as const,
+    createdAt:   ahora,
+    updatedAt:   ahora,
+  }));
+
+  const expensePayments: ExpensePayment[] = [];
+  for (const ge of fixedExpenses) {
+    if (ge.frecuencia !== 'mensual') continue;
+    for (let m = 1; m <= 2; m++) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - m);
+      d.setDate(ge.diaPago);
+      expensePayments.push({
+        id:          uuid(),
+        clinicaId:   CLINICA_ID,
+        gastoFijoId: ge.id,
+        monto:       ge.monto,
+        fechaPago:   d.toISOString().slice(0, 10),
+        syncStatus:  'pending' as const,
+        createdAt:   ahora,
+        updatedAt:   ahora,
+      });
+    }
+  }
+
+  // ── Colaboradores ─────────────────────────────────────────────────────────────
+  const colabsData: { nombre: string; rol: string; tipo: Collaborator['tipo']; salario: number; frecuencia: Collaborator['frecuenciaPago']; daysUntilNext: number }[] = [
+    { nombre: 'Dra. Valeria Núñez', rol: 'Veterinaria',   tipo: 'empleado',  salario: 18000, frecuencia: 'mensual',   daysUntilNext: 12 },
+    { nombre: 'Mario Espinoza',     rol: 'Recepcionista', tipo: 'empleado',  salario: 9000,  frecuencia: 'quincenal', daysUntilNext: 5  },
+    { nombre: 'Lucía Fonseca',      rol: 'Groomer',       tipo: 'freelance', salario: 4500,  frecuencia: 'quincenal', daysUntilNext: 2  },
+  ];
+
+  const collaborators: Collaborator[] = colabsData.map(col => ({
+    id:              uuid(),
+    clinicaId:       CLINICA_ID,
+    nombre:          col.nombre,
+    rol:             col.rol,
+    tipo:            col.tipo,
+    salario:         col.salario,
+    frecuenciaPago:  col.frecuencia,
+    nextPaymentDate: fechaStr(col.daysUntilNext),
+    activo:          true,
+    syncStatus:      'pending' as const,
+    createdAt:       ahora,
+    updatedAt:       ahora,
+  }));
+
+  const collaboratorPayments: CollaboratorPayment[] = collaborators.map((col, i) => {
+    const freq      = colabsData[i].frecuencia;
+    const diasAtras = freq === 'mensual' ? 30 : 15;
+    return {
+      id:            uuid(),
+      clinicaId:     CLINICA_ID,
+      colaboradorId: col.id,
+      monto:         col.salario,
+      periodo:       freq === 'mensual' ? 'Junio 2026' : 'Quincena 1 — Jul 2026',
+      fechaPago:     fechaStr(-diasAtras),
+      syncStatus:    'pending' as const,
+      createdAt:     ahora,
+      updatedAt:     ahora,
+    };
+  });
+
   // ── Escribir todo en Dexie ────────────────────────────────────────────────
   await db.transaction('rw',
-    [db.owners, db.patients, db.consultations, db.appointments, db.products, db.movements, db.payments, db.invoices, db.services],
+    [
+      db.owners, db.patients, db.consultations, db.appointments,
+      db.products, db.movements, db.payments, db.invoices, db.services,
+      db.sales, db.fixedExpenses, db.expensePayments,
+      db.collaborators, db.collaboratorPayments,
+    ],
     async () => {
       await db.owners.bulkAdd(duenos);
-      await db.patients.bulkAdd(pacientes);
-      await db.consultations.bulkAdd(consultas);
-      await db.appointments.bulkAdd(citas);
-      await db.products.bulkAdd(productos);
-      await db.movements.bulkAdd(movimientos);
-      await db.payments.bulkAdd(pagos);
-      await db.invoices.bulkAdd(facturas);
-      await db.services.bulkAdd(servicios);
+      await db.patients.bulkAdd(patients);
+      await db.consultations.bulkAdd(consultations);
+      await db.appointments.bulkAdd(appointments);
+      await db.products.bulkAdd(products);
+      await db.movements.bulkAdd(movements);
+      await db.payments.bulkAdd([...payments, ...salePayments]);
+      await db.invoices.bulkAdd(invoices);
+      await db.services.bulkAdd(services);
+      await db.sales.bulkAdd(sales);
+      await db.fixedExpenses.bulkAdd(fixedExpenses);
+      await db.expensePayments.bulkAdd(expensePayments);
+      await db.collaborators.bulkAdd(collaborators);
+      await db.collaboratorPayments.bulkAdd(collaboratorPayments);
     }
   );
 
   return {
     mensaje: '¡Datos sembrados correctamente!',
     conteos: {
-      dueños:      duenos.length,
-      pacientes:   pacientes.length,
-      consultas:   consultas.length,
-      citas:       citas.length,
-      productos:   productos.length,
-      movimientos: movimientos.length,
-      facturas:    facturas.length,
-      pagos:       pagos.length,
-      servicios:   servicios.length,
+      dueños:               duenos.length,
+      patients:             patients.length,
+      consultations:        consultations.length,
+      appointments:         appointments.length,
+      products:             products.length,
+      movements:            movements.length,
+      invoices:             invoices.length,
+      payments:             payments.length + salePayments.length,
+      services:             services.length,
+      sales:                sales.length,
+      fixedExpenses:        fixedExpenses.length,
+      expensePayments:      expensePayments.length,
+      collaborators:        collaborators.length,
+      collaboratorPayments: collaboratorPayments.length,
     },
   };
 }
 
 export async function limpiarDatos(): Promise<void> {
   await db.transaction('rw',
-    [db.owners, db.patients, db.consultations, db.appointments, db.products, db.movements, db.payments, db.invoices, db.services, db.syncQueue],
+    [
+      db.owners, db.patients, db.consultations, db.appointments,
+      db.products, db.movements, db.payments, db.invoices, db.services,
+      db.sales, db.fixedExpenses, db.expensePayments,
+      db.collaborators, db.collaboratorPayments, db.syncQueue,
+    ],
     async () => {
       await Promise.all([
         db.owners.clear(),
@@ -534,6 +714,11 @@ export async function limpiarDatos(): Promise<void> {
         db.payments.clear(),
         db.invoices.clear(),
         db.services.clear(),
+        db.sales.clear(),
+        db.fixedExpenses.clear(),
+        db.expensePayments.clear(),
+        db.collaborators.clear(),
+        db.collaboratorPayments.clear(),
         db.syncQueue.clear(),
       ]);
     }
@@ -542,8 +727,8 @@ export async function limpiarDatos(): Promise<void> {
 
 // ─── Helpers privados ─────────────────────────────────────────────────────────
 
-function tipoIngresoDesde(tipoConsulta: string): PagoLocal['tipo'] {
-  const map: Record<string, PagoLocal['tipo']> = {
+function tipoIngresoDesde(tipoConsulta: string): PaymentLocal['tipo'] {
+  const map: Record<string, PaymentLocal['tipo']> = {
     consulta_general: 'consulta',
     control:          'consulta',
     vacunacion:       'vacunacion',

@@ -26,7 +26,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
-import type { ModuloApp } from '@/types/licencia';
+import type { AppModule } from '@/types/license';
 import { useDemoMode } from '@/hooks/useDemoMode';
 import {
   Menu, X, Home, Users, Calendar, Package,
@@ -38,12 +38,14 @@ import {
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from '@/components/ui/popover';
-import { useAlertasGastos, useGastosFijos } from '@/hooks/useGastosFijos';
+import { useAlertasGastos, useFixedExpenses } from '@/hooks/useExpenses';
 import {
-  nivelAlerta,
-  diasHastaVencimiento,
-  CATEGORIAS_GASTO,
-} from '@/types/gasto';
+  alertLevel,
+  daysUntilDue,
+  EXPENSE_CATEGORIES,
+} from '@/types/expense';
+import { useAlertasColaboradores, useCollaborators } from '@/hooks/useCollaborators';
+import { daysUntilCollaboratorPayment } from '@/types/collaborator';
 
 // nav-id is used by TourGuide to spotlight each item
 const menuItems: {
@@ -51,19 +53,19 @@ const menuItems: {
   label: string;
   href: string;
   disponible: boolean;
-  modulo?: ModuloApp;
+  modulo?: AppModule;
   navId?: string;
 }[] = [
   { icon: Home,          label: 'Dashboard',     href: '/dashboard',     disponible: true,  navId: 'nav-dashboard'  },
-  { icon: Users,         label: 'Pacientes',     href: '/pacientes',     disponible: true,  modulo: 'pacientes', navId: 'nav-pacientes'  },
-  { icon: Calendar,      label: 'Agenda',        href: '/agenda',        disponible: true,  modulo: 'agenda',    navId: 'nav-agenda'     },
-  { icon: ShoppingBag,   label: 'Ventas',        href: '/ventas',        disponible: true,  modulo: 'ventas'                            },
-  { icon: Package,       label: 'Inventario',    href: '/inventario',    disponible: true,  modulo: 'inventario',navId: 'nav-inventario' },
-  { icon: Stethoscope,   label: 'Consultas',     href: '/consultas',     disponible: true,  modulo: 'consultas', navId: 'nav-consultas'  },
-  { icon: DollarSign,    label: 'Finanzas',      href: '/finanzas',      disponible: true,  modulo: 'finanzas',  navId: 'nav-finanzas'   },
-  { icon: Receipt,       label: 'Facturas',      href: '/facturas',      disponible: true,  modulo: 'facturas'                          },
-  { icon: Wallet,        label: 'Gastos Fijos',  href: '/gastos',        disponible: true,  modulo: 'finanzas'                          },
-  { icon: ClipboardList, label: 'Servicios',     href: '/servicios',     disponible: true,  modulo: 'servicios'                         },
+  { icon: Users,         label: 'Pacientes',     href: '/patients',     disponible: true,  modulo: 'patients', navId: 'nav-patients'  },
+  { icon: Calendar,      label: 'Agenda',        href: '/schedule',        disponible: true,  modulo: 'schedule',    navId: 'nav-schedule'     },
+  { icon: ShoppingBag,   label: 'Ventas',        href: '/sales',        disponible: true,  modulo: 'sales'                            },
+  { icon: Package,       label: 'Inventario',    href: '/inventory',    disponible: true,  modulo: 'inventory',navId: 'nav-inventory' },
+  { icon: Stethoscope,   label: 'Consultas',     href: '/consultations',     disponible: true,  modulo: 'consultations', navId: 'nav-consultations'  },
+  { icon: DollarSign,    label: 'Finanzas',      href: '/finances',      disponible: true,  modulo: 'finances',  navId: 'nav-finances'   },
+  { icon: Receipt,       label: 'Facturas',      href: '/invoices',      disponible: true,  modulo: 'invoices'                          },
+  { icon: Wallet,        label: 'Egresos',        href: '/expenses',       disponible: true,  modulo: 'finances'                          },
+  { icon: ClipboardList, label: 'Servicios',     href: '/services',     disponible: true,  modulo: 'services'                         },
   { icon: BarChart3,     label: 'Reportes',      href: '/reportes',      disponible: false                                              },
   { icon: Settings,      label: 'Configuración', href: '/configuracion', disponible: false                                              },
 ];
@@ -71,13 +73,21 @@ const menuItems: {
 // ── Bell notification ─────────────────────────────────────────────────────────
 
 function BellNotification() {
-  const alertas = useAlertasGastos();
-  const { gastos } = useGastosFijos();
+  const alertasGastos = useAlertasGastos();
+  const alertasColab  = useAlertasColaboradores();
+  const { gastos }    = useFixedExpenses();
+  const { colaboradores } = useCollaborators();
+
+  const totalAlertas = alertasGastos.total + alertasColab.total;
 
   const en30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+  const en14 = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
 
   const gastosAlerta = gastos.filter(
-    (g) => g.activo && g.proximoVencimiento <= en30,
+    (g) => g.activo && g.nextDueDate <= en30,
+  );
+  const colabsAlerta = colaboradores.filter(
+    (c) => c.activo && c.nextPaymentDate <= en14,
   );
 
   const nivelClases: Record<string, string> = {
@@ -87,53 +97,94 @@ function BellNotification() {
     normal:  'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400',
   };
 
+  function colabBadgeClass(nextPaymentDate: string): string {
+    const dias = daysUntilCollaboratorPayment(nextPaymentDate);
+    if (dias < 0 || dias <= 3) return nivelClases.vencido;
+    if (dias <= 7) return nivelClases.proximo;
+    return nivelClases.normal;
+  }
+
+  function colabBadgeText(nextPaymentDate: string): string {
+    const dias = daysUntilCollaboratorPayment(nextPaymentDate);
+    return dias < 0 ? 'Vencido' : `${dias}d`;
+  }
+
   return (
     <Popover>
       <PopoverTrigger asChild>
         <button className="relative p-1.5 rounded-lg hover:bg-muted/60 transition-colors">
           <Bell size={18} className="text-muted-foreground" />
-          {alertas.total > 0 && (
+          {totalAlertas > 0 && (
             <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
-              {alertas.total > 99 ? '99+' : alertas.total}
+              {totalAlertas > 99 ? '99+' : totalAlertas}
             </span>
           )}
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 p-0">
         <div className="px-4 py-3 border-b border-border">
-          <p className="text-sm font-semibold">Gastos por vencer</p>
-          {alertas.total === 0 && (
+          <p className="text-sm font-semibold">Egresos por vencer</p>
+          {totalAlertas === 0 && (
             <p className="text-xs text-muted-foreground mt-0.5">Todo al día</p>
           )}
         </div>
-        {gastosAlerta.length === 0 ? (
+
+        {totalAlertas === 0 ? (
           <div className="px-4 py-4 text-xs text-muted-foreground text-center">
-            No hay gastos próximos a vencer
+            No hay payments próximos a vencer
           </div>
         ) : (
-          <ul className="divide-y divide-border max-h-64 overflow-y-auto">
-            {gastosAlerta.map((g) => {
-              const nivel = nivelAlerta(g.proximoVencimiento);
-              const dias  = diasHastaVencimiento(g.proximoVencimiento);
-              return (
-                <li key={g.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{g.nombre}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {CATEGORIAS_GASTO[g.categoria]} · {g.proximoVencimiento}
-                    </p>
-                  </div>
-                  <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${nivelClases[nivel]}`}>
-                    {nivel === 'vencido' ? 'Vencido' : `${dias}d`}
-                  </span>
+          <ul className="divide-y divide-border max-h-72 overflow-y-auto">
+            {gastosAlerta.length > 0 && (
+              <>
+                <li className="px-4 py-1.5 bg-muted/40">
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Gastos</p>
                 </li>
-              );
-            })}
+                {gastosAlerta.map((g) => {
+                  const nivel = alertLevel(g.nextDueDate);
+                  const dias  = daysUntilDue(g.nextDueDate);
+                  return (
+                    <li key={g.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{g.nombre}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {EXPENSE_CATEGORIES[g.categoria]} · {g.nextDueDate}
+                        </p>
+                      </div>
+                      <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${nivelClases[nivel]}`}>
+                        {nivel === 'vencido' ? 'Vencido' : `${dias}d`}
+                      </span>
+                    </li>
+                  );
+                })}
+              </>
+            )}
+            {colabsAlerta.length > 0 && (
+              <>
+                <li className="px-4 py-1.5 bg-muted/40">
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Colaboradores</p>
+                </li>
+                {colabsAlerta.map((c) => (
+                  <li key={c.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{c.nombre}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {c.rol || 'Collaborator'} · {c.nextPaymentDate}
+                      </p>
+                    </div>
+                    <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${colabBadgeClass(c.nextPaymentDate)}`}>
+                      {colabBadgeText(c.nextPaymentDate)}
+                    </span>
+                  </li>
+                ))}
+              </>
+            )}
           </ul>
         )}
+
         <div className="px-4 py-2.5 border-t border-border">
-          <a href="/gastos" className="text-xs text-primary hover:underline font-medium">
-            Ver todos los gastos →
+          <a href="/egresos" className="text-xs text-primary hover:underline font-medium">
+            Ver todos los egresos →
           </a>
         </div>
       </PopoverContent>
@@ -168,7 +219,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [perfilNombre, setPerfilNombre] = useState('');
   const [perfilTel,    setPerfilTel]    = useState('');
   const [perfilTelErr, setPerfilTelErr] = useState('');
-  const [perfilAccion, setPerfilAccion] = useState<'idle' | 'cargando' | 'ok' | 'error'>('idle');
+  const [perfilAccion, setPerfilAccion] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
 
   function abrirPerfil() {
     setPerfilNombre(session?.userName ?? '');
@@ -185,7 +236,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       setPerfilTelErr('Número inválido. Usa formato 8163-0097 o +50581630097.');
       return;
     }
-    setPerfilAccion('cargando');
+    setPerfilAccion('loading');
     try {
       await actualizarUsuario(session.uid, {
         name:        perfilNombre.trim() || session.userName,
@@ -210,7 +261,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }
 
-  function tieneAcceso(modulo?: ModuloApp): boolean {
+  function tieneAcceso(modulo?: AppModule): boolean {
     if (!modulo) return true;
     if (!session) return false;
     if (session.role === 'master' || session.role === 'admin') return true;
@@ -556,8 +607,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <Button type="button" variant="outline" onClick={() => setPerfilOpen(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={perfilAccion === 'cargando'} className="gap-2">
-                  {perfilAccion === 'cargando' && <Loader2 size={13} className="animate-spin" />}
+                <Button type="submit" disabled={perfilAccion === 'loading'} className="gap-2">
+                  {perfilAccion === 'loading' && <Loader2 size={13} className="animate-spin" />}
                   Guardar
                 </Button>
               </DialogFooter>

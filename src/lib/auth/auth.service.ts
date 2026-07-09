@@ -23,7 +23,7 @@ import {
 // import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { getFirebaseApp, getFirestoreDb } from '@/lib/firebase/firebase.config';
 import { db } from '@/lib/db/database';
-import type { SessionLocal, Permissions, RolUsuario } from '@/types/licencia';
+import type { SessionLocal, Permissions, UserRole } from '@/types/license';
 
 // ─── Firestore structure ──────────────────────────────────────────────────────
 //
@@ -63,9 +63,16 @@ export class UserNotFoundError extends Error {
 
 // Default permissions for staff users whose Firestore doc is missing the permissions field
 const DEFAULT_STAFF_PERMISSIONS: Permissions = {
-  pacientes: true, agenda: true, consultas: true, ventas: true,
-  inventario: false, finanzas: false, facturas: false, servicios: false,
+  patients: true, schedule: true, consultations: true, sales: true,
+  inventory: false, finances: false, invoices: false, services: false,
 };
+
+// ─── User-creation semaphore ──────────────────────────────────────────────────
+// Set to true BEFORE any await in loginConGoogle / registrarse so that
+// AuthContext.tryRefresh doesn't race to force-logout while we're writing the
+// Firestore user doc for the first time.
+let _userCreationInFlight = false;
+export function isUserCreationInFlight(): boolean { return _userCreationInFlight; }
 
 // ─── Auth principal ───────────────────────────────────────────────────────────
 
@@ -87,6 +94,7 @@ export async function registrarse(params: {
   telefono?:  string;
   logo?:      File | null;
 }): Promise<void> {
+  _userCreationInFlight = true;
   const credential = await createUserWithEmailAndPassword(getAuth_(), params.email, params.password);
   const user       = credential.user;
   const clinicId   = _slugify(params.clinicName) || user.uid.slice(0, 8);
@@ -137,28 +145,30 @@ export async function registrarse(params: {
     // Batch failed — roll back the Auth user so the person can retry with the same email.
     try { await user.delete(); } catch { /* ignore, surface the original error */ }
     throw err;
+  } finally {
+    _userCreationInFlight = false;
   }
 }
 
-/** Sign in or register with Google popup. Creates clinic + user doc on first login. */
-export async function loginConGoogle(): Promise<void> {
-  const provider   = new GoogleAuthProvider();
+/**
+ * Sign in with Google via popup.
+ * For new users, NO Firestore documents are created here.
+ * The /setup page is responsible for creating the clinic + user doc atomically
+ * (via crearClinicaDesdeSetup), so there is no partial state and no race condition.
+ */
+export async function loginConGoogle(): Promise<{ isNewUser: boolean }> {
+  const provider = new GoogleAuthProvider();
   const credential = await signInWithPopup(getAuth_(), provider);
-  const user       = credential.user;
-  const fs         = getFirestoreDb();
+  const user = credential.user;
+  const fs   = getFirestoreDb();
 
   const userDoc = await getDoc(doc(fs, 'users', user.uid));
-  if (!userDoc.exists()) {
-    const name     = user.displayName ?? user.email ?? 'Usuario';
-    const clinicId = _slugify(name) || user.uid.slice(0, 8);
-    // Google auth can't be rolled back, so we must ensure both writes succeed.
-    // If either fails, the error propagates and the user sees it — on retry,
-    // setDoc is idempotent so re-running is safe.
-    await _crearClinica({ clinicId, clinicName: name, logoUrl: user.photoURL ?? null });
-    await _crearDocUsuario(user, name, 'admin', clinicId, null);
+  if (!userDoc.exists() || userDoc.data().setupComplete === false) {
+    return { isNewUser: true };
   }
 
   await refrescarSesion(user);
+  return { isNewUser: false };
 }
 
 /** Logout. Deletes local session from Dexie. */
@@ -183,7 +193,7 @@ export async function refrescarSesion(user: User): Promise<SessionLocal | null> 
 
     const userData = userDoc.data();
     const clinicId: string  = userData.clinicId;
-    const role:     RolUsuario = userData.role ?? 'recepcion';
+    const role:     UserRole = userData.role ?? 'recepcion';
     const permissions: Permissions | null =
       (role === 'master' || role === 'admin')
         ? null
@@ -215,6 +225,9 @@ export async function refrescarSesion(user: User): Promise<SessionLocal | null> 
       subscription:   licenseData.subscription !== false,
       lastSync:       ahora,
       cachedAt:       ahora,
+      // undefined / missing = already set up (email users, legacy Google users)
+      // false = new Google user who hasn't completed the clinic setup form yet
+      setupComplete:  userData.setupComplete === false ? false : true,
     };
 
     await db.session.put(session);
@@ -240,7 +253,7 @@ export interface NuevoUsuario {
   email:       string;
   password:    string;
   name:        string;
-  role:        RolUsuario;
+  role:        UserRole;
   clinicId:    string;
   permissions: Permissions | null;
 }
@@ -249,7 +262,7 @@ export interface UsuarioFirestore {
   uid:         string;
   email:       string;
   name:        string;
-  role:        RolUsuario;
+  role:        UserRole;
   clinicId:    string;
   permissions: Permissions | null;
   createdAt?:  unknown;
@@ -327,6 +340,97 @@ export async function actualizarPerfilClinica(
   }
 }
 
+/**
+ * Completes the one-time clinic setup for Google-signup users.
+ * Saves the real clinic name + phone, marks setupComplete = true,
+ * and refreshes the local session so the app sees the updated data.
+ */
+export async function completarSetupClinica(params: {
+  clinicName: string;
+  telefono:   string;
+}): Promise<void> {
+  const user = getAuth_().currentUser;
+  if (!user) throw new Error('No authenticated user');
+
+  const local = await db.session.get('singleton');
+  if (!local) throw new Error('No local session found');
+
+  const clinicId = local.clinicId;
+  const fs = getFirestoreDb();
+
+  await setDoc(doc(fs, 'clinics', clinicId), {
+    name:      params.clinicName,
+    telefono:  params.telefono,
+  }, { merge: true });
+
+  await setDoc(doc(fs, 'clinics', clinicId, 'license', 'data'), {
+    clinicName: params.clinicName,
+    updatedAt:  serverTimestamp(),
+  }, { merge: true });
+
+  await setDoc(doc(fs, 'users', user.uid), {
+    setupComplete: true,
+  }, { merge: true });
+
+  await refrescarSesion(user);
+}
+
+/**
+ * Creates the full clinic setup for a first-time Google user.
+ * Called from the /setup page. Creates clinic, license, and user docs in one
+ * atomic batch — identical to what email registration does in registrarse().
+ * Also handles the legacy case where a user doc already exists with setupComplete=false
+ * by reusing the existing clinicId.
+ */
+export async function crearClinicaDesdeSetup(params: {
+  clinicName: string;
+  telefono:   string;
+}): Promise<void> {
+  const user = getAuth_().currentUser;
+  if (!user) throw new Error('No authenticated user');
+
+  const fs = getFirestoreDb();
+
+  const userDocSnap = await getDoc(doc(fs, 'users', user.uid));
+  const clinicId = userDocSnap.exists()
+    ? (userDocSnap.data().clinicId as string)
+    : (_slugify(params.clinicName) || user.uid.slice(0, 8));
+
+  const expiry = new Date();
+  expiry.setFullYear(expiry.getFullYear() + 1);
+
+  const batch = writeBatch(fs);
+
+  batch.set(doc(fs, 'clinics', clinicId), {
+    name:      params.clinicName,
+    logoUrl:   user.photoURL ?? null,
+    telefono:  params.telefono,
+    createdAt: serverTimestamp(),
+  }, { merge: true });
+
+  batch.set(doc(fs, 'clinics', clinicId, 'license', 'data'), {
+    clinicName:     params.clinicName,
+    plan:           'Trial',
+    expirationDate: expiry.toISOString().slice(0, 10),
+    subscription:   true,
+    updatedAt:      serverTimestamp(),
+  }, { merge: true });
+
+  batch.set(doc(fs, 'users', user.uid), {
+    uid:           user.uid,
+    email:         user.email,
+    name:          user.displayName ?? user.email ?? 'Usuario',
+    role:          'admin',
+    clinicId,
+    permissions:   null,
+    setupComplete: true,
+    createdAt:     serverTimestamp(),
+  }, { merge: true });
+
+  await batch.commit();
+  await refrescarSesion(user);
+}
+
 /** Creates or updates the license document for a clinic. */
 export async function configurarLicencia(params: {
   clinicId:       string;
@@ -346,7 +450,7 @@ export async function configurarLicencia(params: {
 /** Updates a user's name, role, permissions and optionally personal phone */
 export async function actualizarUsuario(
   uid:      string,
-  datos:    { name: string; role: RolUsuario; permissions: Permissions | null; telefono?: string },
+  datos:    { name: string; role: UserRole; permissions: Permissions | null; telefono?: string },
 ): Promise<void> {
   const fs = getFirestoreDb();
   await setDoc(doc(fs, 'users', uid), datos, { merge: true });
@@ -406,11 +510,12 @@ async function _crearClinica(params: {
 }
 
 async function _crearDocUsuario(
-  user:        User,
-  name:        string,
-  role:        RolUsuario,
-  clinicId:    string,
-  permissions: Permissions | null,
+  user:          User,
+  name:          string,
+  role:          UserRole,
+  clinicId:      string,
+  permissions:   Permissions | null,
+  setupComplete: boolean = true,
 ): Promise<void> {
   const fs = getFirestoreDb();
   await setDoc(doc(fs, 'users', user.uid), {
@@ -420,6 +525,7 @@ async function _crearDocUsuario(
     role,
     clinicId,
     permissions,
+    setupComplete,
     createdAt:   serverTimestamp(),
   });
 }

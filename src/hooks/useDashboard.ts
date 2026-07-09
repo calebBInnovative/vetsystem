@@ -71,18 +71,18 @@ export function useDashboard() {
 
   return {
     kpis:     datos,
-    cargando: datos === undefined,
+    loading: datos === undefined,
   };
 }
 
-/** Próximas citas del día con datos de paciente unidos. */
+/** Próximas appointments del día con datos de paciente unidos. */
 export function useProximasCitasDia() {
   const hoy = new Date().toISOString().slice(0, 10);
   const horaActual = new Date().toTimeString().slice(0, 5);
 
   const resultado = useLiveQuery(async () => {
     const clinicaId = await getClinicaId();
-    const citas = await db.appointments
+    const appointments = await db.appointments
       .where('fecha').equals(hoy)
       .filter(
         (c) =>
@@ -93,48 +93,48 @@ export function useProximasCitasDia() {
       )
       .toArray();
 
-    citas.sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
+    appointments.sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
 
-    const pacienteIds = [...new Set(citas.map((c) => c.pacienteId))];
-    const pacientes   = await db.patients.bulkGet(pacienteIds);
-    const pacientesMap = new Map(pacientes.filter(Boolean).map((p) => [p!.id, p!]));
+    const pacienteIds = [...new Set(appointments.map((c) => c.pacienteId))];
+    const patients   = await db.patients.bulkGet(pacienteIds);
+    const pacientesMap = new Map(patients.filter(Boolean).map((p) => [p!.id, p!]));
 
-    return citas.slice(0, 6).map((c) => ({
+    return appointments.slice(0, 6).map((c) => ({
       ...c,
-      nombrePaciente:  pacientesMap.get(c.pacienteId)?.nombre ?? 'Paciente',
+      nombrePaciente:  pacientesMap.get(c.pacienteId)?.nombre ?? 'Patient',
       especiePaciente: pacientesMap.get(c.pacienteId)?.especie,
     }));
   }, [hoy, horaActual]);
 
   return {
-    citas:    resultado ?? [],
-    cargando: resultado === undefined,
+    appointments:    resultado ?? [],
+    loading: resultado === undefined,
   };
 }
 
-/** Últimas 5 consultas registradas en la clínica. */
+/** Últimas 5 consultations registradas en la clínica. */
 export function useUltimasConsultasDashboard() {
   const resultado = useLiveQuery(async () => {
     const clinicaId = await getClinicaId();
-    const consultas = await db.consultations
+    const consultations = await db.consultations
       .where('clinicaId').equals(clinicaId)
       .filter((c) => !c.deletedAt)
       .reverse()
       .sortBy('fecha')
       .then((arr) => arr.slice(0, 5));
 
-    const pacienteIds = [...new Set(consultas.map((c) => c.pacienteId))];
-    const pacientes   = await db.patients.bulkGet(pacienteIds);
-    const pacientesMap = new Map(pacientes.filter(Boolean).map((p) => [p!.id, p!]));
+    const pacienteIds = [...new Set(consultations.map((c) => c.pacienteId))];
+    const patients   = await db.patients.bulkGet(pacienteIds);
+    const pacientesMap = new Map(patients.filter(Boolean).map((p) => [p!.id, p!]));
 
-    return consultas.map((c) => ({
+    return consultations.map((c) => ({
       ...c,
-      nombrePaciente: pacientesMap.get(c.pacienteId)?.nombre ?? 'Paciente',
+      nombrePaciente: pacientesMap.get(c.pacienteId)?.nombre ?? 'Patient',
     }));
   }, []);
 
   return {
-    consultas: resultado ?? [],
-    cargando:  resultado === undefined,
+    consultations: resultado ?? [],
+    loading:  resultado === undefined,
   };
 }

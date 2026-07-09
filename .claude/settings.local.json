@@ -28,7 +28,10 @@
       "Bash(git -C /Users/macbookpro/caleb/VetSystem/vetsystem show HEAD:src/app/\\\\\\(dashboard\\\\\\)/admin/page.tsx)",
       "Bash(git -C /Users/macbookpro/caleb/VetSystem/vetsystem show development:src/app/\\\\\\(dashboard\\\\\\)/admin/page.tsx)",
       "Bash(git -C /Users/macbookpro/caleb/VetSystem/vetsystem/.claude/worktrees/agent-aa8335204ad3a602e log --oneline -3)",
-      "Bash(git -C /Users/macbookpro/caleb/VetSystem/vetsystem/.claude/worktrees/agent-aa8335204ad3a602e show HEAD:src/app/\\\\\\(dashboard\\\\\\)/admin/page.tsx)"
+      "Bash(git -C /Users/macbookpro/caleb/VetSystem/vetsystem/.claude/worktrees/agent-aa8335204ad3a602e show HEAD:src/app/\\\\\\(dashboard\\\\\\)/admin/page.tsx)",
+      "Bash(/Users/macbookpro/.nvm/versions/node/v22.14.0/bin/npx tsc *)",
+      "Bash(/opt/homebrew/bin/node_modules/.bin/tsc --noEmit)",
+      "Read(//opt/homebrew/bin/**)"
     ]
   }
 }

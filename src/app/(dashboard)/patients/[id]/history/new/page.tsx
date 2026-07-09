@@ -1,0 +1,9 @@
+import { NewConsultationView } from './NewConsultationView';
+
+export function generateStaticParams() {
+  return [{ id: "_" }];
+}
+
+export default function Page({ params }: { params: Promise<{ id: string }> }) {
+  return <NewConsultationView params={params} />;
+}

@@ -13,16 +13,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import Dexie, { type EntityTable } from 'dexie';
-import type { PacienteLocal, DuenoLocal } from '@/types/paciente';
-import type { ConsultaLocal } from '@/types/consulta';
-import type { CitaLocal } from '@/types/agenda';
-import type { ProductoLocal, MovimientoStockLocal } from '@/types/inventario';
-import type { PagoLocal } from '@/types/finanzas';
-import type { FacturaLocal } from '@/types/factura';
-import type { ServicioLocal } from '@/types/servicio';
-import type { VentaLocal }    from '@/types/venta';
-import type { SessionLocal }  from '@/types/licencia';
-import type { GastoFijo, PagoGasto } from '@/types/gasto';
+import type { PatientLocal, OwnerLocal } from '@/types/patient';
+import type { ConsultationLocal } from '@/types/consultation';
+import type { AppointmentLocal } from '@/types/appointment';
+import type { ProductLocal, StockMovementLocal } from '@/types/inventory';
+import type { PaymentLocal } from '@/types/finances';
+import type { InvoiceLocal } from '@/types/invoice';
+import type { ServiceLocal } from '@/types/service';
+import type { SaleLocal }    from '@/types/sale';
+import type { SessionLocal }  from '@/types/license';
+import type { FixedExpense, ExpensePayment } from '@/types/expense';
+import type { Collaborator, CollaboratorPayment } from '@/types/collaborator';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TIPOS INTERNOS
@@ -55,35 +56,39 @@ export interface SyncQueueItem {
 
 class VetSystemDB extends Dexie {
   // Patients module
-  patients!:      EntityTable<PacienteLocal,        'id'>;
-  owners!:        EntityTable<DuenoLocal,            'id'>;
+  patients!:      EntityTable<PatientLocal,        'id'>;
+  owners!:        EntityTable<OwnerLocal,            'id'>;
 
   // Clinical history module
-  consultations!: EntityTable<ConsultaLocal,         'id'>;
+  consultations!: EntityTable<ConsultationLocal,         'id'>;
 
   // Agenda module
-  appointments!:  EntityTable<CitaLocal,             'id'>;
+  appointments!:  EntityTable<AppointmentLocal,             'id'>;
 
   // Inventory module
-  products!:      EntityTable<ProductoLocal,         'id'>;
-  movements!:     EntityTable<MovimientoStockLocal,  'id'>;
+  products!:      EntityTable<ProductLocal,         'id'>;
+  movements!:     EntityTable<StockMovementLocal,  'id'>;
 
   // Finance module
-  payments!:      EntityTable<PagoLocal,             'id'>;
-  invoices!:      EntityTable<FacturaLocal,          'id'>;
+  payments!:      EntityTable<PaymentLocal,             'id'>;
+  invoices!:      EntityTable<InvoiceLocal,          'id'>;
 
   // Services catalog
-  services!:      EntityTable<ServicioLocal,         'id'>;
+  services!:      EntityTable<ServiceLocal,         'id'>;
 
   // Product sales (POS)
-  sales!:         EntityTable<VentaLocal,            'id'>;
+  sales!:         EntityTable<SaleLocal,            'id'>;
 
   // Session & license (singleton — always id = 'singleton')
   session!:       EntityTable<SessionLocal,          'id'>;
 
   // Fixed expenses module
-  gastosFijos!:   EntityTable<GastoFijo,             'id'>;
-  pagosGastos!:   EntityTable<PagoGasto,             'id'>;
+  fixedExpenses!:   EntityTable<FixedExpense,          'id'>;
+  expensePayments!: EntityTable<ExpensePayment,        'id'>;
+
+  // Collaborators / payroll module
+  collaborators!:        EntityTable<Collaborator,        'id'>;
+  collaboratorPayments!: EntityTable<CollaboratorPayment, 'id'>;
 
   // Sync infrastructure
   syncQueue!:     EntityTable<SyncQueueItem,         'id'>;
@@ -104,7 +109,7 @@ class VetSystemDB extends Dexie {
      * No indexar todo — aumenta el tamaño y reduce el rendimiento.
      */
     this.version(1).stores({
-      pacientes: [
+      patients: [
         'id',
         'nombre',
         'especie',
@@ -134,7 +139,7 @@ class VetSystemDB extends Dexie {
     });
 
     this.version(2).stores({
-      consultas: [
+      consultations: [
         'id',
         'pacienteId',
         'clinicaId',
@@ -147,7 +152,7 @@ class VetSystemDB extends Dexie {
     });
 
     this.version(3).stores({
-      citas: [
+      appointments: [
         'id',
         'pacienteId',
         'duenoId',
@@ -162,7 +167,7 @@ class VetSystemDB extends Dexie {
     });
 
     this.version(4).stores({
-      productos: [
+      products: [
         'id',
         'nombre',
         'categoria',
@@ -174,7 +179,7 @@ class VetSystemDB extends Dexie {
         'deletedAt',
       ].join(', '),
 
-      movimientos: [
+      movements: [
         'id',
         'productoId',
         'clinicaId',
@@ -186,7 +191,7 @@ class VetSystemDB extends Dexie {
     });
 
     this.version(5).stores({
-      pagos: [
+      payments: [
         'id',
         'pacienteId',
         'clinicaId',
@@ -201,7 +206,7 @@ class VetSystemDB extends Dexie {
     });
 
     this.version(6).stores({
-      consultas: [
+      consultations: [
         'id',
         'pacienteId',
         'duenoId',
@@ -217,7 +222,7 @@ class VetSystemDB extends Dexie {
     });
 
     this.version(7).stores({
-      facturas: [
+      invoices: [
         'id',
         'numero',
         'consultaId',
@@ -233,7 +238,7 @@ class VetSystemDB extends Dexie {
     });
 
     this.version(8).stores({
-      servicios: [
+      services: [
         'id',
         'clinicaId',
         'categoria',
@@ -310,8 +315,25 @@ class VetSystemDB extends Dexie {
     });
 
     this.version(14).stores({
-      gastosFijos: 'id, clinicaId, proximoVencimiento, activo, syncStatus, updatedAt, deletedAt',
+      gastosFijos: 'id, clinicaId, nextDueDate, activo, syncStatus, updatedAt, deletedAt',
       pagosGastos: 'id, clinicaId, gastoFijoId, fechaPago, syncStatus, updatedAt',
+    });
+
+    this.version(15).stores({
+      colaboradores:      'id, clinicaId, nextPaymentDate, activo, syncStatus, updatedAt, deletedAt',
+      pagosColaboradores: 'id, clinicaId, colaboradorId, fechaPago, syncStatus, updatedAt',
+    });
+
+    // v16: rename Spanish table names to English
+    this.version(16).stores({
+      gastosFijos:        null,
+      pagosGastos:        null,
+      colaboradores:      null,
+      pagosColaboradores: null,
+      fixedExpenses:   'id, clinicaId, nextDueDate, activo, syncStatus, updatedAt, deletedAt',
+      expensePayments: 'id, clinicaId, gastoFijoId, fechaPago, syncStatus, updatedAt',
+      collaborators:        'id, clinicaId, nextPaymentDate, activo, syncStatus, updatedAt, deletedAt',
+      collaboratorPayments: 'id, clinicaId, colaboradorId, fechaPago, syncStatus, updatedAt',
     });
   }
 }

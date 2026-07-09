@@ -1,4 +1,4 @@
-import type { SessionLocal, LicenseMode, LicenseInfo } from '@/types/licencia';
+import type { SessionLocal, LicenseMode, LicenseInfo } from '@/types/license';
 
 // ─── Day thresholds ───────────────────────────────────────────────────────────
 

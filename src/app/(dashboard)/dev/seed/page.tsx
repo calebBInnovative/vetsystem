@@ -7,10 +7,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Loader2, Sprout, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
 
-type Estado = 'idle' | 'cargando' | 'ok' | 'error';
+type Estado = 'idle' | 'loading' | 'ok' | 'error';
 
 export default function SeedPage() {
-  const { session, cargando } = useAuth();
+  const { session, loading } = useAuth();
   const router = useRouter();
   const esMaster = session?.role === 'master';
 
@@ -19,13 +19,13 @@ export default function SeedPage() {
   const [conteos, setConteos] = useState<Record<string, number> | null>(null);
 
   useEffect(() => {
-    if (!cargando && !esMaster) router.replace('/dashboard');
-  }, [cargando, esMaster, router]);
+    if (!loading && !esMaster) router.replace('/dashboard');
+  }, [loading, esMaster, router]);
 
-  if (cargando || !esMaster) return null;
+  if (loading || !esMaster) return null;
 
   async function handleSembrar() {
-    setEstado('cargando');
+    setEstado('loading');
     setConteos(null);
     try {
       const result = await sembrarDatos();
@@ -40,7 +40,7 @@ export default function SeedPage() {
 
   async function handleLimpiar() {
     if (!confirm('¿Limpiar TODOS los datos locales? Esta acción no se puede deshacer.')) return;
-    setEstado('cargando');
+    setEstado('loading');
     setConteos(null);
     try {
       await limpiarDatos();
@@ -72,17 +72,17 @@ export default function SeedPage() {
         <div className="space-y-1">
           <p className="font-medium text-sm">Sembrar datos de prueba</p>
           <p className="text-xs text-muted-foreground">
-            Crea 8 dueños, 12 pacientes, consultas, citas (hoy + esta semana), 18 productos y 30 pagos del mes.
+            Crea 8 dueños, 12 patients, consultations, appointments (hoy + esta semana), 18 products y 30 payments del mes.
           </p>
         </div>
 
         <div className="flex gap-3">
           <Button
             onClick={handleSembrar}
-            disabled={estado === 'cargando'}
+            disabled={estado === 'loading'}
             className="gap-2 flex-1"
           >
-            {estado === 'cargando' ? (
+            {estado === 'loading' ? (
               <Loader2 size={14} className="animate-spin" />
             ) : (
               <Sprout size={14} />
@@ -93,7 +93,7 @@ export default function SeedPage() {
           <Button
             onClick={handleLimpiar}
             variant="outline"
-            disabled={estado === 'cargando'}
+            disabled={estado === 'loading'}
             className="gap-2 text-destructive border-destructive/30 hover:bg-destructive/5"
           >
             <Trash2 size={14} />

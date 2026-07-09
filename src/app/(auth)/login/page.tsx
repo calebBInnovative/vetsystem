@@ -5,25 +5,32 @@ import { useRouter } from 'next/navigation';
 import { login, loginConGoogle } from '@/lib/auth/auth.service';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 import { Loader2, Eye, EyeOff, WifiOff, Wifi } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { firebaseUser, session, cargando: authCargando } = useAuth();
+  const { session, loading: authCargando } = useAuth();
   const [email,       setEmail]       = useState('');
   const [password,    setPassword]    = useState('');
   const [verPass,     setVerPass]     = useState(false);
   const [error,       setError]       = useState('');
-  const [cargando,    setCargando]    = useState(false);
+  const [loading,    setCargando]    = useState(false);
   const [cargandoG,   setCargandoG]   = useState(false);
   const [online,      setOnline]      = useState(true);
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated with a session
+  // When session is null but firebaseUser is set (new Google user), the explicit
+  // router.replace in handleGoogle handles the redirect — don't interfere here.
   useEffect(() => {
-    if (!authCargando && (firebaseUser || session?.isDemo)) {
+    if (!authCargando && session?.isDemo) {
       router.replace('/dashboard');
+      return;
     }
-  }, [authCargando, firebaseUser, session, router]);
+    if (!authCargando && session) {
+      router.replace(session.setupComplete === false ? '/setup' : '/dashboard');
+    }
+  }, [authCargando, session, router]);
 
   useEffect(() => {
     setOnline(navigator.onLine);
@@ -68,12 +75,12 @@ export default function LoginPage() {
     if (!online) { setError('Requiere conexión a internet.'); return; }
     setCargandoG(true);
     try {
-      await loginConGoogle();
-      router.replace('/dashboard');
+      const { isNewUser } = await loginConGoogle();
+      router.replace(isNewUser ? '/setup' : '/dashboard');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('popup-closed')) {
-        // user closed popup — no error needed
+      if (msg.includes('popup-closed') || msg.includes('cancelled')) {
+        // user dismissed the popup — no error message needed
       } else if (msg.includes('network')) {
         setError('Sin conexión a internet.');
       } else {
@@ -88,11 +95,11 @@ export default function LoginPage() {
     <div className="w-full max-w-sm space-y-8">
 
       {/* Logo */}
-      <div className="text-center space-y-2">
+      <Link href="/landing" className="block text-center space-y-2 hover:opacity-80 transition-opacity">
         <div className="text-4xl">🐾</div>
         <h1 className="text-2xl font-bold">VetSystem</h1>
         <p className="text-sm text-muted-foreground">Nicaragua</p>
-      </div>
+      </Link>
 
       {/* Indicador de conexión */}
       <div className={`flex items-center justify-center gap-1.5 text-xs font-medium rounded-full px-3 py-1 w-fit mx-auto ${
@@ -179,9 +186,9 @@ export default function LoginPage() {
         <Button
           type="submit"
           className="w-full h-11"
-          disabled={cargando || !online}
+          disabled={loading || !online}
         >
-          {cargando && <Loader2 size={14} className="mr-2 animate-spin" />}
+          {loading && <Loader2 size={14} className="mr-2 animate-spin" />}
           Iniciar sesión
         </Button>
       </form>
