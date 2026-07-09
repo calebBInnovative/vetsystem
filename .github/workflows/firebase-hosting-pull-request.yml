@@ -15,11 +15,9 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci && npm run build
-      - name: Deploy preview channel
-        run: |
-          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_VETSYSTEM_B7675 }}' > /tmp/firebase-sa.json
-          npx firebase-tools hosting:channel:deploy pr-${{ github.event.number }} \
-            --project vetsystem-b7675 --expires 7d || \
-            echo "Preview deploy skipped"
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: /tmp/firebase-sa.json
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_VETSYSTEM_B7675 }}
+          projectId: vetsystem-b7675
+          expires: 7d

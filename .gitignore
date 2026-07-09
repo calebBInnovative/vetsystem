@@ -37,6 +37,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Firebase CLI cache (must not be committed — causes hosting deploy mismatch)
+.firebase/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
