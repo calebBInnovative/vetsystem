@@ -10,24 +10,24 @@ import type { InvoiceLocal, InvoiceItem } from '@/types/invoice';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function useSales(filters?: {
-  fechaDesde?: string;
-  fechaHasta?: string;
-  pacienteId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  patientId?: string;
 }) {
   const result = useLiveQuery(async () => {
-    const clinicaId = await getClinicaId();
+    const clinicId = await getClinicaId();
     let rows = await db.sales
-      .where('clinicaId')
-      .equals(clinicaId)
-      .filter((v) => !v.deletedAt && v.estado !== 'cancelada')
+      .where('clinicId')
+      .equals(clinicId)
+      .filter((v) => !v.deletedAt && v.status !== 'cancelled')
       .toArray();
 
-    if (filters?.fechaDesde) rows = rows.filter((v) => v.fecha >= filters.fechaDesde!);
-    if (filters?.fechaHasta) rows = rows.filter((v) => v.fecha <= filters.fechaHasta!);
-    if (filters?.pacienteId) rows = rows.filter((v) => v.pacienteId === filters.pacienteId);
+    if (filters?.dateFrom)  rows = rows.filter((v) => v.date      >= filters.dateFrom!);
+    if (filters?.dateTo)    rows = rows.filter((v) => v.date      <= filters.dateTo!);
+    if (filters?.patientId) rows = rows.filter((v) => v.patientId === filters.patientId);
 
-    return rows.sort((a, b) => b.creadoEn - a.creadoEn);
-  }, [filters?.fechaDesde, filters?.fechaHasta, filters?.pacienteId]);
+    return rows.sort((a, b) => b.createdAt - a.createdAt);
+  }, [filters?.dateFrom, filters?.dateTo, filters?.patientId]);
 
   return { ventas: result ?? [], loading: result === undefined };
 }
@@ -37,36 +37,36 @@ export function useSales(filters?: {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface CreateSaleInput {
-  items:      SaleItem[];
-  subtotal:   number;
-  descuento:  number;
-  total:      number;
-  metodoPago: SalePaymentMethod;
-  pacienteId?: string;
-  notas?:     string;
+  items:         SaleItem[];
+  subtotal:      number;
+  discount:      number;
+  total:         number;
+  paymentMethod: SalePaymentMethod;
+  patientId?:    string;
+  notes?:        string;
 }
 
 export async function createSale(input: CreateSaleInput): Promise<string> {
-  const now       = Date.now();
-  const id        = crypto.randomUUID();
-  const date      = new Date(now).toISOString().slice(0, 10);
-  const clinicaId = await getClinicaId();
+  const now      = Date.now();
+  const id       = crypto.randomUUID();
+  const date     = new Date(now).toISOString().slice(0, 10);
+  const clinicId = await getClinicaId();
 
   const sale: SaleLocal = {
     id,
-    clinicaId,
-    fecha:      date,
-    items:      input.items,
-    subtotal:   input.subtotal,
-    descuento:  input.descuento,
-    total:      input.total,
-    metodoPago: input.metodoPago,
-    estado:     'completada',
-    pacienteId: input.pacienteId || undefined,
-    notas:      input.notas || undefined,
-    creadoEn:   now,
-    syncStatus: 'pending',
-    updatedAt:  now,
+    clinicId,
+    date,
+    items:         input.items,
+    subtotal:      input.subtotal,
+    discount:      input.discount,
+    total:         input.total,
+    paymentMethod: input.paymentMethod,
+    status:        'completed',
+    patientId:     input.patientId || undefined,
+    notes:         input.notes     || undefined,
+    createdAt:     now,
+    syncStatus:    'pending',
+    updatedAt:     now,
   };
 
   await db.transaction('rw',
@@ -74,100 +74,104 @@ export async function createSale(input: CreateSaleInput): Promise<string> {
     async () => {
       await db.sales.add(sale);
 
-      // 1 — Deduct inventory for each product
+      // 1 — Deduct inventory for each product (skip service-only items)
       for (const item of input.items) {
-        const product = await db.products.get(item.productoId);
+        if (!item.productId || item.itemType === 'service') continue;
+        const product = await db.products.get(item.productId);
         if (!product) continue;
-        const newStock = Math.max(0, product.stockActual - item.cantidad);
+        const newStock = Math.max(0, product.currentStock - item.quantity);
 
-        await db.products.update(item.productoId, { stockActual: newStock, updatedAt: now, syncStatus: 'pending' });
-        await enqueueSync({ coleccion: 'products', documentoId: item.productoId, operacion: 'update', datos: { id: item.productoId, stockActual: newStock, updatedAt: now }, intentos: 0, creadoEn: now });
+        await db.products.update(item.productId, { currentStock: newStock, updatedAt: now, syncStatus: 'pending' });
+        await enqueueSync({ collection: 'products', documentId: item.productId, operation: 'update', data: { id: item.productId, currentStock: newStock, updatedAt: now }, attempts: 0, createdAt: now });
 
         const movementId = crypto.randomUUID();
         const movement = {
-          id:           movementId,
-          productoId:   item.productoId,
-          clinicaId,
-          tipo:         'salida' as const,
-          cantidad:     item.cantidad,
-          stockAntes:   product.stockActual,
-          stockDespues: newStock,
-          motivo:       `Sale #${id.slice(0, 8)}`,
-          referenciaId: id,
-          creadoEn:     now,
-          syncStatus:   'pending' as const,
-          updatedAt:    now,
+          id:          movementId,
+          productId:   item.productId,
+          clinicId,
+          type:        'exit' as const,
+          quantity:    item.quantity,
+          stockBefore: product.currentStock,
+          stockAfter:  newStock,
+          reason:      `Sale #${id.slice(0, 8)}`,
+          referenceId: id,
+          createdAt:   now,
+          syncStatus:  'pending' as const,
+          updatedAt:   now,
         };
         await db.movements.add(movement);
-        await enqueueSync({ coleccion: 'movements', documentoId: movementId, operacion: 'create', datos: movement, intentos: 0, creadoEn: now });
+        await enqueueSync({ collection: 'movements', documentId: movementId, operation: 'create', data: movement, attempts: 0, createdAt: now });
       }
 
       // 2 — Generate invoice
-      const invoiceId    = crypto.randomUUID();
+      const invoiceId     = crypto.randomUUID();
       const invoiceNumber = await generateInvoiceNumber();
       const invoiceItems: InvoiceItem[] = input.items.map((i) => ({
-        id:             i.id,
-        descripcion:    i.descripcion,
-        cantidad:       i.cantidad,
-        precioUnitario: i.precioUnitario,
-        subtotal:       i.subtotal,
-        tipo:           'producto' as const,
-        productoId:     i.productoId,
+        id:          i.id,
+        description: i.description,
+        quantity:    i.quantity,
+        unitPrice:   i.unitPrice,
+        subtotal:    i.subtotal,
+        type:        'product' as const,
+        productId:   i.productId,
       }));
 
       const invoice: InvoiceLocal = {
-        id:          invoiceId,
-        numero:      invoiceNumber,
-        ventaId:     id,
-        pacienteId:  input.pacienteId || undefined,
-        duenoId:     undefined,
-        clinicaId,
-        fecha:       date,
-        items:       invoiceItems,
-        subtotal:    input.subtotal,
-        descuento:   input.descuento,
-        total:       input.total,
-        metodoPago:  input.metodoPago,
-        estado:      'pagada',
-        montoPagado: input.total,
-        notas:       input.notas,
-        creadoEn:    now,
-        syncStatus:  'pending',
-        updatedAt:   now,
+        id:            invoiceId,
+        number:        invoiceNumber,
+        saleId:        id,
+        patientId:     input.patientId || undefined,
+        ownerId:       undefined,
+        clinicId,
+        date,
+        items:         invoiceItems,
+        subtotal:      input.subtotal,
+        discount:      input.discount,
+        total:         input.total,
+        paymentMethod: input.paymentMethod,
+        status:        'paid',
+        amountPaid:    input.total,
+        notes:         input.notes,
+        createdAt:     now,
+        syncStatus:    'pending',
+        updatedAt:     now,
       };
       await db.invoices.add(invoice);
 
       // 3 — Create payment linked to the invoice
       if (input.total > 0) {
         const paymentId     = crypto.randomUUID();
-        const paymentMethod = input.metodoPago === 'mixto' ? 'otro' : input.metodoPago;
+        // 'mixed' is a valid PaymentMethod too; keep it unless there's a reason to map
+        const paymentMethod = input.paymentMethod === 'mixed'
+          ? ('other' as const)
+          : input.paymentMethod;
 
         await db.payments.add({
-          id:         paymentId,
-          pacienteId: input.pacienteId ?? 'anonimo',
-          clinicaId,
-          fecha:      date,
-          concepto:   buildSummary(invoiceNumber, input.items),
-          tipo:       'producto',
-          monto:      input.total,
-          metodoPago: paymentMethod,
-          estado:     'pagado',
-          notas:      input.notas,
-          creadoEn:   now,
-          syncStatus: 'pending',
-          updatedAt:  now,
+          id:            paymentId,
+          patientId:     input.patientId ?? 'anonymous',
+          clinicId,
+          date,
+          concept:       buildSummary(invoiceNumber, input.items),
+          type:          'product',
+          amount:        input.total,
+          paymentMethod: paymentMethod,
+          status:        'paid',
+          notes:         input.notes,
+          createdAt:     now,
+          syncStatus:    'pending',
+          updatedAt:     now,
         });
-        await enqueueSync({ coleccion: 'payments', documentoId: paymentId, operacion: 'create', datos: { id: paymentId, metodoPago: paymentMethod, monto: input.total, estado: 'pagado', fecha: date, updatedAt: now }, intentos: 0, creadoEn: now });
+        await enqueueSync({ collection: 'payments', documentId: paymentId, operation: 'create', data: { id: paymentId, paymentMethod, amount: input.total, status: 'paid', date, updatedAt: now }, attempts: 0, createdAt: now });
 
-        await db.sales.update(id, { pagoId: paymentId, facturaId: invoiceId });
-        await db.invoices.update(invoiceId, { pagoId: paymentId });
+        await db.sales.update(id, { paymentId, invoiceId });
+        await db.invoices.update(invoiceId, { paymentId });
 
-        await enqueueSync({ coleccion: 'sales',    documentoId: id,        operacion: 'create', datos: { ...sale, pagoId: paymentId, facturaId: invoiceId }, intentos: 0, creadoEn: now });
-        await enqueueSync({ coleccion: 'invoices', documentoId: invoiceId, operacion: 'create', datos: { ...invoice, pagoId: paymentId },                    intentos: 0, creadoEn: now });
+        await enqueueSync({ collection: 'sales',    documentId: id,        operation: 'create', data: { ...sale, paymentId, invoiceId }, attempts: 0, createdAt: now });
+        await enqueueSync({ collection: 'invoices', documentId: invoiceId, operation: 'create', data: { ...invoice, paymentId },         attempts: 0, createdAt: now });
       } else {
-        await db.sales.update(id, { facturaId: invoiceId });
-        await enqueueSync({ coleccion: 'sales',    documentoId: id,        operacion: 'create', datos: { ...sale, facturaId: invoiceId }, intentos: 0, creadoEn: now });
-        await enqueueSync({ coleccion: 'invoices', documentoId: invoiceId, operacion: 'create', datos: invoice,                           intentos: 0, creadoEn: now });
+        await db.sales.update(id, { invoiceId });
+        await enqueueSync({ collection: 'sales',    documentId: id,        operation: 'create', data: { ...sale, invoiceId }, attempts: 0, createdAt: now });
+        await enqueueSync({ collection: 'invoices', documentId: invoiceId, operation: 'create', data: invoice,                attempts: 0, createdAt: now });
       }
     }
   );
@@ -180,18 +184,15 @@ export async function createSale(input: CreateSaleInput): Promise<string> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function buildSummary(invoiceNumber: string, items: SaleItem[]): string {
-  const summary = items
-    .slice(0, 3)
-    .map((i) => `${i.descripcion} ×${i.cantidad}`)
-    .join(', ');
+  const summary  = items.slice(0, 3).map((i) => `${i.description} ×${i.quantity}`).join(', ');
   const overflow = items.length > 3 ? ` +${items.length - 3} more` : '';
   return `${invoiceNumber} — ${summary}${overflow}`.slice(0, 200);
 }
 
 async function generateInvoiceNumber(): Promise<string> {
-  const year      = new Date().getFullYear();
-  const clinicaId = await getClinicaId();
-  const count     = await db.invoices.where('clinicaId').equals(clinicaId).count();
+  const year     = new Date().getFullYear();
+  const clinicId = await getClinicaId();
+  const count    = await db.invoices.where('clinicId').equals(clinicId).count();
   return `FAC-${year}-${String(count + 1).padStart(4, '0')}`;
 }
 

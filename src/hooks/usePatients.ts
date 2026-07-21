@@ -1,12 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // HOOK — usePatients
-//
-// Centraliza toda la lógica de datos del módulo Pacientes:
-//   - Hooks reactivos (useLiveQuery) para la UI
-//   - Mutaciones que escriben en Dexie + encolan en syncQueue
-//
-// Convención: las funciones que mutan datos son async y se exportan sueltas
-// (no como métodos del hook) para poder usarlas fuera de componentes React.
 // ─────────────────────────────────────────────────────────────────────────────
 
 'use client';
@@ -17,228 +10,193 @@ import type { PatientLocal, OwnerLocal, PatientWithOwner } from '@/types/patient
 import type { PacienteFormData } from '@/lib/validations/patient.schema';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HOOKS DE LECTURA (reactivos — se actualizan solos cuando cambia Dexie)
+// READ HOOKS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Retorna la lista de patients activos con su dueño ya unido.
- * Si se pasa un `busqueda`, filtra por nombre del paciente, raza, especie,
- * nombre del dueño o teléfono del dueño.
- *
- * @param busqueda - Término de búsqueda (case-insensitive). Vacío = todos.
- */
-export function usePatients(busqueda = '') {
-  const resultado = useLiveQuery(async () => {
-    const termino = busqueda.toLowerCase().trim();
+export function usePatients(search = '') {
+  const result = useLiveQuery(async () => {
+    const term = search.toLowerCase().trim();
 
-    if (!termino) {
-      // Sin búsqueda: ruta optimizada usando índice de Dexie
+    if (!term) {
       const patients = await db.patients
-        .filter((p) => !p.deletedAt && p.activo)
+        .filter((p) => !p.deletedAt && p.active)
         .reverse()
         .sortBy('updatedAt');
 
-      // Cargar dueños en una sola consulta (bulkGet es más eficiente que N gets)
-      const duenoIds = [...new Set(patients.map((p) => p.duenoId))];
-      const duenos   = await db.owners.bulkGet(duenoIds);
-      const duenosMap = new Map(
-        duenos.filter(Boolean).map((d) => [d!.id, d!])
+      const ownerIds = [...new Set(patients.map((p) => p.ownerId))];
+      const owners   = await db.owners.bulkGet(ownerIds);
+      const ownerMap = new Map(
+        owners.filter(Boolean).map((d) => [d!.id, d!])
       );
 
       return patients.map((p) => ({
         ...p,
-        dueno: duenosMap.get(p.duenoId),
+        owner: ownerMap.get(p.ownerId),
       })) as PatientWithOwner[];
     }
 
-    // Con búsqueda: carga todo en memoria y filtra (datos pequeños en IndexedDB,
-    // esto es más rápido que múltiples queries con índices parciales)
-    const [todosPacientes, todosDuenos] = await Promise.all([
-      db.patients.filter((p) => !p.deletedAt && p.activo).toArray(),
+    const [allPatients, allOwners] = await Promise.all([
+      db.patients.filter((p) => !p.deletedAt && p.active).toArray(),
       db.owners.toArray(),
     ]);
 
-    const duenosMap = new Map(todosDuenos.map((d) => [d.id, d]));
+    const ownerMap = new Map(allOwners.map((d) => [d.id, d]));
 
-    const coinciden = todosPacientes.filter((p) => {
-      const d = duenosMap.get(p.duenoId);
+    const matches = allPatients.filter((p) => {
+      const o = ownerMap.get(p.ownerId);
       return (
-        p.nombre.toLowerCase().includes(termino) ||
-        (p.raza?.toLowerCase().includes(termino) ?? false) ||
-        p.especie.includes(termino) ||
-        (d?.nombre.toLowerCase().includes(termino) ?? false) ||
-        (d?.telefono.includes(termino) ?? false)
+        p.name.toLowerCase().includes(term) ||
+        (p.breed?.toLowerCase().includes(term) ?? false) ||
+        p.species.includes(term) ||
+        (o?.name.toLowerCase().includes(term) ?? false) ||
+        (o?.phone.includes(term) ?? false)
       );
     });
 
-    return coinciden
+    return matches
       .sort((a, b) => b.updatedAt - a.updatedAt)
-      .map((p) => ({ ...p, dueno: duenosMap.get(p.duenoId) })) as PatientWithOwner[];
-  }, [busqueda]);
+      .map((p) => ({ ...p, owner: ownerMap.get(p.ownerId) })) as PatientWithOwner[];
+  }, [search]);
 
   return {
-    patients: resultado ?? [],
-    /** `true` mientras useLiveQuery carga por primera vez */
-    loading: resultado === undefined,
+    patients: result ?? [],
+    loading:  result === undefined,
   };
 }
 
-/**
- * Retorna un paciente específico con su dueño.
- * Devuelve `null` si no existe o fue eliminado.
- */
 export function usePatient(id: string) {
-  const resultado = useLiveQuery(async () => {
-    const paciente = await db.patients.get(id);
-    if (!paciente || paciente.deletedAt) return null;
-    const dueno = await db.owners.get(paciente.duenoId);
-    return { ...paciente, dueno } as PatientWithOwner;
+  const result = useLiveQuery(async () => {
+    const patient = await db.patients.get(id);
+    if (!patient || patient.deletedAt) return null;
+    const owner = await db.owners.get(patient.ownerId);
+    return { ...patient, owner } as PatientWithOwner;
   }, [id]);
 
   return {
-    paciente: resultado ?? null,
-    loading: resultado === undefined,
+    paciente: result ?? null,
+    loading:  result === undefined,
   };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MUTACIONES
-// Siguen el patrón: escribir en Dexie → encolar en syncQueue → retornar.
-// La UI no espera a Firebase. Firebase se actualiza cuando hay conexión.
+// MUTATIONS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Crea un nuevo paciente y su dueño (o actualiza al dueño existente si el
- * teléfono ya está registrado — deduplicación inteligente).
- *
- * @returns ID del paciente creado
- */
-export async function createPatient(datos: PacienteFormData): Promise<string> {
-  const ahora = Date.now();
-  const clinicaId = await getClinicaId();
+export async function createPatient(data: PacienteFormData): Promise<string> {
+  const now      = Date.now();
+  const clinicId = await getClinicaId();
 
-  // ── 1. Gestionar dueño ─────────────────────────────────────────────────────
-  const duenoExistente = await db.owners
+  // ── 1. Manage owner ────────────────────────────────────────────────────────
+  const existingOwner = await db.owners
     .filter(
-      (d) => d.telefono === datos.dueno.telefono && d.clinicaId === clinicaId
+      (d) => d.phone === data.owner.phone && d.clinicId === clinicId
     )
     .first();
 
-  let duenoId: string;
+  let ownerId: string;
 
-  if (duenoExistente) {
-    // El dueño ya existe — solo actualizar sus datos por si cambiaron
-    duenoId = duenoExistente.id;
-    await db.owners.update(duenoId, {
-      nombre:    datos.dueno.nombre,
-      email:     datos.dueno.email     || undefined,
-      direccion: datos.dueno.direccion || undefined,
-      notas:     datos.dueno.notas     || undefined,
-      updatedAt: ahora,
+  if (existingOwner) {
+    ownerId = existingOwner.id;
+    await db.owners.update(ownerId, {
+      name:      data.owner.name,
+      email:     data.owner.email   || undefined,
+      address:   data.owner.address || undefined,
+      notes:     data.owner.notes   || undefined,
+      updatedAt: now,
       syncStatus: 'pending',
     });
     await encolarSync({
-      coleccion: 'owners', documentoId: duenoId, operacion: 'update',
-      datos: { id: duenoId, nombre: datos.dueno.nombre, updatedAt: ahora },
-      intentos: 0, creadoEn: ahora,
+      collection: 'owners', documentId: ownerId, operation: 'update',
+      data: { id: ownerId, name: data.owner.name, updatedAt: now },
+      attempts: 0, createdAt: now,
     });
   } else {
-    // Crear nuevo dueño
-    duenoId = crypto.randomUUID();
-    const nuevoDueno: OwnerLocal = {
-      id:         duenoId,
-      nombre:     datos.dueno.nombre,
-      telefono:   datos.dueno.telefono,
-      email:      datos.dueno.email     || undefined,
-      direccion:  datos.dueno.direccion || undefined,
-      notas:      datos.dueno.notas     || undefined,
-      clinicaId:  clinicaId,
-      creadoEn:   ahora,
+    ownerId = crypto.randomUUID();
+    const newOwner: OwnerLocal = {
+      id:         ownerId,
+      name:       data.owner.name,
+      phone:      data.owner.phone,
+      email:      data.owner.email   || undefined,
+      address:    data.owner.address || undefined,
+      notes:      data.owner.notes   || undefined,
+      clinicId:   clinicId,
+      createdAt:  now,
       syncStatus: 'pending',
-      updatedAt:  ahora,
+      updatedAt:  now,
     };
-    await db.owners.add(nuevoDueno);
+    await db.owners.add(newOwner);
     await encolarSync({
-      coleccion: 'owners', documentoId: duenoId, operacion: 'create',
-      datos: nuevoDueno,
-      intentos: 0, creadoEn: ahora,
+      collection: 'owners', documentId: ownerId, operation: 'create',
+      data: newOwner,
+      attempts: 0, createdAt: now,
     });
   }
 
-  // ── 2. Crear paciente ──────────────────────────────────────────────────────
-  const pacienteId  = crypto.randomUUID();
-  const nuevoPaciente: PatientLocal = {
-    id:              pacienteId,
-    nombre:          datos.nombre,
-    especie:         datos.especie,
-    raza:            datos.raza            || undefined,
-    sexo:            datos.sexo,
-    fechaNacimiento: datos.fechaNacimiento || undefined,
-    peso:            datos.peso,
-    color:           datos.color           || undefined,
-    notas:           datos.notas           || undefined,
-    fotoUrl:         undefined,
-    duenoId,
-    activo:          true,
-    clinicaId:       clinicaId,
-    creadoEn:        ahora,
-    syncStatus:      'pending',
-    updatedAt:       ahora,
+  // ── 2. Create patient ──────────────────────────────────────────────────────
+  const patientId    = crypto.randomUUID();
+  const newPatient: PatientLocal = {
+    id:         patientId,
+    name:       data.name,
+    species:    data.species,
+    breed:      data.breed        || undefined,
+    sex:        data.sex,
+    birthDate:  data.birthDate    || undefined,
+    weight:     data.weight,
+    color:      data.color        || undefined,
+    notes:      data.notes        || undefined,
+    photoUrl:   undefined,
+    ownerId,
+    active:     true,
+    clinicId:   clinicId,
+    createdAt:  now,
+    syncStatus: 'pending',
+    updatedAt:  now,
   };
 
-  await db.patients.add(nuevoPaciente);
+  await db.patients.add(newPatient);
   await encolarSync({
-    coleccion: 'patients', documentoId: pacienteId, operacion: 'create',
-    datos: nuevoPaciente,
-    intentos: 0, creadoEn: ahora,
+    collection: 'patients', documentId: patientId, operation: 'create',
+    data: newPatient,
+    attempts: 0, createdAt: now,
   });
 
-  return pacienteId;
+  return patientId;
 }
 
-/**
- * Actualiza campos específicos de un paciente.
- * No sobreescribe campos que no se pasen.
- */
 export async function updatePatient(
   id: string,
-  cambios: Partial<Omit<PatientLocal, 'id' | 'creadoEn' | 'clinicaId'>>
+  changes: Partial<Omit<PatientLocal, 'id' | 'createdAt' | 'clinicId'>>
 ): Promise<void> {
-  const ahora   = Date.now();
-  const payload = { ...cambios, updatedAt: ahora, syncStatus: 'pending' as const };
+  const now     = Date.now();
+  const payload = { ...changes, updatedAt: now, syncStatus: 'pending' as const };
 
   await db.patients.update(id, payload);
   await encolarSync({
-    coleccion: 'patients', documentoId: id, operacion: 'update',
-    datos: { id, ...payload },
-    intentos: 0, creadoEn: ahora,
+    collection: 'patients', documentId: id, operation: 'update',
+    data: { id, ...payload },
+    attempts: 0, createdAt: now,
   });
 }
 
-/**
- * Soft delete: marca `deletedAt` sin borrar el registro de Dexie.
- * Esto permite sincronizar la eliminación con Firestore cuando vuelva internet.
- */
 export async function deletePatient(id: string): Promise<void> {
-  const ahora = Date.now();
+  const now = Date.now();
 
   await db.patients.update(id, {
-    deletedAt:  ahora,
+    deletedAt:  now,
     syncStatus: 'pending',
-    updatedAt:  ahora,
+    updatedAt:  now,
   });
   await encolarSync({
-    coleccion: 'patients', documentoId: id, operacion: 'delete',
-    datos: { id, deletedAt: ahora },
-    intentos: 0, creadoEn: ahora,
+    collection: 'patients', documentId: id, operation: 'delete',
+    data: { id, deletedAt: now },
+    attempts: 0, createdAt: now,
   });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HELPERS PRIVADOS
+// PRIVATE HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Agrega una operación a la cola de sincronización con Firestore */
 async function encolarSync(item: Omit<SyncQueueItem, 'id'>): Promise<void> {
   await db.syncQueue.add(item as SyncQueueItem);
 }

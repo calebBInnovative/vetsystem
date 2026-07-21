@@ -1,12 +1,12 @@
 // ─── License and local session types ─────────────────────────────────────────
 
 export type LicenseMode =
-  | 'normal'             // 0–6 days offline, active subscription
-  | 'advertencia_suave'  // 7–14 days offline
-  | 'advertencia_fuerte' // 15–29 days offline
-  | 'solo_lectura'       // 30–44 days offline
-  | 'bloqueado'          // 45+ days offline / clock tampered
-  | 'vencida';           // expirationDate passed (detected online)
+  | 'normal'          // 0–6 days offline, active subscription
+  | 'soft_warning'    // 7–14 days offline
+  | 'hard_warning'    // 15–29 days offline
+  | 'read_only'       // 30–44 days offline
+  | 'blocked'         // 45+ days offline / clock tampered
+  | 'expired';        // expirationDate passed (detected online)
 
 export type SubscriptionStatus = 'active' | 'expired' | 'suspended' | 'trial';
 
@@ -19,13 +19,14 @@ export type AppModule =
   | 'inventory'
   | 'finances'
   | 'invoices'
-  | 'services';
+  | 'services'
+  | 'promotions';
 
 /** Per-module access flags. `master` and `admin` bypass this entirely. */
 export type Permissions = Record<AppModule, boolean>;
 
 /** Roles in the system (ordered by privilege) */
-export type UserRole = 'master' | 'admin' | 'veterinario' | 'recepcion';
+export type UserRole = 'master' | 'admin' | 'veterinarian' | 'reception';
 
 /**
  * Single record in Dexie (id = 'singleton').
@@ -62,8 +63,8 @@ export interface SessionLocal {
 }
 
 export interface LicenseInfo {
-  modo:           LicenseMode;
-  diasOffline:    number;
-  diasParaVencer: number | null; // null if already expired or not applicable
-  session:        SessionLocal | null;
+  mode:             LicenseMode;
+  daysOffline:      number;
+  daysUntilExpiry:  number | null; // null if already expired or not applicable
+  session:          SessionLocal | null;
 }

@@ -29,40 +29,40 @@ export function ResumenIngresos() {
   const kpis = [
     {
       label:    'Hoy',
-      valor:    summary?.totalHoy ?? 0,
+      valor:    summary?.totalToday ?? 0,
       icon:     DollarSign,
       color:    'text-green-600',
       bg:       'bg-green-500/10',
     },
     {
       label:    'Esta semana',
-      valor:    summary?.totalSemana ?? 0,
+      valor:    summary?.totalWeek ?? 0,
       icon:     TrendingUp,
       color:    'text-blue-600',
       bg:       'bg-blue-500/10',
     },
     {
       label:    'Este mes',
-      valor:    summary?.totalMes ?? 0,
+      valor:    summary?.totalMonth ?? 0,
       icon:     TrendingUp,
       color:    'text-primary',
       bg:       'bg-primary/10',
     },
     {
       label:    'Pagos pendientes',
-      valor:    summary?.pendientes ?? 0,
+      valor:    summary?.pendingCount ?? 0,
       esConteo: true,
       icon:     Clock,
-      color:    summary?.pendientes ? 'text-amber-600' : 'text-muted-foreground',
-      bg:       summary?.pendientes ? 'bg-amber-500/10' : 'bg-muted/30',
+      color:    summary?.pendingCount ? 'text-amber-600' : 'text-muted-foreground',
+      bg:       summary?.pendingCount ? 'bg-amber-500/10' : 'bg-muted/30',
     },
   ];
 
-  const balanceNeto         = summary?.balanceNeto ?? 0;
-  const totalMes            = summary?.totalMes ?? 0;
-  const totalEgresos        = summary?.totalEgresos ?? 0;
-  const totalGastos         = summary?.totalGastos ?? 0;
-  const totalColaboradores  = summary?.totalColaboradores ?? 0;
+  const balanceNeto         = summary?.netBalance ?? 0;
+  const totalMes            = summary?.totalMonth ?? 0;
+  const totalEgresos        = summary?.totalOutgoing ?? 0;
+  const totalGastos         = summary?.totalExpenses ?? 0;
+  const totalColaboradores  = summary?.totalCollaborators ?? 0;
   const balancePositivo     = balanceNeto >= 0;
 
   return (
@@ -150,17 +150,17 @@ export function ResumenIngresos() {
       </div>
 
       {/* Desglose: tipos + métodos */}
-      {summary && (summary.cantidadMes > 0) && (
+      {summary && (summary.countMonth > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {/* Por tipo de ingreso */}
           <div className="bg-card rounded-2xl border border-border p-4">
             <p className="text-sm font-medium mb-3">Ingresos por tipo</p>
             <div className="space-y-2">
-              {Object.entries(summary.porTipo)
+              {Object.entries(summary.byType)
                 .sort(([, a], [, b]) => b - a)
                 .map(([tipo, monto]) => {
                   const info = INCOME_TYPES[tipo as keyof typeof INCOME_TYPES];
-                  const pct  = summary.totalMes > 0 ? Math.round((monto / summary.totalMes) * 100) : 0;
+                  const pct  = summary.totalMonth > 0 ? Math.round((monto / summary.totalMonth) * 100) : 0;
                   return (
                     <div key={tipo} className="flex items-center gap-2">
                       <span className="text-base w-5">{info?.emoji ?? '💰'}</span>
@@ -181,11 +181,11 @@ export function ResumenIngresos() {
           <div className="bg-card rounded-2xl border border-border p-4">
             <p className="text-sm font-medium mb-3">Métodos de pago</p>
             <div className="space-y-2">
-              {Object.entries(summary.porMetodo)
+              {Object.entries(summary.byMethod)
                 .sort(([, a], [, b]) => b - a)
                 .map(([metodo, monto]) => {
                   const info = PAYMENT_METHODS[metodo as keyof typeof PAYMENT_METHODS];
-                  const pct  = summary.totalMes > 0 ? Math.round((monto / summary.totalMes) * 100) : 0;
+                  const pct  = summary.totalMonth > 0 ? Math.round((monto / summary.totalMonth) * 100) : 0;
                   return (
                     <div key={metodo} className="flex items-center gap-2">
                       <span className="text-base w-5">{info?.emoji ?? '💰'}</span>

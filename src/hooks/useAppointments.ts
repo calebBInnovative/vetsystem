@@ -6,222 +6,218 @@ import type { AppointmentLocal, AppointmentStatus } from '@/types/appointment';
 import type { CitaFormData } from '@/lib/validations/appointment.schema';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HOOKS DE LECTURA
+// READ HOOKS
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Retorna un mapa fecha→conteo de appointments activas para todo un mes.
- * Usado por el calendario mensual de la agenda.
+ * Returns a date→count map of active appointments for an entire month.
+ * Used by the monthly calendar view.
  */
 export function useMonthlyAppointments(year: number, month: number) {
-  // month es 0-indexed (como JS Date)
-  const primerDia = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-  const ultimoDia = `${year}-${String(month + 1).padStart(2, '0')}-${String(new Date(year, month + 1, 0).getDate()).padStart(2, '0')}`;
+  const firstDay = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+  const lastDay  = `${year}-${String(month + 1).padStart(2, '0')}-${String(new Date(year, month + 1, 0).getDate()).padStart(2, '0')}`;
 
-  const resultado = useLiveQuery(async () => {
-    const clinicaId = await getClinicaId();
+  const result = useLiveQuery(async () => {
+    const clinicId = await getClinicaId();
     const appointments = await db.appointments
-      .where('fecha')
-      .between(primerDia, ultimoDia, true, true)
-      .filter((c) => !c.deletedAt && c.clinicaId === clinicaId && c.estado !== 'cancelada')
+      .where('date')
+      .between(firstDay, lastDay, true, true)
+      .filter((c) => !c.deletedAt && c.clinicId === clinicId && c.status !== 'cancelled')
       .toArray();
 
     const map = new Map<string, number>();
     for (const c of appointments) {
-      map.set(c.fecha, (map.get(c.fecha) ?? 0) + 1);
+      map.set(c.date, (map.get(c.date) ?? 0) + 1);
     }
     return map;
-  }, [primerDia, ultimoDia]);
+  }, [firstDay, lastDay]);
 
-  return resultado ?? new Map<string, number>();
+  return result ?? new Map<string, number>();
 }
 
 /**
- * Retorna todas las appointments activas de un día específico, ordenadas por hora.
- * @param fecha - "YYYY-MM-DD"
+ * Returns all active appointments for a specific day, sorted by time.
+ * @param date - "YYYY-MM-DD"
  */
-export function useCitasDelDia(fecha: string) {
-  const resultado = useLiveQuery(async () => {
-    const clinicaId = await getClinicaId();
+export function useCitasDelDia(date: string) {
+  const result = useLiveQuery(async () => {
+    const clinicId = await getClinicaId();
     const appointments = await db.appointments
-      .where('fecha')
-      .equals(fecha)
-      .filter((c) => !c.deletedAt && c.clinicaId === clinicaId)
+      .where('date')
+      .equals(date)
+      .filter((c) => !c.deletedAt && c.clinicId === clinicId)
       .toArray();
 
-    // Ordenar por horaInicio
-    appointments.sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
+    appointments.sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-    // Join con patients y dueños en una sola pasada
-    const pacienteIds = [...new Set(appointments.map((c) => c.pacienteId))];
-    const duenoIds    = [...new Set(appointments.map((c) => c.duenoId))];
+    const patientIds = [...new Set(appointments.map((c) => c.patientId))];
+    const ownerIds   = [...new Set(appointments.map((c) => c.ownerId))];
 
-    const [patients, duenos] = await Promise.all([
-      db.patients.bulkGet(pacienteIds),
-      db.owners.bulkGet(duenoIds),
+    const [patients, owners] = await Promise.all([
+      db.patients.bulkGet(patientIds),
+      db.owners.bulkGet(ownerIds),
     ]);
 
-    const pacientesMap = new Map(patients.filter(Boolean).map((p) => [p!.id, p!]));
-    const duenosMap    = new Map(duenos.filter(Boolean).map((d) => [d!.id, d!]));
+    const patientMap = new Map(patients.filter(Boolean).map((p) => [p!.id, p!]));
+    const ownerMap   = new Map(owners.filter(Boolean).map((d) => [d!.id, d!]));
 
     return appointments.map((c) => ({
       ...c,
-      nombrePaciente:  pacientesMap.get(c.pacienteId)?.nombre,
-      especiePaciente: pacientesMap.get(c.pacienteId)?.especie,
-      nombreDueno:     duenosMap.get(c.duenoId)?.nombre,
-      telefonoDueno:   duenosMap.get(c.duenoId)?.telefono,
+      patientName:    patientMap.get(c.patientId)?.name,
+      patientSpecies: patientMap.get(c.patientId)?.species,
+      ownerName:      ownerMap.get(c.ownerId)?.name,
+      ownerPhone:     ownerMap.get(c.ownerId)?.phone,
     }));
-  }, [fecha]);
+  }, [date]);
 
   return {
-    appointments:    resultado ?? [],
-    loading: resultado === undefined,
+    appointments: result ?? [],
+    loading: result === undefined,
   };
 }
 
 /**
- * Retorna las próximas N appointments confirmadas/pendientes desde hoy.
+ * Returns the next N confirmed/pending appointments from today.
  */
-export function useCitasProximas(limite = 5) {
-  const hoy = new Date().toISOString().slice(0, 10);
+export function useCitasProximas(limit = 5) {
+  const today = new Date().toISOString().slice(0, 10);
 
-  const resultado = useLiveQuery(async () => {
-    const clinicaId = await getClinicaId();
+  const result = useLiveQuery(async () => {
+    const clinicId = await getClinicaId();
     const appointments = await db.appointments
-      .where('fecha')
-      .aboveOrEqual(hoy)
+      .where('date')
+      .aboveOrEqual(today)
       .filter(
         (c) =>
           !c.deletedAt &&
-          c.clinicaId === clinicaId &&
-          (c.estado === 'pendiente' || c.estado === 'confirmada')
+          c.clinicId === clinicId &&
+          (c.status === 'pending' || c.status === 'confirmed')
       )
-      .limit(limite)
+      .limit(limit)
       .toArray();
 
     appointments.sort((a, b) =>
-      a.fecha === b.fecha
-        ? a.horaInicio.localeCompare(b.horaInicio)
-        : a.fecha.localeCompare(b.fecha)
+      a.date === b.date
+        ? a.startTime.localeCompare(b.startTime)
+        : a.date.localeCompare(b.date)
     );
 
-    const pacienteIds = [...new Set(appointments.map((c) => c.pacienteId))];
-    const patients   = await db.patients.bulkGet(pacienteIds);
-    const pacientesMap = new Map(patients.filter(Boolean).map((p) => [p!.id, p!]));
+    const patientIds = [...new Set(appointments.map((c) => c.patientId))];
+    const patients   = await db.patients.bulkGet(patientIds);
+    const patientMap = new Map(patients.filter(Boolean).map((p) => [p!.id, p!]));
 
     return appointments.map((c) => ({
       ...c,
-      nombrePaciente:  pacientesMap.get(c.pacienteId)?.nombre,
-      especiePaciente: pacientesMap.get(c.pacienteId)?.especie,
+      patientName:    patientMap.get(c.patientId)?.name,
+      patientSpecies: patientMap.get(c.patientId)?.species,
     }));
-  }, [hoy, limite]);
+  }, [today, limit]);
 
   return {
-    appointments:    resultado ?? [],
-    loading: resultado === undefined,
+    appointments: result ?? [],
+    loading: result === undefined,
   };
 }
 
 /**
- * Retorna las appointments de un paciente específico.
+ * Returns appointments for a specific patient.
  */
-export function usePatientAppointments(pacienteId: string) {
-  const resultado = useLiveQuery(async () => {
+export function usePatientAppointments(patientId: string) {
+  const result = useLiveQuery(async () => {
     return db.appointments
-      .where('pacienteId')
-      .equals(pacienteId)
+      .where('patientId')
+      .equals(patientId)
       .filter((c) => !c.deletedAt)
       .reverse()
-      .sortBy('fecha');
-  }, [pacienteId]);
+      .sortBy('date');
+  }, [patientId]);
 
   return {
-    appointments:    resultado ?? [],
-    loading: resultado === undefined,
+    appointments: result ?? [],
+    loading: result === undefined,
   };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MUTACIONES
+// MUTATIONS
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Crea una nueva cita.
- * Requiere que el paciente ya exista en Dexie.
- * @returns ID de la cita creada
+ * Creates a new appointment.
+ * Requires the patient to already exist in Dexie.
+ * @returns ID of the created appointment
  */
-export async function createAppointment(datos: CitaFormData): Promise<string> {
-  const ahora  = Date.now();
-  const citaId = crypto.randomUUID();
-  const clinicaId = await getClinicaId();
+export async function createAppointment(data: CitaFormData): Promise<string> {
+  const now          = Date.now();
+  const appointmentId = crypto.randomUUID();
+  const clinicId     = await getClinicaId();
 
-  // Obtener el dueñoId del paciente
-  const paciente = await db.patients.get(datos.pacienteId);
-  if (!paciente) throw new Error(`Patient ${datos.pacienteId} no encontrado`);
+  const patient = await db.patients.get(data.patientId);
+  if (!patient) throw new Error(`Patient ${data.patientId} not found`);
 
-  const nuevaCita: AppointmentLocal = {
-    id:               citaId,
-    pacienteId:       datos.pacienteId,
-    duenoId:          paciente.duenoId,
-    clinicaId:        clinicaId,
-    fecha:            datos.fecha,
-    horaInicio:       datos.horaInicio,
-    duracionMinutos:  datos.duracionMinutos as number,
-    tipo:             datos.tipo,
-    estado:           'pendiente',
-    motivo:           datos.motivo,
-    veterinario:      datos.veterinario || undefined,
-    notas:            datos.notas       || undefined,
-    creadoEn:         ahora,
-    syncStatus:       'pending',
-    updatedAt:        ahora,
+  const newAppointment: AppointmentLocal = {
+    id:              appointmentId,
+    patientId:       data.patientId,
+    ownerId:         patient.ownerId,
+    clinicId:        clinicId,
+    date:            data.date,
+    startTime:       data.startTime,
+    durationMinutes: data.durationMinutes as number,
+    type:            data.type,
+    status:          'pending',
+    reason:          data.reason,
+    veterinarian:    data.veterinarian || undefined,
+    notes:           data.notes       || undefined,
+    createdAt:       now,
+    syncStatus:      'pending',
+    updatedAt:       now,
   };
 
-  await db.appointments.add(nuevaCita);
-  await encolarSync({
-    coleccion: 'appointments', documentoId: citaId, operacion: 'create',
-    datos: nuevaCita, intentos: 0, creadoEn: ahora,
+  await db.appointments.add(newAppointment);
+  await enqueueSync({
+    collection: 'appointments', documentId: appointmentId, operation: 'create',
+    data: newAppointment, attempts: 0, createdAt: now,
   });
 
-  return citaId;
+  return appointmentId;
 }
 
 /**
- * Cambia el estado de una cita (acción rápida desde la tarjeta).
+ * Changes the status of an appointment (quick action from card).
  */
-export async function cambiarEstadoCita(id: string, estado: AppointmentStatus): Promise<void> {
-  const ahora = Date.now();
-  await db.appointments.update(id, { estado, updatedAt: ahora, syncStatus: 'pending' });
-  await encolarSync({
-    coleccion: 'appointments', documentoId: id, operacion: 'update',
-    datos: { id, estado, updatedAt: ahora },
-    intentos: 0, creadoEn: ahora,
+export async function cambiarEstadoCita(id: string, status: AppointmentStatus): Promise<void> {
+  const now = Date.now();
+  await db.appointments.update(id, { status, updatedAt: now, syncStatus: 'pending' });
+  await enqueueSync({
+    collection: 'appointments', documentId: id, operation: 'update',
+    data: { id, status, updatedAt: now },
+    attempts: 0, createdAt: now,
   });
 }
 
 /**
- * Actualiza campos específicos de una cita.
+ * Updates specific fields of an appointment.
  */
 export async function updateAppointment(
   id: string,
-  cambios: Partial<Omit<AppointmentLocal, 'id' | 'creadoEn' | 'clinicaId' | 'pacienteId' | 'duenoId'>>
+  changes: Partial<Omit<AppointmentLocal, 'id' | 'createdAt' | 'clinicId' | 'patientId' | 'ownerId'>>
 ): Promise<void> {
-  const ahora   = Date.now();
-  const payload = { ...cambios, updatedAt: ahora, syncStatus: 'pending' as const };
+  const now     = Date.now();
+  const payload = { ...changes, updatedAt: now, syncStatus: 'pending' as const };
   await db.appointments.update(id, payload);
-  await encolarSync({
-    coleccion: 'appointments', documentoId: id, operacion: 'update',
-    datos: { id, ...payload }, intentos: 0, creadoEn: ahora,
+  await enqueueSync({
+    collection: 'appointments', documentId: id, operation: 'update',
+    data: { id, ...payload }, attempts: 0, createdAt: now,
   });
 }
 
 /** Soft delete */
 export async function eliminarCita(id: string): Promise<void> {
-  const ahora = Date.now();
-  await db.appointments.update(id, { deletedAt: ahora, syncStatus: 'pending', updatedAt: ahora });
-  await encolarSync({
-    coleccion: 'appointments', documentoId: id, operacion: 'delete',
-    datos: { id, deletedAt: ahora }, intentos: 0, creadoEn: ahora,
+  const now = Date.now();
+  await db.appointments.update(id, { deletedAt: now, syncStatus: 'pending', updatedAt: now });
+  await enqueueSync({
+    collection: 'appointments', documentId: id, operation: 'delete',
+    data: { id, deletedAt: now }, attempts: 0, createdAt: now,
   });
 }
 
@@ -229,6 +225,7 @@ export async function eliminarCita(id: string): Promise<void> {
 // HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function encolarSync(item: Omit<SyncQueueItem, 'id'>): Promise<void> {
-  await db.syncQueue.add(item as SyncQueueItem);
+async function enqueueSync(item: Omit<SyncQueueItem, 'id'> & { data: object }): Promise<void> {
+  const { data, ...rest } = item;
+  await db.syncQueue.add({ ...rest, data: data } as SyncQueueItem);
 }

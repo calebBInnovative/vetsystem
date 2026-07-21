@@ -1,7 +1,7 @@
 import {
   doc,
   setDoc,
-  collection,
+  collection as firestoreCollection,
   query,
   where,
   getDocs,
@@ -13,22 +13,19 @@ import { getFirestoreDb } from '@/lib/firebase/firebase.config';
 import type { SyncProvider, RemoteDoc } from '@/lib/sync/sync.provider';
 
 /**
- * Implementación de SyncProvider usando Firestore.
+ * SyncProvider implementation using Firestore.
  *
- * Estructura en Firestore:
- *   clinics/{clinicId}/{coleccion}/{documentoId}
- *
- * Cada documento incluye todos los campos del modelo local
- * más `_syncedAt` (timestamp del servidor) para resolver conflictos.
+ * Firestore structure:
+ *   clinics/{clinicId}/{collection}/{documentId}
  */
 export class FirebaseSyncProvider implements SyncProvider {
-  readonly nombre = 'firebase';
+  readonly name = 'firebase';
 
-  private readonly clinicaId: string;
+  private readonly clinicId: string;
   private db: Firestore | null = null;
 
-  constructor(clinicaId: string) {
-    this.clinicaId = clinicaId;
+  constructor(clinicId: string) {
+    this.clinicId = clinicId;
   }
 
   private getDb(): Firestore {
@@ -36,32 +33,32 @@ export class FirebaseSyncProvider implements SyncProvider {
     return this.db;
   }
 
-  private colRef(coleccion: string) {
-    return collection(this.getDb(), 'clinics', this.clinicaId, coleccion);
+  private colRef(collectionName: string) {
+    return firestoreCollection(this.getDb(), 'clinics', this.clinicId, collectionName);
   }
 
-  async push(coleccion: string, id: string, datos: object): Promise<void> {
+  async push(collectionName: string, id: string, data: object): Promise<void> {
     // Firestore rejects undefined values — strip them before sending
-    const clean = JSON.parse(JSON.stringify(datos));
-    const ref = doc(this.colRef(coleccion), id);
+    const clean = JSON.parse(JSON.stringify(data));
+    const ref = doc(this.colRef(collectionName), id);
     await setDoc(ref, { ...clean, _syncedAt: serverTimestamp() }, { merge: true });
   }
 
-  async pull(coleccion: string, desde: number): Promise<RemoteDoc[]> {
+  async pull(collectionName: string, since: number): Promise<RemoteDoc[]> {
     const q = query(
-      this.colRef(coleccion),
-      where('updatedAt', '>', desde),
+      this.colRef(collectionName),
+      where('updatedAt', '>', since),
     );
     const snap = await getDocs(q);
     return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as RemoteDoc);
   }
 
   subscribe(
-    coleccion: string,
-    _clinicaId: string,
+    collectionName: string,
+    _clinicId: string,
     onChange: (docs: RemoteDoc[]) => void,
   ): () => void {
-    const q = query(this.colRef(coleccion));
+    const q = query(this.colRef(collectionName));
     const unsub = onSnapshot(q, (snap) => {
       const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as RemoteDoc);
       onChange(docs);

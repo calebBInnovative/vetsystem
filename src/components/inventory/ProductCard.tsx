@@ -13,11 +13,11 @@ interface ProductoCardProps {
 }
 
 export function ProductoCard({ producto }: ProductoCardProps) {
-  const categoria      = PRODUCT_CATEGORIES[producto.categoria];
-  const unidad         = MEASUREMENT_UNITS[producto.unidad];
-  const stockBajo      = producto.stockActual <= producto.stockMinimo;
-  const sinStock       = producto.stockActual === 0;
-  const vencido        = producto.fechaVencimiento ? isPast(parseISO(producto.fechaVencimiento)) : false;
+  const categoria      = PRODUCT_CATEGORIES[producto.category];
+  const unidad         = MEASUREMENT_UNITS[producto.unit];
+  const stockBajo      = producto.currentStock <= producto.minimumStock;
+  const sinStock       = producto.currentStock === 0;
+  const vencido        = producto.expirationDate ? isPast(parseISO(producto.expirationDate)) : false;
   const tieneProblema  = stockBajo || vencido;
 
   return (
@@ -41,7 +41,7 @@ export function ProductoCard({ producto }: ProductoCardProps) {
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
               <h3 className="font-semibold truncate group-hover:text-primary transition-colors leading-tight">
-                {producto.nombre}
+                {producto.name}
               </h3>
               {tieneProblema && (
                 <AlertTriangle size={15} className="text-amber-500 shrink-0 mt-0.5" />
@@ -51,8 +51,8 @@ export function ProductoCard({ producto }: ProductoCardProps) {
               <Badge variant="secondary" className={cn('text-xs', categoria.color)}>
                 {categoria.label}
               </Badge>
-              {producto.proveedor && (
-                <span className="text-xs text-muted-foreground truncate">· {producto.proveedor}</span>
+              {producto.supplier && (
+                <span className="text-xs text-muted-foreground truncate">· {producto.supplier}</span>
               )}
             </div>
           </div>
@@ -69,7 +69,7 @@ export function ProductoCard({ producto }: ProductoCardProps) {
                 stockBajo   ? 'text-amber-500' :
                               'text-foreground'
               )}>
-                {producto.stockActual}
+                {producto.currentStock}
               </span>
               <span className="text-sm text-muted-foreground">{unidad}</span>
             </div>
@@ -77,13 +77,13 @@ export function ProductoCard({ producto }: ProductoCardProps) {
 
           <div className="text-right">
             <p className="text-xs text-muted-foreground mb-0.5">Mínimo</p>
-            <p className="text-sm font-medium">{producto.stockMinimo} {unidad}</p>
+            <p className="text-sm font-medium">{producto.minimumStock} {unidad}</p>
           </div>
 
-          {producto.precioVenta && (
+          {producto.salePrice && (
             <div className="text-right">
               <p className="text-xs text-muted-foreground mb-0.5">Precio</p>
-              <p className="text-sm font-semibold">${producto.precioVenta.toFixed(2)}</p>
+              <p className="text-sm font-semibold">${producto.salePrice.toFixed(2)}</p>
             </div>
           )}
         </div>
@@ -98,8 +98,8 @@ export function ProductoCard({ producto }: ProductoCardProps) {
                           'bg-green-500'
             )}
             style={{
-              width: `${Math.min(100, producto.stockMinimo > 0
-                ? (producto.stockActual / (producto.stockMinimo * 3)) * 100
+              width: `${Math.min(100, producto.minimumStock > 0
+                ? (producto.currentStock / (producto.minimumStock * 3)) * 100
                 : 100
               )}%`
             }}
@@ -121,7 +121,7 @@ export function ProductoCard({ producto }: ProductoCardProps) {
             )}
             {vencido && (
               <p className="text-xs text-red-500 font-medium flex items-center gap-1">
-                <AlertTriangle size={11} /> Vencido el {format(parseISO(producto.fechaVencimiento!), "d MMM yyyy", { locale: es })}
+                <AlertTriangle size={11} /> Vencido el {format(parseISO(producto.expirationDate!), "d MMM yyyy", { locale: es })}
               </p>
             )}
           </div>

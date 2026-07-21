@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import {
   useServices, createService, updateService,
-  toggleServicioActivo, deleteService, type ServicioInput,
+  toggleServicioActivo, deleteService, type ServiceInput,
 } from '@/hooks/useServices';
 import { SERVICE_CATEGORIES, type ServiceCategory, type ServiceLocal } from '@/types/service';
 import { Button } from '@/components/ui/button';
@@ -20,17 +20,17 @@ const CATEGORIAS_LIST = Object.entries(SERVICE_CATEGORIES) as [ServiceCategory, 
 
 interface ServicioFormProps {
   inicial?: ServiceLocal;
-  onGuardar: (input: ServicioInput) => Promise<void>;
+  onGuardar: (input: ServiceInput) => Promise<void>;
   onCancelar: () => void;
 }
 
 function ServicioForm({ inicial, onGuardar, onCancelar }: ServicioFormProps) {
-  const [nombre,     setNombre]     = useState(inicial?.nombre     ?? '');
-  const [descripcion,setDescripcion]= useState(inicial?.descripcion ?? '');
-  const [categoria,  setCategoria]  = useState<ServiceCategory>(inicial?.categoria ?? 'consulta');
-  const [precio,     setPrecio]     = useState(String(inicial?.precio ?? ''));
-  const [guardando,  setGuardando]  = useState(false);
-  const [error,      setError]      = useState('');
+  const [nombre,     setNombre]      = useState(inicial?.name        ?? '');
+  const [descripcion,setDescripcion] = useState(inicial?.description ?? '');
+  const [categoria,  setCategoria]   = useState<ServiceCategory>(inicial?.category ?? 'consultation');
+  const [precio,     setPrecio]      = useState(String(inicial?.price ?? ''));
+  const [guardando,  setGuardando]   = useState(false);
+  const [error,      setError]       = useState('');
 
   async function handleGuardar() {
     if (!nombre.trim())      { setError('El nombre es requerido'); return; }
@@ -38,7 +38,7 @@ function ServicioForm({ inicial, onGuardar, onCancelar }: ServicioFormProps) {
     setGuardando(true);
     setError('');
     try {
-      await onGuardar({ nombre, descripcion, categoria, precio: Number(precio) });
+      await onGuardar({ name: nombre, description: descripcion, category: categoria, price: Number(precio) });
     } finally {
       setGuardando(false);
     }
@@ -118,21 +118,21 @@ interface ServicioRowProps {
 }
 
 function ServicioRow({ servicio, onEditar }: ServicioRowProps) {
-  const [editandoPrecio,  setEditandoPrecio]  = useState(false);
-  const [precioTmp,       setPrecioTmp]       = useState(String(servicio.precio));
-  const [eliminando,      setEliminando]      = useState(false);
-  const cat = SERVICE_CATEGORIES[servicio.categoria];
+  const [editandoPrecio, setEditandoPrecio] = useState(false);
+  const [precioTmp,      setPrecioTmp]      = useState(String(servicio.price));
+  const [eliminando,     setEliminando]     = useState(false);
+  const cat = SERVICE_CATEGORIES[servicio.category];
 
   async function guardarPrecio() {
     const n = Number(precioTmp);
-    if (n > 0 && n !== servicio.precio) {
-      await updateService(servicio.id, { precio: n });
+    if (n > 0 && n !== servicio.price) {
+      await updateService(servicio.id, { price: n });
     }
     setEditandoPrecio(false);
   }
 
   async function handleEliminar() {
-    if (!confirm(`¿Eliminar "${servicio.nombre}"?`)) return;
+    if (!confirm(`¿Eliminar "${servicio.name}"?`)) return;
     setEliminando(true);
     await deleteService(servicio.id);
   }
@@ -140,7 +140,7 @@ function ServicioRow({ servicio, onEditar }: ServicioRowProps) {
   return (
     <div className={cn(
       'flex items-center gap-3 px-4 py-3 border-b border-border last:border-0 transition-opacity',
-      !servicio.activo && 'opacity-50'
+      !servicio.active && 'opacity-50'
     )}>
       {/* Categoría badge */}
       <span className={cn('shrink-0 text-xs px-2 py-0.5 rounded-full border font-medium hidden sm:inline', cat.color)}>
@@ -150,9 +150,9 @@ function ServicioRow({ servicio, onEditar }: ServicioRowProps) {
 
       {/* Nombre + descripción */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{servicio.nombre}</p>
-        {servicio.descripcion && (
-          <p className="text-xs text-muted-foreground truncate">{servicio.descripcion}</p>
+        <p className="text-sm font-medium truncate">{servicio.name}</p>
+        {servicio.description && (
+          <p className="text-xs text-muted-foreground truncate">{servicio.description}</p>
         )}
       </div>
 
@@ -174,11 +174,11 @@ function ServicioRow({ servicio, onEditar }: ServicioRowProps) {
           </div>
         ) : (
           <button
-            onClick={() => { setPrecioTmp(String(servicio.precio)); setEditandoPrecio(true); }}
+            onClick={() => { setPrecioTmp(String(servicio.price)); setEditandoPrecio(true); }}
             className="text-sm font-semibold hover:text-primary transition-colors group flex items-center gap-1"
             title="Clic para editar precio"
           >
-            {fmt(servicio.precio)}
+            {fmt(servicio.price)}
             <Pencil size={11} className="opacity-0 group-hover:opacity-60 transition-opacity" />
           </button>
         )}
@@ -187,15 +187,15 @@ function ServicioRow({ servicio, onEditar }: ServicioRowProps) {
       {/* Toggle activo */}
       <button
         onClick={() => toggleServicioActivo(servicio.id)}
-        title={servicio.activo ? 'Desactivar' : 'Activar'}
+        title={servicio.active ? 'Desactivar' : 'Activar'}
         className={cn(
           'shrink-0 w-10 h-5 rounded-full transition-colors relative',
-          servicio.activo ? 'bg-primary' : 'bg-muted-foreground/30'
+          servicio.active ? 'bg-primary' : 'bg-muted-foreground/30'
         )}
       >
         <span className={cn(
           'absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all',
-          servicio.activo ? 'left-5' : 'left-0.5'
+          servicio.active ? 'left-5' : 'left-0.5'
         )} />
       </button>
 
@@ -218,29 +218,29 @@ function ServicioRow({ servicio, onEditar }: ServicioRowProps) {
 
 export default function ServicesPage() {
   const { services, loading } = useServices();
-  const [mostrarForm,  setMostrarForm]  = useState(false);
-  const [editando,     setEditando]     = useState<ServiceLocal | null>(null);
-  const [filtroCat,    setFiltroCat]    = useState<ServiceCategory | 'todas'>('todas');
-  const [soloActivos,  setSoloActivos]  = useState(false);
+  const [mostrarForm, setMostrarForm] = useState(false);
+  const [editando,    setEditando]    = useState<ServiceLocal | null>(null);
+  const [filtroCat,   setFiltroCat]   = useState<ServiceCategory | 'todas'>('todas');
+  const [soloActivos, setSoloActivos] = useState(false);
 
   const filtrados = services.filter((s) => {
-    if (soloActivos && !s.activo) return false;
-    if (filtroCat !== 'todas' && s.categoria !== filtroCat) return false;
+    if (soloActivos && !s.active) return false;
+    if (filtroCat !== 'todas' && s.category !== filtroCat) return false;
     return true;
   });
 
   // Agrupar por categoría para mostrar
   const porCategoria = filtrados.reduce<Record<string, ServiceLocal[]>>((acc, s) => {
-    (acc[s.categoria] ??= []).push(s);
+    (acc[s.category] ??= []).push(s);
     return acc;
   }, {});
 
-  async function handleCrear(input: ServicioInput) {
+  async function handleCrear(input: ServiceInput) {
     await createService(input);
     setMostrarForm(false);
   }
 
-  async function handleEditar(input: ServicioInput) {
+  async function handleEditar(input: ServiceInput) {
     if (!editando) return;
     await updateService(editando.id, input);
     setEditando(null);
@@ -362,7 +362,7 @@ export default function ServicesPage() {
       {/* Resumen */}
       {services.length > 0 && (
         <p className="text-xs text-muted-foreground text-center">
-          {services.filter((s) => s.activo).length} activos · {services.filter((s) => !s.activo).length} inactivos · {services.length} total
+          {services.filter((s) => s.active).length} activos · {services.filter((s) => !s.active).length} inactivos · {services.length} total
         </p>
       )}
     </div>

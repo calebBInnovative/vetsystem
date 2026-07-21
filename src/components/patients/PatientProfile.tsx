@@ -43,7 +43,7 @@ export function FichaPaciente({ pacienteId }: FichaPacienteProps) {
     );
   }
 
-  const especie = PET_SPECIES[paciente.especie];
+  const especie = PET_SPECIES[paciente.species];
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -63,9 +63,9 @@ export function FichaPaciente({ pacienteId }: FichaPacienteProps) {
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h1 className="text-2xl font-bold leading-tight">{paciente.nombre}</h1>
+              <h1 className="text-2xl font-bold leading-tight">{paciente.name}</h1>
               <p className="text-muted-foreground text-sm mt-0.5">
-                {especie.label}{paciente.raza && ` · ${paciente.raza}`}
+                {especie.label}{paciente.breed && ` · ${paciente.breed}`}
               </p>
             </div>
             <Button variant="outline" size="sm" className="shrink-0">
@@ -76,10 +76,10 @@ export function FichaPaciente({ pacienteId }: FichaPacienteProps) {
 
           <div className="flex flex-wrap gap-2 mt-3">
             <Badge variant="secondary">
-              {paciente.sexo === 'macho' ? '♂ Macho' : '♀ Hembra'}
+              {paciente.sex === 'male' ? '♂ Macho' : '♀ Hembra'}
             </Badge>
-            {paciente.peso && (
-              <Badge variant="secondary">{paciente.peso} kg</Badge>
+            {paciente.weight && (
+              <Badge variant="secondary">{paciente.weight} kg</Badge>
             )}
             {paciente.color && (
               <Badge variant="secondary">{paciente.color}</Badge>
@@ -97,42 +97,42 @@ export function FichaPaciente({ pacienteId }: FichaPacienteProps) {
             Información Médica
           </h2>
           <dl className="space-y-3">
-            {paciente.fechaNacimiento && (
+            {paciente.birthDate && (
               <Dato
                 icon={<Calendar size={14} />}
                 label="Nacimiento"
-                valor={format(new Date(paciente.fechaNacimiento), "dd 'de' MMMM 'de' yyyy", { locale: es })}
+                valor={format(new Date(paciente.birthDate), "dd 'de' MMMM 'de' yyyy", { locale: es })}
               />
             )}
-            {paciente.peso && (
-              <Dato icon={<Weight size={14} />} label="Peso" valor={`${paciente.peso} kg`} />
+            {paciente.weight && (
+              <Dato icon={<Weight size={14} />} label="Peso" valor={`${paciente.weight} kg`} />
             )}
             {paciente.color && (
               <Dato icon={<Palette size={14} />} label="Color" valor={paciente.color} />
             )}
           </dl>
-          {paciente.notas && (
+          {paciente.notes && (
             <div className="pt-3 border-t border-border">
               <p className="text-xs text-muted-foreground mb-1">Notas</p>
-              <p className="text-sm leading-relaxed">{paciente.notas}</p>
+              <p className="text-sm leading-relaxed">{paciente.notes}</p>
             </div>
           )}
         </div>
 
         {/* Dueño */}
-        {paciente.dueno && (
+        {paciente.owner && (
           <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Dueño
             </h2>
             <dl className="space-y-3">
-              <Dato icon={<span className="text-sm">👤</span>} label="Nombre" valor={paciente.dueno.nombre} />
-              <Dato icon={<Phone size={14} />} label="Teléfono" valor={paciente.dueno.telefono} />
-              {paciente.dueno.email && (
-                <Dato icon={<Mail size={14} />} label="Correo" valor={paciente.dueno.email} />
+              <Dato icon={<span className="text-sm">👤</span>} label="Nombre" valor={paciente.owner.name} />
+              <Dato icon={<Phone size={14} />} label="Teléfono" valor={paciente.owner.phone} />
+              {paciente.owner.email && (
+                <Dato icon={<Mail size={14} />} label="Correo" valor={paciente.owner.email} />
               )}
-              {paciente.dueno.direccion && (
-                <Dato icon={<MapPin size={14} />} label="Dirección" valor={paciente.dueno.direccion} />
+              {paciente.owner.address && (
+                <Dato icon={<MapPin size={14} />} label="Dirección" valor={paciente.owner.address} />
               )}
             </dl>
           </div>
@@ -164,7 +164,7 @@ export function FichaPaciente({ pacienteId }: FichaPacienteProps) {
           className="h-auto py-4 flex-col gap-1.5"
           asChild
         >
-          <Link href={`/patients/${pacienteId}/historial`}>
+          <Link href={`/patients/${pacienteId}/history`}>
             <span className="text-xl">📋</span>
             <span className="text-xs font-medium">Historial</span>
           </Link>

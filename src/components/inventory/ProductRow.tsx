@@ -11,11 +11,11 @@ interface ProductoRowProps {
 }
 
 export function ProductoRow({ producto }: ProductoRowProps) {
-  const cat      = PRODUCT_CATEGORIES[producto.categoria];
-  const unidad   = MEASUREMENT_UNITS[producto.unidad];
-  const sinStock = producto.stockActual === 0;
-  const stockBajo= producto.stockActual <= producto.stockMinimo;
-  const vencido  = producto.fechaVencimiento ? isPast(parseISO(producto.fechaVencimiento)) : false;
+  const cat      = PRODUCT_CATEGORIES[producto.category];
+  const unidad   = MEASUREMENT_UNITS[producto.unit];
+  const sinStock = producto.currentStock === 0;
+  const stockBajo= producto.currentStock <= producto.minimumStock;
+  const vencido  = producto.expirationDate ? isPast(parseISO(producto.expirationDate)) : false;
 
   return (
     <Link
@@ -28,7 +28,7 @@ export function ProductoRow({ producto }: ProductoRowProps) {
       {/* Nombre + categoría */}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
-          {producto.nombre}
+          {producto.name}
         </p>
         <p className="text-xs text-muted-foreground">{cat.label}</p>
       </div>
@@ -43,8 +43,8 @@ export function ProductoRow({ producto }: ProductoRowProps) {
               stockBajo ? 'bg-amber-400' : 'bg-green-500'
             )}
             style={{
-              width: `${Math.min(100, producto.stockMinimo > 0
-                ? (producto.stockActual / (producto.stockMinimo * 3)) * 100
+              width: `${Math.min(100, producto.minimumStock > 0
+                ? (producto.currentStock / (producto.minimumStock * 3)) * 100
                 : 100
               )}%`,
             }}
@@ -55,7 +55,7 @@ export function ProductoRow({ producto }: ProductoRowProps) {
           sinStock  ? 'text-red-500'   :
           stockBajo ? 'text-amber-500' : 'text-foreground'
         )}>
-          {producto.stockActual} <span className="font-normal text-muted-foreground">{unidad}</span>
+          {producto.currentStock} <span className="font-normal text-muted-foreground">{unidad}</span>
         </span>
       </div>
 
@@ -65,13 +65,13 @@ export function ProductoRow({ producto }: ProductoRowProps) {
         sinStock  ? 'text-red-500'   :
         stockBajo ? 'text-amber-500' : 'text-muted-foreground'
       )}>
-        {producto.stockActual}
+        {producto.currentStock}
       </span>
 
       {/* Precio */}
-      {producto.precioVenta != null && (
+      {producto.salePrice != null && (
         <span className="text-sm font-semibold shrink-0 hidden md:block">
-          C${producto.precioVenta.toFixed(0)}
+          C${producto.salePrice.toFixed(0)}
         </span>
       )}
 

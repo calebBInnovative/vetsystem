@@ -7,15 +7,14 @@ import { z } from 'zod';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SCHEMA: Medicamento recetado
-// Se usa como array en el formulario de consulta.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const medicamentoSchema = z.object({
-  nombre:     z.string().min(1, 'Ingresa el nombre del medicamento').max(100),
-  dosis:      z.string().min(1, 'Ingresa la dosis').max(100),
-  frecuencia: z.string().min(1, 'Ingresa la frecuencia').max(100),
-  duracion:   z.string().min(1, 'Ingresa la duración').max(100),
-  notas:      z.string().max(200).optional(),
+  name:      z.string().min(1, 'Ingresa el nombre del medicamento').max(100),
+  dosage:    z.string().min(1, 'Ingresa la dosis').max(100),
+  frequency: z.string().min(1, 'Ingresa la frecuencia').max(100),
+  duration:  z.string().min(1, 'Ingresa la duración').max(100),
+  notes:     z.string().max(200).optional(),
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -23,24 +22,24 @@ export const medicamentoSchema = z.object({
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const consultaSchema = z.object({
-  tipo: z.enum(
-    ['consulta_general', 'vacunacion', 'cirugia', 'emergencia', 'control', 'desparasitacion', 'estetica', 'otro'],
+  type: z.enum(
+    ['general_consultation', 'vaccination', 'surgery', 'emergency', 'checkup', 'deworming', 'grooming', 'other'],
     { error: 'Selecciona el tipo de consulta' }
   ),
 
   /** ISO 8601 datetime string: "YYYY-MM-DDTHH:mm" — valor del input datetime-local */
-  fecha: z
+  date: z
     .string()
     .min(1, 'La fecha es requerida'),
 
-  motivo: z
+  reason: z
     .string()
     .min(3, 'El motivo debe tener al menos 3 caracteres')
     .max(300, 'Máximo 300 caracteres'),
 
-  sintomas: z.string().max(500).optional(),
+  symptoms: z.string().max(500).optional(),
 
-  temperatura: z.preprocess(
+  temperature: z.preprocess(
     (val) => {
       if (val === '' || val === undefined || val === null) return undefined;
       const n = Number(val);
@@ -52,7 +51,7 @@ export const consultaSchema = z.object({
       .optional()
   ),
 
-  pesoConsulta: z.preprocess(
+  consultationWeight: z.preprocess(
     (val) => {
       if (val === '' || val === undefined || val === null) return undefined;
       const n = Number(val);
@@ -61,16 +60,16 @@ export const consultaSchema = z.object({
     z.number().positive('El peso debe ser mayor a 0').max(999).optional()
   ),
 
-  diagnostico:  z.string().max(500).optional(),
-  tratamiento:  z.string().max(500).optional(),
-  observaciones: z.string().max(1000).optional(),
+  diagnosis:    z.string().max(500).optional(),
+  treatment:    z.string().max(500).optional(),
+  observations: z.string().max(1000).optional(),
 
-  medicamentos: z.array(medicamentoSchema).optional(),
+  medications: z.array(medicamentoSchema).optional(),
 
   /** ISO 8601 date string: "YYYY-MM-DD" */
-  proximaCita: z.string().optional(),
+  nextAppointment: z.string().optional(),
 
-  veterinario: z.string().max(100).optional(),
+  veterinarian: z.string().max(100).optional(),
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

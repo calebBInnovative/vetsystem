@@ -5,11 +5,11 @@ import type { SyncProvider, RemoteDoc } from '@/lib/sync/sync.provider';
  * Útil en desarrollo sin conexión a Firebase o en tests.
  */
 export class LocalSyncProvider implements SyncProvider {
-  readonly nombre = 'local';
+  readonly name = 'local';
 
-  async push(_coleccion: string, _id: string, _datos: object): Promise<void> {}
+  async push(_collection: string, _id: string, _data: object): Promise<void> {}
 
-  async pull(_coleccion: string, _desde: number): Promise<RemoteDoc[]> {
+  async pull(_collection: string, _desde: number): Promise<RemoteDoc[]> {
     return [];
   }
 }

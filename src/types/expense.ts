@@ -1,17 +1,17 @@
-export type ExpenseCategory = 'renta' | 'services' | 'nomina' | 'seguros' | 'mantenimiento' | 'otros';
-export type ExpenseFrequency = 'mensual' | 'bimestral' | 'trimestral' | 'semestral' | 'anual';
-export type AlertLevel = 'vencido' | 'urgente' | 'proximo' | 'normal';
+export type ExpenseCategory = 'rent' | 'services' | 'payroll' | 'insurance' | 'maintenance' | 'other';
+export type ExpenseFrequency = 'monthly' | 'bimonthly' | 'quarterly' | 'semiannual' | 'annual';
+export type AlertLevel = 'overdue' | 'urgent' | 'upcoming' | 'ok';
 
 export interface FixedExpense {
   id: string;
-  clinicaId: string;
-  nombre: string;
-  monto: number;
-  categoria: ExpenseCategory;
-  frecuencia: ExpenseFrequency;
-  diaPago: number; // 1–28
+  clinicId: string;
+  name: string;
+  amount: number;
+  category: ExpenseCategory;
+  frequency: ExpenseFrequency;
+  paymentDay: number; // 1–28
   nextDueDate: string; // YYYY-MM-DD
-  activo: boolean;
+  active: boolean;
   syncStatus: 'synced' | 'pending' | 'conflict';
   createdAt: number;
   updatedAt: number;
@@ -20,11 +20,11 @@ export interface FixedExpense {
 
 export interface ExpensePayment {
   id: string;
-  clinicaId: string;
-  gastoFijoId: string;
-  monto: number;
-  fechaPago: string; // YYYY-MM-DD
-  notas?: string;
+  clinicId: string;
+  fixedExpenseId: string;
+  amount: number;
+  paymentDate: string; // YYYY-MM-DD
+  notes?: string;
   syncStatus: 'synced' | 'pending' | 'conflict';
   createdAt: number;
   updatedAt: number;
@@ -33,49 +33,49 @@ export interface ExpensePayment {
 
 // Helper: days until due (negative = overdue)
 export function daysUntilDue(nextDueDate: string): number {
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
-  const venc = new Date(nextDueDate + 'T00:00:00');
-  return Math.round((venc.getTime() - hoy.getTime()) / 86400000);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dueDate = new Date(nextDueDate + 'T00:00:00');
+  return Math.round((dueDate.getTime() - today.getTime()) / 86400000);
 }
 
 export function alertLevel(nextDueDate: string): AlertLevel {
-  const dias = daysUntilDue(nextDueDate);
-  if (dias < 0) return 'vencido';
-  if (dias <= 3) return 'urgente';
-  if (dias <= 7) return 'proximo';
-  return 'normal';
+  const days = daysUntilDue(nextDueDate);
+  if (days < 0) return 'overdue';
+  if (days <= 3) return 'urgent';
+  if (days <= 7) return 'upcoming';
+  return 'ok';
 }
 
 export function calculateNextDueDate(
-  fechaBase: string,
-  frecuencia: ExpenseFrequency,
-  diaPago: number,
+  baseDate: string,
+  frequency: ExpenseFrequency,
+  paymentDay: number,
 ): string {
-  const meses: Record<ExpenseFrequency, number> = {
-    mensual: 1, bimestral: 2, trimestral: 3, semestral: 6, anual: 12,
+  const months: Record<ExpenseFrequency, number> = {
+    monthly: 1, bimonthly: 2, quarterly: 3, semiannual: 6, annual: 12,
   };
-  const fecha = new Date(fechaBase + 'T00:00:00');
-  fecha.setMonth(fecha.getMonth() + meses[frecuencia]);
+  const date = new Date(baseDate + 'T00:00:00');
+  date.setMonth(date.getMonth() + months[frequency]);
   // Clamp to last day of the resulting month
-  const ultimoDia = new Date(fecha.getFullYear(), fecha.getMonth() + 1, 0).getDate();
-  fecha.setDate(Math.min(diaPago, ultimoDia));
-  return fecha.toISOString().slice(0, 10);
+  const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  date.setDate(Math.min(paymentDay, lastDay));
+  return date.toISOString().slice(0, 10);
 }
 
 export const EXPENSE_CATEGORIES: Record<ExpenseCategory, string> = {
-  renta:          'Renta',
-  services:      'Servicios',
-  nomina:         'Nómina',
-  seguros:        'Seguros',
-  mantenimiento:  'Mantenimiento',
-  otros:          'Otros',
+  rent:         'Renta',
+  services:     'Servicios',
+  payroll:      'Nómina',
+  insurance:    'Seguros',
+  maintenance:  'Mantenimiento',
+  other:        'Otros',
 };
 
 export const EXPENSE_FREQUENCIES: Record<ExpenseFrequency, string> = {
-  mensual:    'Mensual',
-  bimestral:  'Bimestral',
-  trimestral: 'Trimestral',
-  semestral:  'Semestral',
-  anual:      'Anual',
+  monthly:    'Mensual',
+  bimonthly:  'Bimestral',
+  quarterly:  'Trimestral',
+  semiannual: 'Semestral',
+  annual:     'Anual',
 };

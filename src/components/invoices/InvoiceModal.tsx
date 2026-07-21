@@ -11,15 +11,15 @@ import { DescuentoInput } from '@/components/common/DiscountInput';
 import { cn } from '@/lib/utils';
 
 interface FacturaModalProps {
-  consulta: ConsultationWithPatient;
+  consultation: ConsultationWithPatient;
   open: boolean;
   onGuardada: (facturaId: string) => void;
 }
 
 const ESTADOS: { key: InvoiceStatus; label: string; desc: string; emoji: string }[] = [
-  { key: 'pagada',              label: 'Pagada',    desc: 'El cobro fue recibido',     emoji: '✅' },
-  { key: 'parcialmente_pagada', label: 'Parcial',   desc: 'Cobro incompleto',          emoji: '💰' },
-  { key: 'pendiente',           label: 'Pendiente', desc: 'Cuenta por cobrar',         emoji: '⏳' },
+  { key: 'paid',          label: 'Pagada',    desc: 'El cobro fue recibido',     emoji: '✅' },
+  { key: 'partially_paid', label: 'Parcial',  desc: 'Cobro incompleto',          emoji: '💰' },
+  { key: 'pending',       label: 'Pendiente', desc: 'Cuenta por cobrar',         emoji: '⏳' },
 ];
 
 function fmt(n: number) {
@@ -28,36 +28,36 @@ function fmt(n: number) {
   }).format(n);
 }
 
-export function FacturaModal({ consulta, open, onGuardada }: FacturaModalProps) {
+export function FacturaModal({ consultation, open, onGuardada }: FacturaModalProps) {
   const [guardando, setGuardando]     = useState(false);
-  const [estado, setEstado]           = useState<InvoiceStatus>('pagada');
-  const [metodoPago, setMetodoPago]   = useState<InvoicePaymentMethod>('efectivo');
-  const [montoPagado, setMontoPagado] = useState('');
-  const [descuento, setDescuento]     = useState(String(consulta.descuento ?? 0));
-  const [notas, setNotas]             = useState('');
+  const [status, setEstado]           = useState<InvoiceStatus>('paid');
+  const [paymentMethod, setMetodoPago]   = useState<InvoicePaymentMethod>('cash');
+  const [amountPaid, setMontoPagado] = useState('');
+  const [discount, setDescuento]     = useState(String(consultation.discount ?? 0));
+  const [notes, setNotas]             = useState('');
 
-  const descuentoNum  = Math.max(0, Number(descuento) || 0);
-  const subtotal      = consulta.subtotal;
+  const descuentoNum  = Math.max(0, Number(discount) || 0);
+  const subtotal      = consultation.subtotal;
   const total         = Math.max(0, subtotal - descuentoNum);
-  const items         = consulta.items ?? [];
+  const items         = consultation.items ?? [];
 
   async function guardar() {
     if (guardando) return;
 
-    if (estado === 'parcialmente_pagada') {
-      const mp = Number(montoPagado);
+    if (status === 'partially_paid') {
+      const mp = Number(amountPaid);
       if (!mp || mp <= 0 || mp >= total) return;
     }
 
     setGuardando(true);
     try {
       const id = await createInvoice({
-        consulta,
-        metodoPago,
-        estado,
-        montoPagado: estado === 'parcialmente_pagada' ? Number(montoPagado) : undefined,
-        descuento:   descuentoNum,
-        notas:       notas.trim() || undefined,
+        consultation,
+        paymentMethod,
+        status,
+        amountPaid: status === 'partially_paid' ? Number(amountPaid) : undefined,
+        discount:   descuentoNum,
+        notes:       notes.trim() || undefined,
       });
       onGuardada(id);
     } finally {
@@ -75,7 +75,7 @@ export function FacturaModal({ consulta, open, onGuardada }: FacturaModalProps) 
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
           <DialogTitle className="text-lg font-bold">Invoice / Recibo</DialogTitle>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {consulta.nombrePaciente} · {consulta.nombreDueno}
+            {consultation.patientName} · {consultation.ownerName}
           </p>
         </DialogHeader>
 
@@ -97,12 +97,12 @@ export function FacturaModal({ consulta, open, onGuardada }: FacturaModalProps) 
                 {items.map((item) => (
                   <div key={item.id} className="px-4 py-3 flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{item.descripcion}</p>
+                      <p className="text-sm font-medium truncate">{item.description}</p>
                       <p className="text-xs text-muted-foreground">
-                        {item.esServicio ? 'Service' : 'Producto'} · {item.cantidad} × {fmt(item.precioUnitario)}
+                        {item.isService ? 'Service' : 'Producto'} · {item.quantity} × {fmt(item.unitPrice)}
                       </p>
                     </div>
-                    <span className="text-sm font-semibold shrink-0">{fmt(item.subtotal)}</span>
+                    <span className="text-sm font-semibold shrink-0">{fmt(item.quantity * item.unitPrice)}</span>
                   </div>
                 ))}
               </div>
@@ -140,7 +140,7 @@ export function FacturaModal({ consulta, open, onGuardada }: FacturaModalProps) 
                   onClick={() => setEstado(key)}
                   className={cn(
                     'flex flex-col items-center gap-1 rounded-xl border p-3 text-xs transition-colors',
-                    estado === key
+                    status === key
                       ? 'border-primary bg-primary/10 text-primary font-medium'
                       : 'border-border bg-background hover:border-primary/40 text-muted-foreground'
                   )}
@@ -154,7 +154,7 @@ export function FacturaModal({ consulta, open, onGuardada }: FacturaModalProps) 
           </div>
 
           {/* Monto parcial */}
-          {estado === 'parcialmente_pagada' && (
+          {status === 'partially_paid' && (
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Monto cobrado (C$) *</label>
               <input
@@ -163,20 +163,20 @@ export function FacturaModal({ consulta, open, onGuardada }: FacturaModalProps) 
                 max={total - 1}
                 step="1"
                 placeholder="0"
-                value={montoPagado}
+                value={amountPaid}
                 onChange={(e) => setMontoPagado(e.target.value)}
                 className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               />
-              {Number(montoPagado) > 0 && (
+              {Number(amountPaid) > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Saldo pendiente: {fmt(Math.max(0, total - Number(montoPagado)))}
+                  Saldo pendiente: {fmt(Math.max(0, total - Number(amountPaid)))}
                 </p>
               )}
             </div>
           )}
 
           {/* Método de pago (solo si hay cobro) */}
-          {estado !== 'pendiente' && (
+          {status !== 'pending' && (
             <div className="space-y-2">
               <p className="text-sm font-medium">Método de pago</p>
               <div className="grid grid-cols-4 gap-2">
@@ -188,7 +188,7 @@ export function FacturaModal({ consulta, open, onGuardada }: FacturaModalProps) 
                       onClick={() => setMetodoPago(key)}
                       className={cn(
                         'flex flex-col items-center gap-1 rounded-xl border p-2.5 text-xs transition-colors',
-                        metodoPago === key
+                        paymentMethod === key
                           ? 'border-primary bg-primary/10 text-primary font-medium'
                           : 'border-border bg-background hover:border-primary/40 text-muted-foreground'
                       )}
@@ -207,7 +207,7 @@ export function FacturaModal({ consulta, open, onGuardada }: FacturaModalProps) 
             <label className="text-sm font-medium">Notas <span className="text-muted-foreground font-normal">(opcional)</span></label>
             <textarea
               rows={2}
-              value={notas}
+              value={notes}
               onChange={(e) => setNotas(e.target.value)}
               placeholder="Observaciones, acuerdos de pago…"
               className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
@@ -220,12 +220,12 @@ export function FacturaModal({ consulta, open, onGuardada }: FacturaModalProps) 
           <Button
             className="w-full h-11 text-base"
             onClick={guardar}
-            disabled={guardando || (estado === 'parcialmente_pagada' && (!Number(montoPagado) || Number(montoPagado) >= total))}
+            disabled={guardando || (status === 'partially_paid' && (!Number(amountPaid) || Number(amountPaid) >= total))}
           >
             {guardando && <Loader2 size={14} className="mr-2 animate-spin" />}
-            {estado === 'pendiente'
+            {status === 'pending'
               ? 'Guardar como Pendiente'
-              : estado === 'parcialmente_pagada'
+              : status === 'partially_paid'
               ? 'Registrar Cobro Parcial'
               : 'Registrar Cobro'}
           </Button>

@@ -6,215 +6,200 @@ import type { ProductLocal, StockMovementLocal, ProductCategory } from '@/types/
 import type { ProductoFormData, AjusteStockFormData } from '@/lib/validations/inventory.schema';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HOOKS DE LECTURA
+// READ HOOKS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Lista de products activos. Filtra opcionalmente por categoría o búsqueda.
- */
-export function useProducts(busqueda = '', categoria?: ProductCategory) {
-  const resultado = useLiveQuery(async () => {
-    const clinicaId = await getClinicaId();
+/** Active products, filtered optionally by category or search term */
+export function useProducts(search = '', category?: ProductCategory) {
+  const result = useLiveQuery(async () => {
+    const clinicId = await getClinicaId();
     let products = await db.products
-      .where('clinicaId')
-      .equals(clinicaId)
-      .filter((p) => !p.deletedAt && p.activo)
+      .where('clinicId')
+      .equals(clinicId)
+      .filter((p) => !p.deletedAt && p.active)
       .toArray();
 
-    if (categoria) {
-      products = products.filter((p) => p.categoria === categoria);
+    if (category) {
+      products = products.filter((p) => p.category === category);
     }
 
-    const termino = busqueda.toLowerCase().trim();
-    if (termino) {
+    const term = search.toLowerCase().trim();
+    if (term) {
       products = products.filter(
         (p) =>
-          p.nombre.toLowerCase().includes(termino) ||
-          (p.descripcion?.toLowerCase().includes(termino) ?? false) ||
-          (p.proveedor?.toLowerCase().includes(termino) ?? false)
+          p.name.toLowerCase().includes(term) ||
+          (p.description?.toLowerCase().includes(term) ?? false) ||
+          (p.supplier?.toLowerCase().includes(term) ?? false)
       );
     }
 
-    return products.sort((a, b) => a.nombre.localeCompare(b.nombre));
-  }, [busqueda, categoria]);
+    return products.sort((a, b) => a.name.localeCompare(b.name));
+  }, [search, category]);
 
   return {
-    products: resultado ?? [],
-    loading:  resultado === undefined,
+    products: result ?? [],
+    loading:  result === undefined,
   };
 }
 
-/**
- * Productos con stock en o por debajo del mínimo.
- */
+/** Products at or below minimum stock */
 export function useStockAlerts() {
-  const resultado = useLiveQuery(async () => {
-    const clinicaId = await getClinicaId();
+  const result = useLiveQuery(async () => {
+    const clinicId = await getClinicaId();
     return db.products
-      .where('clinicaId')
-      .equals(clinicaId)
-      .filter((p) => !p.deletedAt && p.activo && p.stockActual <= p.stockMinimo)
+      .where('clinicId')
+      .equals(clinicId)
+      .filter((p) => !p.deletedAt && p.active && p.currentStock <= p.minimumStock)
       .toArray();
   }, []);
 
   return {
-    alerts:  resultado ?? [],
-    loading: resultado === undefined,
+    alerts:  result ?? [],
+    loading: result === undefined,
   };
 }
 
-/**
- * Un producto específico por ID.
- */
+/** Single product by ID */
 export function useProduct(id: string) {
-  const resultado = useLiveQuery(async () => {
+  const result = useLiveQuery(async () => {
     const p = await db.products.get(id);
     return p?.deletedAt ? null : (p ?? null);
   }, [id]);
 
   return {
-    producto: resultado ?? null,
-    loading: resultado === undefined,
+    producto: result ?? null,
+    loading:  result === undefined,
   };
 }
 
-/**
- * Historial de movements de un producto, ordenados del más reciente.
- */
-export function useProductMovements(productoId: string) {
-  const resultado = useLiveQuery(async () => {
+/** Movement history for a product, most recent first */
+export function useProductMovements(productId: string) {
+  const result = useLiveQuery(async () => {
     return db.movements
-      .where('productoId')
-      .equals(productoId)
+      .where('productId')
+      .equals(productId)
       .reverse()
-      .sortBy('creadoEn');
-  }, [productoId]);
+      .sortBy('createdAt');
+  }, [productId]);
 
   return {
-    movements: resultado ?? [],
-    loading:    resultado === undefined,
+    movements: result ?? [],
+    loading:   result === undefined,
   };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MUTACIONES
+// MUTATIONS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Crea un nuevo producto en el inventario.
- */
-export async function createProduct(datos: ProductoFormData): Promise<string> {
-  const ahora     = Date.now();
-  const productoId = crypto.randomUUID();
-  const clinicaId = await getClinicaId();
+/** Creates a new product in the inventory */
+export async function createProduct(data: ProductoFormData): Promise<string> {
+  const now       = Date.now();
+  const productId = crypto.randomUUID();
+  const clinicId  = await getClinicaId();
 
-  const nuevo: ProductLocal = {
-    id:               productoId,
-    nombre:           datos.nombre,
-    categoria:        datos.categoria,
-    descripcion:      datos.descripcion      || undefined,
-    stockActual:      datos.stockActual as number,
-    stockMinimo:      datos.stockMinimo as number,
-    unidad:           datos.unidad,
-    precioVenta:      datos.precioVenta,
-    precioCosto:      datos.precioCosto,
-    fechaVencimiento: datos.fechaVencimiento || undefined,
-    lote:             datos.lote             || undefined,
-    proveedor:        datos.proveedor        || undefined,
-    activo:           true,
-    clinicaId:        clinicaId,
-    creadoEn:         ahora,
-    syncStatus:       'pending',
-    updatedAt:        ahora,
+  const newProduct: ProductLocal = {
+    id:             productId,
+    name:           data.name,
+    category:       data.category,
+    description:    data.description    || undefined,
+    currentStock:   data.currentStock as number,
+    minimumStock:   data.minimumStock as number,
+    unit:           data.unit,
+    salePrice:      data.salePrice,
+    costPrice:      data.costPrice,
+    expirationDate: data.expirationDate || undefined,
+    batch:          data.batch          || undefined,
+    supplier:       data.supplier       || undefined,
+    active:         true,
+    clinicId:       clinicId,
+    createdAt:      now,
+    syncStatus:     'pending',
+    updatedAt:      now,
   };
 
-  await db.products.add(nuevo);
+  await db.products.add(newProduct);
 
-  // Registrar movimiento inicial si hay stock
-  if (nuevo.stockActual > 0) {
-    await registrarMovimiento({
-      productoId,
-      tipo:         'entrada',
-      cantidad:     nuevo.stockActual,
-      stockAntes:   0,
-      stockDespues: nuevo.stockActual,
-      motivo:       'Stock inicial',
+  // Record initial stock movement
+  if (newProduct.currentStock > 0) {
+    await recordMovement({
+      productId,
+      type:        'entry',
+      quantity:    newProduct.currentStock,
+      stockBefore: 0,
+      stockAfter:  newProduct.currentStock,
+      reason:      'Initial stock',
     });
   }
 
-  await encolarSync({ coleccion: 'products', documentoId: productoId, operacion: 'create', datos: nuevo, intentos: 0, creadoEn: ahora });
-  return productoId;
+  await encolarSync({ collection: 'products', documentId: productId, operation: 'create', data: newProduct, attempts: 0, createdAt: now });
+  return productId;
 }
 
-/**
- * Actualiza campos del producto.
- */
+/** Updates product fields */
 export async function updateProduct(
   id: string,
-  cambios: Partial<Omit<ProductLocal, 'id' | 'creadoEn' | 'clinicaId'>>
+  changes: Partial<Omit<ProductLocal, 'id' | 'createdAt' | 'clinicId'>>
 ): Promise<void> {
-  const ahora   = Date.now();
-  const payload = { ...cambios, updatedAt: ahora, syncStatus: 'pending' as const };
+  const now     = Date.now();
+  const payload = { ...changes, updatedAt: now, syncStatus: 'pending' as const };
   await db.products.update(id, payload);
-  await encolarSync({ coleccion: 'products', documentoId: id, operacion: 'update', datos: { id, ...payload }, intentos: 0, creadoEn: ahora });
+  await encolarSync({ collection: 'products', documentId: id, operation: 'update', data: { id, ...payload }, attempts: 0, createdAt: now });
 }
 
-/**
- * Registra una entrada, salida o ajuste de stock.
- * Actualiza `stockActual` del producto automáticamente.
- */
-export async function adjustStock(productoId: string, datos: AjusteStockFormData): Promise<void> {
-  const producto = await db.products.get(productoId);
-  if (!producto) throw new Error(`Producto ${productoId} no encontrado`);
+/** Records a stock entry, exit, or adjustment and updates currentStock */
+export async function adjustStock(productId: string, data: AjusteStockFormData): Promise<void> {
+  const product = await db.products.get(productId);
+  if (!product) throw new Error(`Product ${productId} not found`);
 
-  const cantidad     = datos.tipo === 'salida' ? -datos.cantidad : datos.cantidad as number;
-  const stockAntes   = producto.stockActual;
-  const stockDespues = Math.max(0, stockAntes + cantidad);
+  const delta       = data.type === 'exit' ? -data.quantity : data.quantity as number;
+  const stockBefore = product.currentStock;
+  const stockAfter  = Math.max(0, stockBefore + delta);
 
-  const ahoraAjuste = Date.now();
-  await db.products.update(productoId, {
-    stockActual: stockDespues,
-    updatedAt:   ahoraAjuste,
-    syncStatus:  'pending',
+  const now = Date.now();
+  await db.products.update(productId, {
+    currentStock: stockAfter,
+    updatedAt:    now,
+    syncStatus:   'pending',
   });
-  await encolarSync({ coleccion: 'products', documentoId: productoId, operacion: 'update', datos: { id: productoId, stockActual: stockDespues, updatedAt: ahoraAjuste }, intentos: 0, creadoEn: ahoraAjuste });
+  await encolarSync({ collection: 'products', documentId: productId, operation: 'update', data: { id: productId, currentStock: stockAfter, updatedAt: now }, attempts: 0, createdAt: now });
 
-  await registrarMovimiento({
-    productoId,
-    tipo:         datos.tipo,
-    cantidad:     datos.cantidad as number,
-    stockAntes,
-    stockDespues,
-    motivo:       datos.motivo,
+  await recordMovement({
+    productId,
+    type:        data.type,
+    quantity:    data.quantity as number,
+    stockBefore,
+    stockAfter,
+    reason:      data.reason,
   });
 }
 
 /** Soft delete */
 export async function deleteProduct(id: string): Promise<void> {
-  const ahora = Date.now();
-  await db.products.update(id, { deletedAt: ahora, syncStatus: 'pending', updatedAt: ahora });
-  await encolarSync({ coleccion: 'products', documentoId: id, operacion: 'delete', datos: { id, deletedAt: ahora }, intentos: 0, creadoEn: ahora });
+  const now = Date.now();
+  await db.products.update(id, { deletedAt: now, syncStatus: 'pending', updatedAt: now });
+  await encolarSync({ collection: 'products', documentId: id, operation: 'delete', data: { id, deletedAt: now }, attempts: 0, createdAt: now });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HELPERS PRIVADOS
+// PRIVATE HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function registrarMovimiento(
-  datos: Omit<StockMovementLocal, 'id' | 'clinicaId' | 'creadoEn' | 'syncStatus' | 'updatedAt'>
+async function recordMovement(
+  data: Omit<StockMovementLocal, 'id' | 'clinicId' | 'createdAt' | 'syncStatus' | 'updatedAt'>
 ): Promise<void> {
-  const ahora      = Date.now();
-  const clinicaId  = await getClinicaId();
-  const movimiento: StockMovementLocal = {
-    id:           crypto.randomUUID(),
-    clinicaId:    clinicaId,
-    creadoEn:     ahora,
-    syncStatus:   'pending',
-    updatedAt:    ahora,
-    ...datos,
+  const now      = Date.now();
+  const clinicId = await getClinicaId();
+  const movement: StockMovementLocal = {
+    id:        crypto.randomUUID(),
+    clinicId:  clinicId,
+    createdAt: now,
+    syncStatus:'pending',
+    updatedAt: now,
+    ...data,
   };
-  await db.movements.add(movimiento);
-  await encolarSync({ coleccion: 'movements', documentoId: movimiento.id, operacion: 'create', datos: movimiento, intentos: 0, creadoEn: ahora });
+  await db.movements.add(movement);
+  await encolarSync({ collection: 'movements', documentId: movement.id, operation: 'create', data: movement, attempts: 0, createdAt: now });
 }
 
 async function encolarSync(item: Omit<SyncQueueItem, 'id'>): Promise<void> {

@@ -4,8 +4,8 @@ import {
   createContext, useContext, useEffect, useState, useCallback, useRef,
   type ReactNode,
 } from 'react';
-import { onAuthChange, getSesionLocal, refrescarSesion, logout, UserNotFoundError, isUserCreationInFlight } from '@/lib/auth/auth.service';
-import { calcularLicencia } from '@/lib/license/license.service';
+import { onAuthChange, getLocalSession, refreshSession, logout, UserNotFoundError, isUserCreationInFlight } from '@/lib/auth/auth.service';
+import { calculateLicense } from '@/lib/license/license.service';
 import type { LicenseInfo, SessionLocal } from '@/types/license';
 import type { User } from 'firebase/auth';
 
@@ -25,7 +25,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue>({
   firebaseUser:     null,
   session:          null,
-  license:          { modo: 'bloqueado', diasOffline: 0, diasParaVencer: null, session: null },
+  license:          { mode: 'blocked', daysOffline: 0, daysUntilExpiry: null, session: null },
   loading:         true,
   syncing:    false,
   refreshFromDexie: async () => {},
@@ -41,42 +41,42 @@ export function useAuth() {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [firebaseUser,  setFirebaseUser]  = useState<User | null>(null);
   const [session,       setSession]       = useState<SessionLocal | null>(null);
-  const [loading,      setCargando]      = useState(true);
-  const [syncing, setSincronizando] = useState(false);
+  const [loading,      setLoading]       = useState(true);
+  const [syncing, setSyncing] = useState(false);
 
   // Keep a ref to the current Firebase user so retrySession can access it
   const firebaseUserRef = useRef<User | null>(null);
   firebaseUserRef.current = firebaseUser;
 
-  const license = calcularLicencia(session);
+  const license = calculateLicense(session);
 
   const refreshFromDexie = useCallback(async () => {
-    const local = await getSesionLocal();
+    const local = await getLocalSession();
     setSession(local);
   }, []);
 
   // ── Core Firestore refresh with retry ─────────────────────────────────────
   const tryRefresh = useCallback(async (user: User) => {
-    const local = await getSesionLocal();
+    const local = await getLocalSession();
     if (local?.isDemo) return;
 
     // Only show syncing when there is no cached session to fall back on
-    const sinCache = !local;
-    if (sinCache) setSincronizando(true);
+    const noCache = !local;
+    if (noCache) setSyncing(true);
 
-    const MAX_INTENTOS = 3;
-    for (let i = 0; i < MAX_INTENTOS; i++) {
+    const MAX_RETRIES = 3;
+    for (let i = 0; i < MAX_RETRIES; i++) {
       try {
-        const s = await refrescarSesion(user);
+        const s = await refreshSession(user);
         if (s) {
           setSession(s);
-          setSincronizando(false);
+          setSyncing(false);
           return;
         }
-        if (local) { setSincronizando(false); return; }
+        if (local) { setSyncing(false); return; }
       } catch (err) {
         if (err instanceof UserNotFoundError) {
-          // Email registrarse() is mid-write — wait for the batch to commit.
+          // Email register() is mid-write — wait for the batch to commit.
           if (isUserCreationInFlight()) {
             await new Promise<void>((r) => setTimeout(r, 3000));
             continue;
@@ -86,22 +86,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await logout();
             setFirebaseUser(null);
             setSession(null);
-            setSincronizando(false);
+            setSyncing(false);
             return;
           }
           // No prior session, no write in flight → new Google user waiting for /setup
-          setSincronizando(false);
+          setSyncing(false);
           return;
         }
-        if (local) { setSincronizando(false); return; }
+        if (local) { setSyncing(false); return; }
       }
-      if (i < MAX_INTENTOS - 1) {
+      if (i < MAX_RETRIES - 1) {
         await new Promise<void>((r) => setTimeout(r, 1500 * (i + 1)));
       }
     }
 
     // All retries exhausted — leave syncing=true so the UI shows retry screen
-    // (not "bloqueado")
+    // (not "blocked")
   }, []);
 
   // ── Firebase Auth listener ────────────────────────────────────────────────
@@ -110,20 +110,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setFirebaseUser(user);
 
       if (user) {
-        const local = await getSesionLocal();
+        const local = await getLocalSession();
         setSession(local);
         await tryRefresh(user);
       } else {
-        const local = await getSesionLocal();
+        const local = await getLocalSession();
         if (local?.isDemo) {
           setSession(local);
         } else {
           setSession(null);
         }
-        setSincronizando(false);
+        setSyncing(false);
       }
 
-      setCargando(false);
+      setLoading(false);
     });
 
     return unsub;

@@ -6,37 +6,37 @@
 import { z } from 'zod';
 
 export const citaSchema = z.object({
-  pacienteId: z
+  patientId: z
     .string()
     .min(1, 'Selecciona un paciente'),
 
-  fecha: z
+  date: z
     .string()
     .min(1, 'La fecha es requerida'),
 
-  horaInicio: z
+  startTime: z
     .string()
     .min(1, 'La hora de inicio es requerida')
     .regex(/^\d{2}:\d{2}$/, 'Formato de hora inválido'),
 
-  duracionMinutos: z.preprocess(
+  durationMinutes: z.preprocess(
     (val) => (val === '' || val === undefined ? 30 : Number(val)),
     z.number().int().min(5).max(480)
   ),
 
-  tipo: z.enum(
-    ['consulta', 'vacunacion', 'cirugia', 'control', 'desparasitacion', 'estetica', 'emergencia', 'otro'],
+  type: z.enum(
+    ['consultation', 'vaccination', 'surgery', 'checkup', 'deworming', 'grooming', 'emergency', 'other'],
     { error: 'Selecciona el tipo de cita' }
   ),
 
-  motivo: z
+  reason: z
     .string()
     .min(3, 'El motivo debe tener al menos 3 caracteres')
     .max(200),
 
-  veterinario: z.string().max(100).optional(),
+  veterinarian: z.string().max(100).optional(),
 
-  notas: z.string().max(500).optional(),
+  notes: z.string().max(500).optional(),
 });
 
 export type CitaFormData = z.infer<typeof citaSchema>;

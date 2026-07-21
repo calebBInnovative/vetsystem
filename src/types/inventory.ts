@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// TIPOS BASE — Módulo Inventario
+// BASE TYPES — Inventory Module
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { SyncMeta } from './patient';
@@ -9,119 +9,119 @@ import type { SyncMeta } from './patient';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ProductCategory =
-  | 'medicamento'
-  | 'vacuna'
-  | 'antiparasitario'
-  | 'alimento'
-  | 'accesorio'
-  | 'higiene'
-  | 'cirugia'
-  | 'laboratorio'
-  | 'otro';
+  | 'medication'
+  | 'vaccine'
+  | 'antiparasitic'
+  | 'food'
+  | 'accessory'
+  | 'hygiene'
+  | 'surgery'
+  | 'laboratory'
+  | 'other';
 
 export type MeasurementUnit =
-  | 'unidad'
-  | 'caja'
-  | 'frasco'
-  | 'ampolla'
-  | 'tableta'
-  | 'dosis'
+  | 'unit'
+  | 'box'
+  | 'bottle'
+  | 'ampoule'
+  | 'tablet'
+  | 'dose'
   | 'ml'
   | 'mg'
   | 'kg'
-  | 'gramo'
-  | 'litro'
-  | 'libra';
+  | 'gram'
+  | 'liter'
+  | 'pound';
 
 /** Units where fractional amounts are common (e.g. 250 ml, 1.5 kg) */
-export const FRACTIONAL_UNITS = new Set<MeasurementUnit>(['ml', 'litro', 'gramo', 'kg', 'libra', 'mg']);
+export const FRACTIONAL_UNITS = new Set<MeasurementUnit>(['ml', 'liter', 'gram', 'kg', 'pound', 'mg']);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PRODUCTO
+// PRODUCT
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface Producto {
+export interface Product {
   id: string;
-  nombre: string;
-  categoria: ProductCategory;
-  descripcion?: string;
+  name: string;
+  category: ProductCategory;
+  description?: string;
 
-  /** Stock actual en unidades */
-  stockActual: number;
-  /** Nivel mínimo — si stockActual <= stockMinimo se genera alerta */
-  stockMinimo: number;
-  unidad: MeasurementUnit;
+  /** Current stock in units */
+  currentStock: number;
+  /** Minimum level — if currentStock <= minimumStock an alert is generated */
+  minimumStock: number;
+  unit: MeasurementUnit;
 
-  /** Precio de venta al público */
-  precioVenta?: number;
-  /** Precio de costo (para margen) */
-  precioCosto?: number;
+  /** Public sale price */
+  salePrice?: number;
+  /** Cost price (for margin calculation) */
+  costPrice?: number;
 
-  /** Fecha de vencimiento del lote activo "YYYY-MM-DD" */
-  fechaVencimiento?: string;
-  /** Número de lote para trazabilidad */
-  lote?: string;
+  /** Expiration date of the active batch "YYYY-MM-DD" */
+  expirationDate?: string;
+  /** Batch number for traceability */
+  batch?: string;
 
-  /** Proveedor o laboratorio */
-  proveedor?: string;
+  /** Supplier or laboratory */
+  supplier?: string;
 
-  activo: boolean;
-  clinicaId: string;
-  creadoEn: number;
+  active: boolean;
+  clinicId: string;
+  createdAt: number;
 }
 
-export interface ProductLocal extends Producto, SyncMeta {}
+export interface ProductLocal extends Product, SyncMeta {}
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MOVIMIENTO DE STOCK
-// Registro de cada entrada/salida para historial de movements.
+// STOCK MOVEMENT
+// Record of each stock entry/exit for movement history.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type MovementType = 'entrada' | 'salida' | 'ajuste';
+export type MovementType = 'entry' | 'exit' | 'adjustment';
 
 export interface StockMovement {
   id: string;
-  productoId: string;
-  clinicaId: string;
-  tipo: MovementType;
-  cantidad: number;          // positivo = suma, negativo = resta
-  stockAntes: number;
-  stockDespues: number;
-  motivo?: string;
-  /** Referencia a una consulta o cita donde se usó el producto */
-  referenciaId?: string;
-  creadoEn: number;
+  productId: string;
+  clinicId: string;
+  type: MovementType;
+  quantity: number;          // positive = add, negative = subtract
+  stockBefore: number;
+  stockAfter: number;
+  reason?: string;
+  /** Reference to a consultation or appointment where the product was used */
+  referenceId?: string;
+  createdAt: number;
 }
 
 export interface StockMovementLocal extends StockMovement, SyncMeta {}
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CONSTANTES DE UI
+// UI CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const PRODUCT_CATEGORIES: Record<ProductCategory, { label: string; emoji: string; color: string }> = {
-  medicamento:     { label: 'Medicamento',     emoji: '💊', color: 'text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-950/40' },
-  vacuna:          { label: 'Vacuna',          emoji: '💉', color: 'text-green-600 bg-green-50 dark:text-green-400 dark:bg-green-950/40' },
-  antiparasitario: { label: 'Antiparasitario', emoji: '🐛', color: 'text-orange-600 bg-orange-50 dark:text-orange-400 dark:bg-orange-950/40' },
-  alimento:        { label: 'Alimento',        emoji: '🥣', color: 'text-yellow-600 bg-yellow-50 dark:text-yellow-400 dark:bg-yellow-950/40' },
-  accesorio:       { label: 'Accesorio',       emoji: '🦮', color: 'text-purple-600 bg-purple-50 dark:text-purple-400 dark:bg-purple-950/40' },
-  higiene:         { label: 'Higiene',         emoji: '🧴', color: 'text-pink-600 bg-pink-50 dark:text-pink-400 dark:bg-pink-950/40' },
-  cirugia:         { label: 'Cirugía',         emoji: '🔬', color: 'text-indigo-600 bg-indigo-50 dark:text-indigo-400 dark:bg-indigo-950/40' },
-  laboratorio:     { label: 'Laboratorio',     emoji: '🧪', color: 'text-teal-600 bg-teal-50 dark:text-teal-400 dark:bg-teal-950/40' },
-  otro:            { label: 'Otro',            emoji: '📦', color: 'text-muted-foreground bg-muted' },
+  medication:     { label: 'Medication',     emoji: '💊', color: 'text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-950/40' },
+  vaccine:        { label: 'Vaccine',        emoji: '💉', color: 'text-green-600 bg-green-50 dark:text-green-400 dark:bg-green-950/40' },
+  antiparasitic:  { label: 'Antiparasitic',  emoji: '🐛', color: 'text-orange-600 bg-orange-50 dark:text-orange-400 dark:bg-orange-950/40' },
+  food:           { label: 'Food',           emoji: '🥣', color: 'text-yellow-600 bg-yellow-50 dark:text-yellow-400 dark:bg-yellow-950/40' },
+  accessory:      { label: 'Accessory',      emoji: '🦮', color: 'text-purple-600 bg-purple-50 dark:text-purple-400 dark:bg-purple-950/40' },
+  hygiene:        { label: 'Hygiene',        emoji: '🧴', color: 'text-pink-600 bg-pink-50 dark:text-pink-400 dark:bg-pink-950/40' },
+  surgery:        { label: 'Surgery',        emoji: '🔬', color: 'text-indigo-600 bg-indigo-50 dark:text-indigo-400 dark:bg-indigo-950/40' },
+  laboratory:     { label: 'Laboratory',     emoji: '🧪', color: 'text-teal-600 bg-teal-50 dark:text-teal-400 dark:bg-teal-950/40' },
+  other:          { label: 'Other',          emoji: '📦', color: 'text-muted-foreground bg-muted' },
 };
 
 export const MEASUREMENT_UNITS: Record<MeasurementUnit, string> = {
-  unidad:   'Unidad',
-  caja:     'Caja',
-  frasco:   'Frasco',
-  ampolla:  'Ampolla',
-  tableta:  'Tableta',
-  dosis:    'Dosis',
-  ml:       'mL',
-  mg:       'mg',
-  kg:       'kg',
-  gramo:    'g',
-  litro:    'L',
-  libra:    'lb',
+  unit:    'Unit',
+  box:     'Box',
+  bottle:  'Bottle',
+  ampoule: 'Ampoule',
+  tablet:  'Tablet',
+  dose:    'Dose',
+  ml:      'mL',
+  mg:      'mg',
+  kg:      'kg',
+  gram:    'g',
+  liter:   'L',
+  pound:   'lb',
 };

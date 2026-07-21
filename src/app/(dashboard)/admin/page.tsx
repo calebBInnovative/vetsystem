@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { sembrarDatos, limpiarDatos } from '@/lib/dev/seed';
+import { getClinicId } from '@/lib/db/database';
 import { syncService, type SyncAllProgress } from '@/lib/sync/sync.service';
 import {
   crearUsuario, actualizarUsuario, eliminarUsuario, enviarResetPassword,
@@ -25,19 +26,21 @@ import type { AppModule, Permissions, UserRole } from '@/types/license';
 // ─── Module permission config ─────────────────────────────────────────────────
 
 const MODULOS: { key: AppModule; label: string }[] = [
-  { key: 'patients',  label: 'Pacientes'  },
-  { key: 'schedule',     label: 'Agenda'     },
-  { key: 'consultations',  label: 'Consultas'  },
-  { key: 'sales',     label: 'Ventas'     },
-  { key: 'inventory', label: 'Inventario' },
-  { key: 'finances',   label: 'Finanzas'   },
-  { key: 'invoices',   label: 'Facturas'   },
-  { key: 'services',  label: 'Servicios'  },
+  { key: 'patients',     label: 'Pacientes'    },
+  { key: 'schedule',     label: 'Agenda'       },
+  { key: 'consultations',label: 'Consultas'    },
+  { key: 'sales',        label: 'Ventas'       },
+  { key: 'inventory',    label: 'Inventario'   },
+  { key: 'finances',     label: 'Finanzas'     },
+  { key: 'invoices',     label: 'Facturas'     },
+  { key: 'services',     label: 'Servicios'    },
+  { key: 'promotions',   label: 'Promociones'  },
 ];
 
 const DEFAULT_PERMISSIONS: Permissions = {
   patients: true, schedule: true, consultations: true, sales: true,
   inventory: false, finances: false, invoices: false, services: false,
+  promotions: false,
 };
 
 function permissionsForRole(role: UserRole, current: Permissions | null): Permissions | null {
@@ -178,9 +181,9 @@ function PermisosEditor({
 // ─── Tab: Usuarios ────────────────────────────────────────────────────────────
 
 const ROLES_STAFF: { value: UserRole; label: string }[] = [
-  { value: 'admin',       label: 'Admin'       },
-  { value: 'veterinario', label: 'Veterinario' },
-  { value: 'recepcion',   label: 'Recepción'   },
+  { value: 'admin',        label: 'Admin'       },
+  { value: 'veterinarian', label: 'Veterinario' },
+  { value: 'reception',    label: 'Recepción'   },
 ];
 
 function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
@@ -192,7 +195,7 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
 
   // ── Create form state ──────────────────────────────────────────────────────
   const [form, setForm] = useState<NuevoUsuario>({
-    email: '', password: '', name: '', role: 'veterinario',
+    email: '', password: '', name: '', role: 'veterinarian',
     clinicId, permissions: { ...DEFAULT_PERMISSIONS },
   });
   const [accionCrear, setAccionCrear] = useState<Accion>('idle');
@@ -201,7 +204,7 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
   // ── Edit modal ─────────────────────────────────────────────────────────────
   const [editTarget, setEditTarget] = useState<UsuarioFirestore | null>(null);
   const [editForm,   setEditForm]   = useState<{ name: string; role: UserRole; permissions: Permissions | null }>({
-    name: '', role: 'veterinario', permissions: { ...DEFAULT_PERMISSIONS },
+    name: '', role: 'veterinarian', permissions: { ...DEFAULT_PERMISSIONS },
   });
   const [accionEdit, setAccionEdit] = useState<Accion>('idle');
 
@@ -231,7 +234,7 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
       await crearUsuario({ ...form, clinicId });
       setMensajeCrear(`Usuario ${form.email} creado.`);
       setAccionCrear('ok');
-      setForm({ email: '', password: '', name: '', role: 'veterinario', clinicId, permissions: { ...DEFAULT_PERMISSIONS } });
+      setForm({ email: '', password: '', name: '', role: 'veterinarian', clinicId, permissions: { ...DEFAULT_PERMISSIONS } });
       cargarUsuarios();
     } catch (err) {
       setMensajeCrear((err as Error).message);
@@ -352,7 +355,7 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
                       <KeySquare size={13} />
                     </button>
                     {/* Admins represent the clinic — only staff can be deleted */}
-                    {(u.role === 'veterinario' || u.role === 'recepcion') && (
+                    {(u.role === 'veterinarian' || u.role === 'reception') && (
                       <button
                         onClick={() => { setDeleteTarget(u); setAccionDelete('idle'); }}
                         title="Eliminar"
@@ -631,8 +634,8 @@ function TabClinica() {
     setAccion('loading');
     try {
       await actualizarPerfilClinica(clinicId, {
-        nombre:   nombre.trim(),
-        telefono: telefono.trim() || undefined,
+        name:  nombre.trim(),
+        phone: telefono.trim() || undefined,
       });
       await refreshFromDexie();
       setAccion('ok');
@@ -904,7 +907,8 @@ function TabDatos() {
   async function sembrar() {
     setAccion('loading'); setConteos(null);
     try {
-      const r = await sembrarDatos();
+      const clinicId = await getClinicId();
+      const r = await sembrarDatos(clinicId);
       setMensaje(r.mensaje); setConteos(r.conteos); setAccion('ok');
     } catch (e) { setMensaje((e as Error).message); setAccion('error'); }
   }
@@ -976,7 +980,7 @@ function TabFirebase() {
     try {
       const r = await syncService.syncAll((p) =>
         setProgress((prev) => {
-          const idx = prev.findIndex((x) => x.coleccion === p.coleccion);
+          const idx = prev.findIndex((x) => x.collection === p.collection);
           if (idx >= 0) { const n = [...prev]; n[idx] = p; return n; }
           return [...prev, p];
         }),
@@ -1032,9 +1036,9 @@ function TabFirebase() {
         {progress.length > 0 && (
           <div className="mt-3 space-y-2">
             {progress.map((p) => (
-              <div key={p.coleccion} className="space-y-1">
+              <div key={p.collection} className="space-y-1">
                 <div className="flex items-center gap-3 text-xs">
-                  <span className="w-28 font-mono text-muted-foreground truncate">{p.coleccion}</span>
+                  <span className="w-28 font-mono text-muted-foreground truncate">{p.collection}</span>
                   <div className="flex-1 bg-muted rounded-full h-1.5 overflow-hidden">
                     <div className="h-full bg-primary rounded-full transition-all"
                       style={{ width: `${p.total > 0 ? (p.enviados / p.total) * 100 : 100}%` }} />

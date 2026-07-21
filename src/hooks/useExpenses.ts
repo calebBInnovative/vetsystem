@@ -9,90 +9,87 @@ import {
 } from '@/types/expense';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HOOKS DE LECTURA
+// READ HOOKS
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function useFixedExpenses() {
-  const resultado = useLiveQuery(async () => {
-    const clinicaId = await getClinicaId();
-    const gastos = await db.fixedExpenses
-      .where('clinicaId')
-      .equals(clinicaId)
+  const result = useLiveQuery(async () => {
+    const clinicId = await getClinicaId();
+    const expenses = await db.fixedExpenses
+      .where('clinicId')
+      .equals(clinicId)
       .filter((g) => !g.deletedAt)
       .toArray();
-    return gastos.sort((a, b) => a.nextDueDate.localeCompare(b.nextDueDate));
+    return expenses.sort((a, b) => a.nextDueDate.localeCompare(b.nextDueDate));
   }, []);
 
-  return { gastos: resultado ?? [], loading: resultado === undefined };
+  return { expenses: result ?? [], loading: result === undefined };
 }
 
 export function useExpensePayments() {
-  const resultado = useLiveQuery(async () => {
-    const clinicaId = await getClinicaId();
+  const result = useLiveQuery(async () => {
+    const clinicId = await getClinicaId();
     return db.expensePayments
-      .where('clinicaId')
-      .equals(clinicaId)
+      .where('clinicId')
+      .equals(clinicId)
       .toArray();
   }, []);
 
-  return { payments: resultado ?? [], loading: resultado === undefined };
+  return { payments: result ?? [], loading: result === undefined };
 }
 
-export function useAlertasGastos() {
-  const resultado = useLiveQuery(async () => {
-    const clinicaId = await getClinicaId();
-    const gastos = await db.fixedExpenses
-      .where('clinicaId')
-      .equals(clinicaId)
-      .filter((g) => !g.deletedAt && g.activo)
+export function useExpenseAlerts() {
+  const result = useLiveQuery(async () => {
+    const clinicId = await getClinicaId();
+    const expenses = await db.fixedExpenses
+      .where('clinicId')
+      .equals(clinicId)
+      .filter((g) => !g.deletedAt && g.active)
       .toArray();
 
-    let vencidos = 0;
-    let urgentes = 0;
-    let proximos = 0;
+    let overdue  = 0;
+    let urgent   = 0;
+    let upcoming = 0;
 
-    for (const g of gastos) {
-      const nivel = alertLevel(g.nextDueDate);
-      if (nivel === 'vencido') vencidos++;
-      else if (nivel === 'urgente') urgentes++;
-      else if (nivel === 'proximo') proximos++;
+    for (const g of expenses) {
+      const level = alertLevel(g.nextDueDate);
+      if (level === 'overdue')  overdue++;
+      else if (level === 'urgent')   urgent++;
+      else if (level === 'upcoming') upcoming++;
     }
 
-    return { total: vencidos + urgentes + proximos, vencidos, urgentes, proximos };
+    return { total: overdue + urgent + upcoming, overdue, urgent, upcoming };
   }, []);
 
-  return resultado ?? { total: 0, vencidos: 0, urgentes: 0, proximos: 0 };
+  return result ?? { total: 0, overdue: 0, urgent: 0, upcoming: 0 };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Calcula el primer vencimiento a partir de hoy para un diaPago dado. */
-function calcularPrimerVencimiento(diaPago: number): string {
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
+function calcFirstDueDate(paymentDay: number): string {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-  const anio = hoy.getFullYear();
-  const mes  = hoy.getMonth(); // 0-indexed
+  const year  = today.getFullYear();
+  const month = today.getMonth(); // 0-indexed
 
-  // Último día válido del mes actual
-  const ultimoDiaMesActual = new Date(anio, mes + 1, 0).getDate();
-  const diaEfectivo = Math.min(diaPago, ultimoDiaMesActual);
+  const lastDayThisMonth = new Date(year, month + 1, 0).getDate();
+  const effectiveDay     = Math.min(paymentDay, lastDayThisMonth);
+  const thisMonthDate    = new Date(year, month, effectiveDay);
 
-  const fechaEsteMes = new Date(anio, mes, diaEfectivo);
-
-  if (fechaEsteMes >= hoy) {
-    return fechaEsteMes.toISOString().slice(0, 10);
+  if (thisMonthDate >= today) {
+    return thisMonthDate.toISOString().slice(0, 10);
   }
 
-  // Ya pasó — siguiente mes
-  const mesSig = mes + 1;
-  const anioSig = mesSig > 11 ? anio + 1 : anio;
-  const mesAjustado = mesSig % 12;
-  const ultimoDiaMesSig = new Date(anioSig, mesAjustado + 1, 0).getDate();
-  const diaEfectivoSig = Math.min(diaPago, ultimoDiaMesSig);
-  return new Date(anioSig, mesAjustado, diaEfectivoSig).toISOString().slice(0, 10);
+  // Already passed — use next month
+  const nextMonth    = month + 1;
+  const nextYear     = nextMonth > 11 ? year + 1 : year;
+  const adjMonth     = nextMonth % 12;
+  const lastDayNext  = new Date(nextYear, adjMonth + 1, 0).getDate();
+  const effectiveNext = Math.min(paymentDay, lastDayNext);
+  return new Date(nextYear, adjMonth, effectiveNext).toISOString().slice(0, 10);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -104,120 +101,115 @@ async function encolarSync(item: Omit<SyncQueueItem, 'id'>): Promise<void> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MUTACIONES
+// MUTATIONS
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface CrearGastoFijoInput {
-  nombre:    string;
-  monto:     number;
-  categoria: ExpenseCategory;
-  frecuencia: ExpenseFrequency;
-  diaPago:   number;
+export interface CreateFixedExpenseInput {
+  name:       string;
+  amount:     number;
+  category:   ExpenseCategory;
+  frequency:  ExpenseFrequency;
+  paymentDay: number;
 }
 
-export async function createFixedExpense(input: CrearGastoFijoInput): Promise<string> {
-  const ahora     = Date.now();
-  const id        = crypto.randomUUID();
-  const clinicaId = await getClinicaId();
+export async function createFixedExpense(input: CreateFixedExpenseInput): Promise<string> {
+  const now      = Date.now();
+  const id       = crypto.randomUUID();
+  const clinicId = await getClinicaId();
 
-  const gasto: FixedExpense = {
+  const expense: FixedExpense = {
     id,
-    clinicaId,
-    nombre:             input.nombre,
-    monto:              input.monto,
-    categoria:          input.categoria,
-    frecuencia:         input.frecuencia,
-    diaPago:            input.diaPago,
-    nextDueDate: calcularPrimerVencimiento(input.diaPago),
-    activo:             true,
-    syncStatus:         'pending',
-    createdAt:          ahora,
-    updatedAt:          ahora,
+    clinicId,
+    name:        input.name,
+    amount:      input.amount,
+    category:    input.category,
+    frequency:   input.frequency,
+    paymentDay:  input.paymentDay,
+    nextDueDate: calcFirstDueDate(input.paymentDay),
+    active:      true,
+    syncStatus:  'pending',
+    createdAt:   now,
+    updatedAt:   now,
   };
 
-  await db.fixedExpenses.add(gasto);
-  await encolarSync({ coleccion: 'fixedExpenses', documentoId: id, operacion: 'create', datos: gasto, intentos: 0, creadoEn: ahora });
+  await db.fixedExpenses.add(expense);
+  await encolarSync({ collection: 'fixedExpenses', documentId: id, operation: 'create', data: expense, attempts: 0, createdAt: now });
   return id;
 }
 
 export async function updateFixedExpense(
   id: string,
-  data: Partial<Pick<FixedExpense, 'nombre' | 'monto' | 'categoria' | 'frecuencia' | 'diaPago'>>,
+  data: Partial<Pick<FixedExpense, 'name' | 'amount' | 'category' | 'frequency' | 'paymentDay'>>,
 ): Promise<void> {
-  const ahora = Date.now();
-  const updates: Partial<FixedExpense> = { ...data, syncStatus: 'pending', updatedAt: ahora };
+  const now     = Date.now();
+  const updates: Partial<FixedExpense> = { ...data, syncStatus: 'pending', updatedAt: now };
 
-  if (data.diaPago !== undefined) {
+  if (data.paymentDay !== undefined) {
     const existing = await db.fixedExpenses.get(id);
-    if (existing) updates.nextDueDate = calcularPrimerVencimiento(data.diaPago);
+    if (existing) updates.nextDueDate = calcFirstDueDate(data.paymentDay);
   }
 
   await db.fixedExpenses.update(id, updates);
-  await encolarSync({ coleccion: 'fixedExpenses', documentoId: id, operacion: 'update', datos: { id, ...updates }, intentos: 0, creadoEn: ahora });
+  await encolarSync({ collection: 'fixedExpenses', documentId: id, operation: 'update', data: { id, ...updates }, attempts: 0, createdAt: now });
 }
 
 export async function deleteFixedExpense(id: string): Promise<void> {
-  const ahora = Date.now();
-  const pagosVinculados = await db.expensePayments.where('gastoFijoId').equals(id).toArray();
+  const now             = Date.now();
+  const linkedPayments  = await db.expensePayments.where('fixedExpenseId').equals(id).toArray();
 
   await db.transaction('rw', [db.fixedExpenses, db.expensePayments, db.syncQueue], async () => {
-    await db.fixedExpenses.update(id, { deletedAt: ahora, updatedAt: ahora, syncStatus: 'pending' });
+    await db.fixedExpenses.update(id, { deletedAt: now, updatedAt: now, syncStatus: 'pending' });
 
-    // Soft-delete de cada pago para que Firebase también los elimine
-    for (const pago of pagosVinculados) {
-      await db.expensePayments.update(pago.id, { deletedAt: ahora, updatedAt: ahora, syncStatus: 'pending' });
-      await db.syncQueue.add({ coleccion: 'expensePayments', documentoId: pago.id, operacion: 'delete', datos: { id: pago.id, deletedAt: ahora, updatedAt: ahora }, intentos: 0, creadoEn: ahora } as SyncQueueItem);
+    for (const payment of linkedPayments) {
+      await db.expensePayments.update(payment.id, { deletedAt: now, updatedAt: now, syncStatus: 'pending' });
+      await db.syncQueue.add({ collection: 'expensePayments', documentId: payment.id, operation: 'delete', data: { id: payment.id, deletedAt: now, updatedAt: now }, attempts: 0, createdAt: now } as SyncQueueItem);
     }
 
-    await db.syncQueue.add({ coleccion: 'fixedExpenses', documentoId: id, operacion: 'delete', datos: { id, deletedAt: ahora, updatedAt: ahora }, intentos: 0, creadoEn: ahora } as SyncQueueItem);
+    await db.syncQueue.add({ collection: 'fixedExpenses', documentId: id, operation: 'delete', data: { id, deletedAt: now, updatedAt: now }, attempts: 0, createdAt: now } as SyncQueueItem);
   });
 }
 
 export async function markAsPaid(
-  gastoFijoId: string,
-  monto:       number,
-  fechaPago:   string,
-  notas?:      string,
+  fixedExpenseId: string,
+  amount:         number,
+  paymentDate:    string,
+  notes?:         string,
 ): Promise<void> {
-  const ahora     = Date.now();
-  const clinicaId = await getClinicaId();
+  const now      = Date.now();
+  const clinicId = await getClinicaId();
 
-  const gasto = await db.fixedExpenses.get(gastoFijoId);
-  if (!gasto) throw new Error('Gasto no encontrado');
+  const expense = await db.fixedExpenses.get(fixedExpenseId);
+  if (!expense) throw new Error('Fixed expense not found');
 
-  const pagoId = crypto.randomUUID();
-  const pago: ExpensePayment = {
-    id:          pagoId,
-    clinicaId,
-    gastoFijoId,
-    monto,
-    fechaPago,
-    notas,
-    syncStatus:  'pending',
-    createdAt:   ahora,
-    updatedAt:   ahora,
+  const paymentId = crypto.randomUUID();
+  const payment: ExpensePayment = {
+    id:             paymentId,
+    clinicId,
+    fixedExpenseId,
+    amount,
+    paymentDate,
+    notes,
+    syncStatus:     'pending',
+    createdAt:      now,
+    updatedAt:      now,
   };
 
-  const nuevoVencimiento = calculateNextDueDate(
-    gasto.nextDueDate,
-    gasto.frecuencia,
-    gasto.diaPago,
-  );
-  const gastoUpdates = { nextDueDate: nuevoVencimiento, updatedAt: ahora, syncStatus: 'pending' as const };
+  const nextDueDate   = calculateNextDueDate(expense.nextDueDate, expense.frequency, expense.paymentDay);
+  const expenseUpdates = { nextDueDate, updatedAt: now, syncStatus: 'pending' as const };
 
   await db.transaction('rw', [db.fixedExpenses, db.expensePayments, db.syncQueue], async () => {
-    await db.expensePayments.add(pago);
-    await db.fixedExpenses.update(gastoFijoId, gastoUpdates);
-    await db.syncQueue.add({ coleccion: 'expensePayments', documentoId: pagoId, operacion: 'create', datos: pago, intentos: 0, creadoEn: ahora } as SyncQueueItem);
-    await db.syncQueue.add({ coleccion: 'fixedExpenses', documentoId: gastoFijoId, operacion: 'update', datos: { id: gastoFijoId, ...gastoUpdates }, intentos: 0, creadoEn: ahora } as SyncQueueItem);
+    await db.expensePayments.add(payment);
+    await db.fixedExpenses.update(fixedExpenseId, expenseUpdates);
+    await db.syncQueue.add({ collection: 'expensePayments', documentId: paymentId, operation: 'create', data: payment, attempts: 0, createdAt: now } as SyncQueueItem);
+    await db.syncQueue.add({ collection: 'fixedExpenses', documentId: fixedExpenseId, operation: 'update', data: { id: fixedExpenseId, ...expenseUpdates }, attempts: 0, createdAt: now } as SyncQueueItem);
   });
 }
 
 export async function toggleExpenseActive(id: string): Promise<void> {
-  const ahora = Date.now();
-  const gasto = await db.fixedExpenses.get(id);
-  if (!gasto) return;
-  const updates = { activo: !gasto.activo, updatedAt: ahora, syncStatus: 'pending' as const };
+  const now     = Date.now();
+  const expense = await db.fixedExpenses.get(id);
+  if (!expense) return;
+  const updates = { active: !expense.active, updatedAt: now, syncStatus: 'pending' as const };
   await db.fixedExpenses.update(id, updates);
-  await encolarSync({ coleccion: 'fixedExpenses', documentoId: id, operacion: 'update', datos: { id, ...updates }, intentos: 0, creadoEn: ahora });
+  await encolarSync({ collection: 'fixedExpenses', documentId: id, operation: 'update', data: { id, ...updates }, attempts: 0, createdAt: now });
 }

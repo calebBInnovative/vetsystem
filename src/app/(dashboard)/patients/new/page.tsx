@@ -19,7 +19,7 @@ export default function NewPatientPage() {
     try {
       const id = await createPatient(datos);
       toast.success('Patient registrado', {
-        description: `${datos.nombre} fue registrado correctamente.`,
+        description: `${datos.name} fue registrado correctamente.`,
       });
       router.push(`/patients/${id}`);
     } catch {

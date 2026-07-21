@@ -1,132 +1,132 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// TIPOS — Módulo Consultas / Atenciones
+// TYPES — Consultations / Appointments Module
 //
-// Una "Consultation" es el evento central que une:
-//   Agenda → Historial Clínico → Inventario → Finanzas
+// A "Consultation" is the central event that connects:
+//   Agenda → Clinical History → Inventory → Finances
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { SyncMeta } from './patient';
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
-export type ConsultationStatus = 'en_proceso' | 'completada' | 'cancelada';
+export type ConsultationStatus = 'in_progress' | 'completed' | 'cancelled';
 
 export type ConsultationType =
-  | 'consulta_general'
-  | 'vacunacion'
-  | 'cirugia'
-  | 'emergencia'
-  | 'control'
-  | 'desparasitacion'
-  | 'estetica'
-  | 'otro';
+  | 'general_consultation'
+  | 'vaccination'
+  | 'surgery'
+  | 'emergency'
+  | 'checkup'
+  | 'deworming'
+  | 'grooming'
+  | 'other';
 
-// ─── Item de la consulta ──────────────────────────────────────────────────────
+// ─── Consultation item ────────────────────────────────────────────────────────
 
-/** Un producto o servicio agregado durante la atención */
+/** A product or service added during the visit */
 export interface ConsultationItem {
-  /** UUID local — no se persiste en Firestore como campo separado */
+  /** Local UUID — not persisted in Firestore as a separate field */
   id: string;
-  /** Referencia al producto en inventario. Undefined = servicio manual */
-  productoId?: string;
-  descripcion: string;
-  cantidad: number;
-  precioUnitario: number;
+  /** Reference to the inventory product. Undefined = manual service */
+  productId?: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
   subtotal: number;
-  /** Si es servicio, NO descuenta inventario al finalizar */
-  esServicio: boolean;
+  /** If true, does NOT deduct from inventory when finalised */
+  isService: boolean;
 }
 
-// ─── Consultation principal ───────────────────────────────────────────────────────
+// ─── Main Consultation ────────────────────────────────────────────────────────
 
 export interface Consultation {
   id: string;
-  pacienteId: string;
-  duenoId: string;
-  clinicaId: string;
+  patientId: string;
+  ownerId: string;
+  clinicId: string;
 
-  /** Appointment desde la que se originó (opcional — puede ser walk-in) */
-  citaId?: string;
+  /** Appointment that originated this consultation (optional — may be walk-in) */
+  appointmentId?: string;
 
-  /** Timestamp Unix de inicio de la atención */
-  fecha: number;
+  /** Unix timestamp of the start of the visit */
+  date: number;
 
-  tipo: ConsultationType;
-  estado: ConsultationStatus;
+  type: ConsultationType;
+  status: ConsultationStatus;
 
-  /** Motivo de la visita tal como lo reporta el dueño */
-  motivo: string;
+  /** Reason for the visit as reported by the owner */
+  reason: string;
 
-  // ── Signos vitales ────────────────────────────────────────────────────────
-  peso?: number;
-  temperatura?: number;
-  frecuenciaCardiaca?: number;
-  frecuenciaRespiratoria?: number;
+  // ── Vital signs ───────────────────────────────────────────────────────────
+  weight?: number;
+  temperature?: number;
+  heartRate?: number;
+  respiratoryRate?: number;
 
-  // ── Historia clínica ──────────────────────────────────────────────────────
-  /** Historia del problema, antecedentes */
+  // ── Clinical history ──────────────────────────────────────────────────────
+  /** Problem history and background */
   anamnesis?: string;
-  /** Hallazgos del examen físico */
-  examenFisico?: string;
-  diagnostico?: string;
-  tratamiento?: string;
-  observaciones?: string;
+  /** Physical exam findings */
+  physicalExam?: string;
+  diagnosis?: string;
+  treatment?: string;
+  observations?: string;
 
-  /** Fecha recomendada de próxima visita "YYYY-MM-DD" */
-  proximaVisita?: string;
+  /** Recommended date for next visit "YYYY-MM-DD" */
+  nextVisit?: string;
 
-  veterinario?: string;
+  veterinarian?: string;
 
-  // ── Facturación ───────────────────────────────────────────────────────────
+  // ── Billing ───────────────────────────────────────────────────────────────
   items: ConsultationItem[];
   subtotal: number;
-  /** Descuento en monto fijo (córdobas) */
-  descuento: number;
+  /** Discount as a fixed amount (currency) */
+  discount: number;
   total: number;
 
-  /** ID del pago generado al finalizar */
-  pagoId?: string;
-  /** ID de la factura generada al finalizar */
-  facturaId?: string;
+  /** ID of the payment generated on completion */
+  paymentId?: string;
+  /** ID of the invoice generated on completion */
+  invoiceId?: string;
 
-  creadoEn: number;
+  createdAt: number;
 }
 
 export interface ConsultationLocal extends Consultation, SyncMeta {}
 
-/** Consultation con datos del paciente ya unidos — para listas */
+/** Consultation with patient data already joined — for lists */
 export interface ConsultationWithPatient extends ConsultationLocal {
-  nombrePaciente?: string;
-  especiePaciente?: string;
-  nombreDueno?: string;
+  patientName?: string;
+  patientSpecies?: string;
+  ownerName?: string;
 }
 
-// ─── Constantes de UI ─────────────────────────────────────────────────────────
+// ─── UI Constants ─────────────────────────────────────────────────────────────
 
 export const CONSULTATION_TYPES: Record<ConsultationType, { label: string; emoji: string; color: string }> = {
-  consulta_general: { label: 'Consultation general', emoji: '🩺', color: 'text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-950/40 dark:border-blue-800' },
-  vacunacion:       { label: 'Vacunación',        emoji: '💉', color: 'text-green-600 bg-green-50 border-green-200 dark:text-green-400 dark:bg-green-950/40 dark:border-green-800' },
-  cirugia:          { label: 'Cirugía',           emoji: '🔬', color: 'text-purple-600 bg-purple-50 border-purple-200 dark:text-purple-400 dark:bg-purple-950/40 dark:border-purple-800' },
-  emergencia:       { label: 'Emergencia',        emoji: '🚨', color: 'text-red-600 bg-red-50 border-red-200 dark:text-red-400 dark:bg-red-950/40 dark:border-red-800' },
-  control:          { label: 'Control',           emoji: '📋', color: 'text-teal-600 bg-teal-50 border-teal-200 dark:text-teal-400 dark:bg-teal-950/40 dark:border-teal-800' },
-  desparasitacion:  { label: 'Desparasitación',   emoji: '🐛', color: 'text-orange-600 bg-orange-50 border-orange-200 dark:text-orange-400 dark:bg-orange-950/40 dark:border-orange-800' },
-  estetica:         { label: 'Estética',          emoji: '✂️', color: 'text-pink-600 bg-pink-50 border-pink-200 dark:text-pink-400 dark:bg-pink-950/40 dark:border-pink-800' },
-  otro:             { label: 'Otro',              emoji: '📌', color: 'text-muted-foreground bg-muted border-border' },
+  general_consultation: { label: 'Consultation general', emoji: '🩺', color: 'text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-950/40 dark:border-blue-800' },
+  vaccination:          { label: 'Vacunación',        emoji: '💉', color: 'text-green-600 bg-green-50 border-green-200 dark:text-green-400 dark:bg-green-950/40 dark:border-green-800' },
+  surgery:              { label: 'Cirugía',           emoji: '🔬', color: 'text-purple-600 bg-purple-50 border-purple-200 dark:text-purple-400 dark:bg-purple-950/40 dark:border-purple-800' },
+  emergency:            { label: 'Emergencia',        emoji: '🚨', color: 'text-red-600 bg-red-50 border-red-200 dark:text-red-400 dark:bg-red-950/40 dark:border-red-800' },
+  checkup:              { label: 'Control',           emoji: '📋', color: 'text-teal-600 bg-teal-50 border-teal-200 dark:text-teal-400 dark:bg-teal-950/40 dark:border-teal-800' },
+  deworming:            { label: 'Desparasitación',   emoji: '🐛', color: 'text-orange-600 bg-orange-50 border-orange-200 dark:text-orange-400 dark:bg-orange-950/40 dark:border-orange-800' },
+  grooming:             { label: 'Estética',          emoji: '✂️', color: 'text-pink-600 bg-pink-50 border-pink-200 dark:text-pink-400 dark:bg-pink-950/40 dark:border-pink-800' },
+  other:                { label: 'Otro',              emoji: '📌', color: 'text-muted-foreground bg-muted border-border' },
 };
 
 export const CONSULTATION_STATUSES: Record<ConsultationStatus, { label: string; color: string; punto: string }> = {
-  en_proceso: { label: 'En proceso', color: 'text-amber-600 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950/40 dark:border-amber-800', punto: 'bg-amber-400' },
-  completada: { label: 'Completada', color: 'text-green-600 bg-green-50 border-green-200 dark:text-green-400 dark:bg-green-950/40 dark:border-green-800', punto: 'bg-green-500' },
-  cancelada:  { label: 'Cancelada',  color: 'text-red-500 bg-red-50 border-red-200 dark:text-red-400 dark:bg-red-950/40 dark:border-red-800',            punto: 'bg-red-400' },
+  in_progress: { label: 'En proceso', color: 'text-amber-600 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950/40 dark:border-amber-800', punto: 'bg-amber-400' },
+  completed:   { label: 'Completada', color: 'text-green-600 bg-green-50 border-green-200 dark:text-green-400 dark:bg-green-950/40 dark:border-green-800', punto: 'bg-green-500' },
+  cancelled:   { label: 'Cancelada',  color: 'text-red-500 bg-red-50 border-red-200 dark:text-red-400 dark:bg-red-950/40 dark:border-red-800',            punto: 'bg-red-400' },
 };
 
 export const PAYMENT_TYPE_BY_CONSULTATION: Record<ConsultationType, string> = {
-  consulta_general: 'consulta',
-  vacunacion:       'vacunacion',
-  cirugia:          'cirugia',
-  emergencia:       'consulta',
-  control:          'consulta',
-  desparasitacion:  'consulta',
-  estetica:         'estetica',
-  otro:             'otro',
+  general_consultation: 'consultation',
+  vaccination:          'vaccination',
+  surgery:              'surgery',
+  emergency:            'consultation',
+  checkup:              'consultation',
+  deworming:            'consultation',
+  grooming:             'grooming',
+  other:                'other',
 };

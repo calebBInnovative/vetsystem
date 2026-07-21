@@ -91,7 +91,7 @@ export default function SetupPage() {
       // Creates clinic + license + user docs atomically, then writes Dexie session
       await crearClinicaDesdeSetup({
         clinicName: clinicName.trim(),
-        telefono:   telefono.trim(),
+        phone:      telefono.trim(),
       });
       setDone(true);
       setTimeout(async () => {

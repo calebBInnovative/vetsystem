@@ -5,51 +5,52 @@ import { useAuth } from '@/contexts/AuthContext';
 import { LICENSE_MESSAGES, estaBloquada } from '@/lib/license/license.service';
 import { WifiOff, AlertTriangle, Lock, CreditCard, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { LicenseMode } from '@/types/license';
 
-const ICONOS = {
-  advertencia_suave:  WifiOff,
-  advertencia_fuerte: AlertTriangle,
-  solo_lectura:       Lock,
-  bloqueado:          Lock,
-  vencida:            CreditCard,
-  normal:             null,
+const ICONS: Partial<Record<LicenseMode, React.FC<{ size?: number; className?: string }> | null>> = {
+  soft_warning: WifiOff,
+  hard_warning: AlertTriangle,
+  read_only:    Lock,
+  blocked:      Lock,
+  expired:      CreditCard,
+  normal:       null,
 };
 
 export function LicenseBanner() {
   const { license } = useAuth();
-  const [cerrado, setCerrado] = useState(false);
+  const [closed, setClosed] = useState(false);
 
-  const { modo, diasOffline } = license;
+  const { mode, daysOffline } = license;
 
-  if (modo === 'normal') return null;
-  if (cerrado && (modo === 'advertencia_suave' || modo === 'advertencia_fuerte')) return null;
+  if (mode === 'normal') return null;
+  if (closed && (mode === 'soft_warning' || mode === 'hard_warning')) return null;
 
-  const info   = LICENSE_MESSAGES[modo];
-  const Icono  = ICONOS[modo];
-  const bloq   = estaBloquada(modo);
+  const info   = LICENSE_MESSAGES[mode];
+  const Icon   = ICONS[mode] ?? null;
+  const blocked = estaBloquada(mode);
 
-  const colores: Record<string, string> = {
+  const colors: Record<string, string> = {
     amber:  'bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-950/40 dark:border-amber-700 dark:text-amber-300',
     orange: 'bg-orange-50 border-orange-200 text-orange-800 dark:bg-orange-950/40 dark:border-orange-700 dark:text-orange-300',
     red:    'bg-red-50 border-red-200 text-red-800 dark:bg-red-950/40 dark:border-red-700 dark:text-red-300',
   };
 
   // Blocking banner — covers the entire screen
-  if (bloq) {
+  if (blocked) {
     return (
       <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-background/95 backdrop-blur-sm">
         <div className="max-w-sm mx-4 text-center space-y-4">
           <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
-            {Icono && <Icono size={28} className="text-destructive" />}
+            {Icon && <Icon size={28} className="text-destructive" />}
           </div>
           <h2 className="text-xl font-bold">{info.titulo}</h2>
           <p className="text-muted-foreground text-sm">{info.desc}</p>
-          {diasOffline === -1 && (
+          {daysOffline === -1 && (
             <p className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2">
               Se detectó una modificación en la fecha del sistema.
             </p>
           )}
-          {modo === 'vencida' && (
+          {mode === 'expired' && (
             <a
               href="mailto:soporte@vetsystem.app"
               className="inline-block mt-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-medium"
@@ -69,20 +70,20 @@ export function LicenseBanner() {
   return (
     <div className={cn(
       'flex items-center gap-3 px-4 py-2.5 border-b text-sm',
-      colores[info.color],
+      colors[info.color],
     )}>
-      {Icono && <Icono size={14} className="shrink-0" />}
+      {Icon && <Icon size={14} className="shrink-0" />}
       <div className="flex-1 min-w-0">
         <span className="font-medium">{info.titulo}</span>
         {' — '}
         <span className="opacity-80">{info.desc}</span>
-        {diasOffline > 0 && (
-          <span className="ml-2 text-xs opacity-60">({diasOffline} días offline)</span>
+        {daysOffline > 0 && (
+          <span className="ml-2 text-xs opacity-60">({daysOffline} días offline)</span>
         )}
       </div>
       <button
         type="button"
-        onClick={() => setCerrado(true)}
+        onClick={() => setClosed(true)}
         className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"
       >
         <X size={14} />
@@ -92,13 +93,13 @@ export function LicenseBanner() {
 }
 
 /**
- * Wrapper that disables interactions when mode is solo_lectura.
+ * Wrapper that disables interactions when mode is read_only.
  * Use around forms or action buttons.
  */
 export function ReadOnlyGuard({ children }: { children: React.ReactNode }) {
   const { license } = useAuth();
 
-  if (license.modo !== 'solo_lectura') return <>{children}</>;
+  if (license.mode !== 'read_only') return <>{children}</>;
 
   return (
     <div className="relative">

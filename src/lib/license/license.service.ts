@@ -17,55 +17,58 @@ const DIAS_BLOQUEADO          = 45;
  *   If Date.now() < session.cachedAt the clock was manually set back.
  *   We treat the delta as the worst-case offline days.
  */
-export function calcularLicencia(session: SessionLocal | null): LicenseInfo {
+export function calculateLicense(session: SessionLocal | null): LicenseInfo {
   if (!session) {
-    return { modo: 'bloqueado', diasOffline: 0, diasParaVencer: null, session: null };
+    return { mode: 'blocked', daysOffline: 0, daysUntilExpiry: null, session: null };
   }
 
-  const ahora = Date.now();
+  const now = Date.now();
 
   // ── Anti-tamper: clock set back ───────────────────────────────────────────
-  if (ahora < session.cachedAt) {
-    return { modo: 'bloqueado', diasOffline: -1, diasParaVencer: null, session };
+  if (now < session.cachedAt) {
+    return { mode: 'blocked', daysOffline: -1, daysUntilExpiry: null, session };
   }
 
   // ── Subscription inactive (detected at last online sync) ─────────────────
   if (session.subscription === false) {
-    return { modo: 'vencida', diasOffline: 0, diasParaVencer: 0, session };
+    return { mode: 'expired', daysOffline: 0, daysUntilExpiry: 0, session };
   }
 
   // ── Days since last successful sync ──────────────────────────────────────
-  const diasOffline = Math.floor((ahora - session.lastSync) / 86_400_000);
+  const daysOffline = Math.floor((now - session.lastSync) / 86_400_000);
 
   // ── Days until subscription expires ──────────────────────────────────────
-  const hoyStr        = new Date(ahora).toISOString().slice(0, 10);
-  const diasParaVencer = Math.ceil(
-    (new Date(session.expirationDate).getTime() - new Date(hoyStr).getTime()) / 86_400_000,
+  const todayStr      = new Date(now).toISOString().slice(0, 10);
+  const daysUntilExpiry = Math.ceil(
+    (new Date(session.expirationDate).getTime() - new Date(todayStr).getTime()) / 86_400_000,
   );
 
   // ── If subscription expired by date ──────────────────────────────────────
-  if (diasParaVencer < 0) {
-    return { modo: 'vencida', diasOffline, diasParaVencer, session };
+  if (daysUntilExpiry < 0) {
+    return { mode: 'expired', daysOffline, daysUntilExpiry, session };
   }
 
   // ── Mode based on days offline ────────────────────────────────────────────
-  let modo: LicenseMode = 'normal';
-  if (diasOffline >= DIAS_BLOQUEADO)               modo = 'bloqueado';
-  else if (diasOffline >= DIAS_SOLO_LECTURA)        modo = 'solo_lectura';
-  else if (diasOffline >= DIAS_ADVERTENCIA_FUERTE)  modo = 'advertencia_fuerte';
-  else if (diasOffline >= DIAS_ADVERTENCIA_SUAVE)   modo = 'advertencia_suave';
+  let mode: LicenseMode = 'normal';
+  if (daysOffline >= DIAS_BLOQUEADO)               mode = 'blocked';
+  else if (daysOffline >= DIAS_SOLO_LECTURA)        mode = 'read_only';
+  else if (daysOffline >= DIAS_ADVERTENCIA_FUERTE)  mode = 'hard_warning';
+  else if (daysOffline >= DIAS_ADVERTENCIA_SUAVE)   mode = 'soft_warning';
 
-  return { modo, diasOffline, diasParaVencer, session };
+  return { mode, daysOffline, daysUntilExpiry, session };
 }
 
+/** @deprecated Use calculateLicense instead */
+export const calcularLicencia = calculateLicense;
+
 /** True if the mode allows writing */
-export function puedeEscribir(modo: LicenseMode): boolean {
-  return modo === 'normal' || modo === 'advertencia_suave' || modo === 'advertencia_fuerte';
+export function puedeEscribir(mode: LicenseMode): boolean {
+  return mode === 'normal' || mode === 'soft_warning' || mode === 'hard_warning';
 }
 
 /** True if the mode completely blocks the app */
-export function estaBloquada(modo: LicenseMode): boolean {
-  return modo === 'bloqueado' || modo === 'vencida';
+export function estaBloquada(mode: LicenseMode): boolean {
+  return mode === 'blocked' || mode === 'expired';
 }
 
 // ─── UI messages ──────────────────────────────────────────────────────────────
@@ -76,27 +79,27 @@ export const LICENSE_MESSAGES: Record<LicenseMode, { titulo: string; desc: strin
     desc:   '',
     color:  '',
   },
-  advertencia_suave: {
+  soft_warning: {
     titulo: 'Trabajando sin conexión',
     desc:   'Reconéctate pronto para mantener tus datos sincronizados.',
     color:  'amber',
   },
-  advertencia_fuerte: {
+  hard_warning: {
     titulo: 'Llevas más de 15 días sin conexión',
     desc:   'En 15 días el sistema pasará a modo solo lectura.',
     color:  'orange',
   },
-  solo_lectura: {
+  read_only: {
     titulo: 'Modo solo lectura',
     desc:   'Puedes ver tus datos pero no crear ni editar. Reconéctate para reactivar.',
     color:  'red',
   },
-  bloqueado: {
+  blocked: {
     titulo: 'Sistema bloqueado',
     desc:   'Necesitas conexión a internet para continuar usando el sistema.',
     color:  'red',
   },
-  vencida: {
+  expired: {
     titulo: 'Suscripción vencida',
     desc:   'Renueva tu suscripción para continuar usando VetSystem.',
     color:  'red',

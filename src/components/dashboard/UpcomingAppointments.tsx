@@ -37,10 +37,10 @@ export function ProximasCitasDia() {
       ) : (
         <div className="space-y-2">
           {appointments.map((cita) => {
-            const estado  = APPOINTMENT_STATUSES[cita.estado];
-            const tipo    = APPOINTMENT_TYPES[cita.tipo];
-            const especie = cita.especiePaciente
-              ? PET_SPECIES[cita.especiePaciente as keyof typeof PET_SPECIES]
+            const estado  = APPOINTMENT_STATUSES[cita.status];
+            const tipo    = APPOINTMENT_TYPES[cita.type];
+            const especie = cita.patientSpecies
+              ? PET_SPECIES[cita.patientSpecies as keyof typeof PET_SPECIES]
               : null;
 
             return (
@@ -51,7 +51,7 @@ export function ProximasCitasDia() {
               >
                 {/* Hora */}
                 <div className="text-center shrink-0 w-12">
-                  <p className="text-sm font-bold leading-none">{cita.horaInicio}</p>
+                  <p className="text-sm font-bold leading-none">{cita.startTime}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">{tipo.emoji}</p>
                 </div>
 
@@ -60,10 +60,10 @@ export function ProximasCitasDia() {
                   <div className="flex items-center gap-1.5">
                     {especie && <span className="text-base leading-none">{especie.emoji}</span>}
                     <p className="font-medium truncate text-sm group-hover:text-primary transition-colors">
-                      {cita.nombrePaciente}
+                      {cita.patientName}
                     </p>
                   </div>
-                  <p className="text-xs text-muted-foreground truncate mt-0.5">{cita.motivo}</p>
+                  <p className="text-xs text-muted-foreground truncate mt-0.5">{cita.reason}</p>
                 </div>
 
                 {/* Estado */}

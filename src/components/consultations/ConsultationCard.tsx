@@ -20,8 +20,8 @@ function formatMonto(monto: number): string {
 }
 
 export function ConsultaCard({ consulta, compact = false }: ConsultaCardProps) {
-  const tipoInfo   = CONSULTATION_TYPES[consulta.tipo];
-  const estadoInfo = CONSULTATION_STATUSES[consulta.estado];
+  const tipoInfo   = CONSULTATION_TYPES[consulta.type];
+  const estadoInfo = CONSULTATION_STATUSES[consulta.status];
   const href       = `/consultations/${consulta.id}`;
 
   if (compact) {
@@ -29,8 +29,8 @@ export function ConsultaCard({ consulta, compact = false }: ConsultaCardProps) {
       <Link href={href} className="flex items-center gap-3 py-2.5 px-1 border-b border-border last:border-0 hover:bg-muted/30 transition-colors -mx-1 px-1 rounded-lg">
         <span className="text-xl w-7 text-center shrink-0">{tipoInfo?.emoji}</span>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">{consulta.nombrePaciente ?? 'Patient'}</p>
-          <p className="text-xs text-muted-foreground">{tipoInfo?.label} · {formatFecha(consulta.fecha)}</p>
+          <p className="text-sm font-medium truncate">{consulta.patientName ?? 'Patient'}</p>
+          <p className="text-xs text-muted-foreground">{tipoInfo?.label} · {formatFecha(consulta.date)}</p>
         </div>
         <div className="text-right shrink-0">
           <span className={cn('text-[10px] px-2 py-0.5 rounded-full border', estadoInfo?.color)}>
@@ -59,8 +59,8 @@ export function ConsultaCard({ consulta, compact = false }: ConsultaCardProps) {
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <p className="font-semibold text-sm">{consulta.nombrePaciente ?? 'Patient'}</p>
-                <p className="text-xs text-muted-foreground">{tipoInfo?.label} · {formatFecha(consulta.fecha)}</p>
+                <p className="font-semibold text-sm">{consulta.patientName ?? 'Patient'}</p>
+                <p className="text-xs text-muted-foreground">{tipoInfo?.label} · {formatFecha(consulta.date)}</p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <span className={cn('text-[11px] px-2 py-0.5 rounded-full border', estadoInfo?.color)}>
@@ -71,21 +71,21 @@ export function ConsultaCard({ consulta, compact = false }: ConsultaCardProps) {
             </div>
 
             {/* Motivo */}
-            {consulta.motivo && (
-              <p className="text-xs text-muted-foreground mt-1.5 line-clamp-1">{consulta.motivo}</p>
+            {consulta.reason && (
+              <p className="text-xs text-muted-foreground mt-1.5 line-clamp-1">{consulta.reason}</p>
             )}
 
             {/* Footer */}
             <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/60">
               <div className="flex items-center gap-3">
-                {consulta.nombreDueno && (
-                  <span className="text-xs text-muted-foreground">{consulta.nombreDueno}</span>
+                {consulta.ownerName && (
+                  <span className="text-xs text-muted-foreground">{consulta.ownerName}</span>
                 )}
-                {consulta.veterinario && (
-                  <span className="text-xs text-muted-foreground">{consulta.veterinario}</span>
+                {consulta.veterinarian && (
+                  <span className="text-xs text-muted-foreground">{consulta.veterinarian}</span>
                 )}
               </div>
-              {consulta.estado === 'en_proceso' ? (
+              {consulta.status === 'in_progress' ? (
                 <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
                   <Clock size={11} />En atención
                 </span>

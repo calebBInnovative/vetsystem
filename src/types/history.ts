@@ -11,37 +11,37 @@ export { CONSULTATION_TYPES } from './consultation';
 // ─── Prescribed Medication ───────────────────────────────────────────────────
 
 export interface PrescribedMedication {
-  nombre: string;
-  dosis: string;
-  frecuencia: string;
-  duracion: string;
-  notas?: string;
+  name: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+  notes?: string;
 }
 
 // ─── Historical Consultation (simple clinical note) ──────────────────────────
 
 export interface HistoricalConsultation {
   id: string;
-  pacienteId: string;
-  clinicaId: string;
-  fecha: number;
-  tipo: ConsultationType;
-  motivo: string;
-  sintomas?: string;
+  patientId: string;
+  clinicId: string;
+  date: number;
+  type: ConsultationType;
+  reason: string;
+  symptoms?: string;
   temperatura?: number;
-  pesoConsulta?: number;
-  diagnostico?: string;
-  tratamiento?: string;
-  medicamentos?: PrescribedMedication[];
-  observaciones?: string;
-  proximaCita?: number;
-  veterinario?: string;
-  creadoEn: number;
+  consultationWeight?: number;
+  diagnosis?: string;
+  treatment?: string;
+  medications?: PrescribedMedication[];
+  observations?: string;
+  nextAppointment?: number;
+  veterinarian?: string;
+  createdAt: number;
 }
 
 export interface HistoricalConsultationLocal extends HistoricalConsultation, SyncMeta {}
 
 export interface HistoricalConsultationWithPatient extends HistoricalConsultationLocal {
-  nombrePaciente?: string;
-  especiePaciente?: string;
+  patientName?: string;
+  patientSpecies?: string;
 }

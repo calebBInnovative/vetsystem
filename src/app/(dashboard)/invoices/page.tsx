@@ -8,11 +8,11 @@ import { cn } from '@/lib/utils';
 import { Receipt, Search } from 'lucide-react';
 
 const FILTROS_ESTADO: { key: InvoiceStatus | 'todas'; label: string }[] = [
-  { key: 'todas',              label: 'Todas'    },
-  { key: 'pagada',             label: 'Pagadas'  },
-  { key: 'pendiente',          label: 'Pendiente'},
-  { key: 'parcialmente_pagada',label: 'Parcial'  },
-  { key: 'cancelada',          label: 'Cancelada'},
+  { key: 'todas',           label: 'Todas'    },
+  { key: 'paid',            label: 'Pagadas'  },
+  { key: 'pending',         label: 'Pendiente'},
+  { key: 'partially_paid',  label: 'Parcial'  },
+  { key: 'cancelled',       label: 'Cancelada'},
 ];
 
 function fmt(n: number) {
@@ -27,8 +27,8 @@ function fmtFecha(iso: string) {
 }
 
 function FacturaRow({ factura }: { factura: InvoiceWithDetails }) {
-  const estadoInfo = INVOICE_STATUSES[factura.estado];
-  const metodo     = INVOICE_PAYMENT_METHODS[factura.metodoPago];
+  const estadoInfo = INVOICE_STATUSES[factura.status];
+  const metodo     = INVOICE_PAYMENT_METHODS[factura.paymentMethod];
 
   return (
     <Link
@@ -41,27 +41,27 @@ function FacturaRow({ factura }: { factura: InvoiceWithDetails }) {
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-mono text-sm font-semibold">{factura.numero}</span>
+          <span className="font-mono text-sm font-semibold">{factura.number}</span>
           <span className={cn('text-xs px-2 py-0.5 rounded-full border font-medium', estadoInfo.color)}>
             {estadoInfo.label}
           </span>
         </div>
         <p className="text-sm text-muted-foreground truncate mt-0.5">
-          {factura.ventaId
+          {factura.saleId
             ? (() => {
                 const items = factura.items ?? [];
-                const summary = items.slice(0, 2).map((i) => `${i.descripcion} ×${i.cantidad}`).join(', ');
+                const summary = items.slice(0, 2).map((i) => `${i.description} ×${i.quantity}`).join(', ');
                 const extra   = items.length > 2 ? ` +${items.length - 2} más` : '';
                 return `🛒 ${summary}${extra}` || 'Sale de products';
               })()
-            : `${factura.nombrePaciente ?? '—'} · ${factura.nombreDueno ?? '—'}`
+            : `${factura.patientName ?? '—'} · ${factura.ownerName ?? '—'}`
           }
         </p>
       </div>
 
       <div className="text-right shrink-0">
         <p className="font-semibold text-sm">{fmt(factura.total)}</p>
-        <p className="text-xs text-muted-foreground">{fmtFecha(factura.fecha)} · {metodo.emoji} {metodo.label}</p>
+        <p className="text-xs text-muted-foreground">{fmtFecha(factura.date)} · {metodo.emoji} {metodo.label}</p>
       </div>
     </Link>
   );
@@ -69,27 +69,29 @@ function FacturaRow({ factura }: { factura: InvoiceWithDetails }) {
 
 export default function InvoicesPage() {
   const [filtroEstado, setFiltroEstado] = useState<InvoiceStatus | 'todas'>('todas');
-  const [busqueda, setBusqueda]         = useState('');
+  const [searchQuery, setSearchQuery]   = useState('');
 
   const { invoices, loading } = useInvoices(
-    filtroEstado !== 'todas' ? { estado: filtroEstado } : undefined
+    filtroEstado !== 'todas' ? { status: filtroEstado } : undefined
   );
 
-  const filtradas = busqueda.trim()
+  const filtradas = searchQuery.trim()
     ? invoices.filter((f) => {
-        const q = busqueda.toLowerCase();
+        const q = searchQuery.toLowerCase();
         return (
-          f.numero.toLowerCase().includes(q) ||
-          f.nombrePaciente?.toLowerCase().includes(q) ||
-          f.nombreDueno?.toLowerCase().includes(q) ||
-          f.items?.some((i) => i.descripcion.toLowerCase().includes(q))
+          f.number.toLowerCase().includes(q) ||
+          f.patientName?.toLowerCase().includes(q) ||
+          f.ownerName?.toLowerCase().includes(q) ||
+          f.items?.some((i) => i.description.toLowerCase().includes(q))
         );
       })
     : invoices;
 
   // Resumen financiero
-  const totalCobrado  = invoices.filter((f) => f.estado === 'pagada').reduce((s, f) => s + f.total, 0);
-  const totalPendiente= invoices.filter((f) => f.estado === 'pendiente' || f.estado === 'parcialmente_pagada').reduce((s, f) => s + (f.total - f.montoPagado), 0);
+  const totalCobrado   = invoices.filter((f) => f.status === 'paid').reduce((s, f) => s + f.total, 0);
+  const totalPendiente = invoices
+    .filter((f) => f.status === 'pending' || f.status === 'partially_paid')
+    .reduce((s, f) => s + (f.total - (f.amountPaid ?? 0)), 0);
 
   return (
     <div className="space-y-5">
@@ -118,8 +120,8 @@ export default function InvoicesPage() {
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             placeholder="Buscar por número, paciente o dueño…"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-3 py-2 rounded-xl border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
@@ -151,7 +153,7 @@ export default function InvoicesPage() {
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <Receipt size={32} className="text-muted-foreground/40 mb-3" />
             <p className="text-muted-foreground">
-              {busqueda ? 'Sin resultados para tu búsqueda' : 'No hay invoices aún'}
+              {searchQuery ? 'Sin resultados para tu búsqueda' : 'No hay invoices aún'}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
               Las invoices se generan al finalizar una consulta

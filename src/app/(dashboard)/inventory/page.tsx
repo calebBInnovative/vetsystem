@@ -12,13 +12,13 @@ import { PRODUCT_CATEGORIES, type ProductCategory } from '@/types/inventory';
 import { Plus, Package, Loader2, LayoutList, LayoutGrid } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-type Vista = 'lista' | 'cards';
+type View = 'lista' | 'cards';
 
 export default function InventoryPage() {
-  const [busqueda,  setBusqueda]  = useState('');
-  const [categoria, setCategoria] = useState<ProductCategory | undefined>();
-  const [vista,     setVista]     = useState<Vista>('lista');
-  const { products, loading }   = useProducts(busqueda, categoria);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [categoria,   setCategoria]   = useState<ProductCategory | undefined>();
+  const [view,        setView]        = useState<View>('lista');
+  const { products, loading } = useProducts(searchQuery, categoria);
 
   return (
     <div className="space-y-6">
@@ -45,7 +45,7 @@ export default function InventoryPage() {
 
       {/* Buscador */}
       <BuscadorPacientes
-        onBuscar={setBusqueda}
+        onBuscar={setSearchQuery}
         placeholder="Buscar producto, proveedor..."
       />
 
@@ -85,11 +85,11 @@ export default function InventoryPage() {
         {/* Toggle lista / cards */}
         <div className="flex shrink-0 rounded-xl border border-border overflow-hidden">
           <button
-            onClick={() => setVista('lista')}
+            onClick={() => setView('lista')}
             title="Vista lista"
             className={cn(
               'p-2 transition-colors',
-              vista === 'lista'
+              view === 'lista'
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-background text-muted-foreground hover:text-foreground'
             )}
@@ -97,11 +97,11 @@ export default function InventoryPage() {
             <LayoutList size={16} />
           </button>
           <button
-            onClick={() => setVista('cards')}
+            onClick={() => setView('cards')}
             title="Vista cards"
             className={cn(
               'p-2 transition-colors',
-              vista === 'cards'
+              view === 'cards'
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-background text-muted-foreground hover:text-foreground'
             )}
@@ -117,8 +117,8 @@ export default function InventoryPage() {
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : products.length === 0 ? (
-        <EstadoVacio busqueda={busqueda} categoria={categoria} />
-      ) : vista === 'lista' ? (
+        <EmptyState searchQuery={searchQuery} categoria={categoria} />
+      ) : view === 'lista' ? (
         <div className="bg-card rounded-2xl border border-border overflow-hidden">
           {products.map((p) => (
             <ProductoRow key={p.id} producto={p} />
@@ -136,8 +136,8 @@ export default function InventoryPage() {
   );
 }
 
-function EstadoVacio({ busqueda, categoria }: { busqueda: string; categoria?: string }) {
-  if (busqueda || categoria) {
+function EmptyState({ searchQuery, categoria }: { searchQuery: string; categoria?: string }) {
+  if (searchQuery || categoria) {
     return (
       <div className="text-center py-24 space-y-2">
         <p className="text-4xl">🔍</p>

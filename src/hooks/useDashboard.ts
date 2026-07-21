@@ -3,138 +3,138 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, getClinicaId } from '@/lib/db/database';
 
-/** Retorna todos los KPIs del dashboard en una sola query reactiva. */
+/** Returns all dashboard KPIs in a single reactive query. */
 export function useDashboard() {
-  const hoy = new Date().toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
 
-  const datos = useLiveQuery(async () => {
-    const clinicaId = await getClinicaId();
+  const data = useLiveQuery(async () => {
+    const clinicId = await getClinicaId();
     const [
-      totalPacientes,
-      citasHoy,
-      citasPendientesHoy,
-      productosStockBajo,
-      consultasEsteMes,
+      totalPatients,
+      appointmentsToday,
+      appointmentsPendingToday,
+      lowStockProducts,
+      consultationsThisMonth,
     ] = await Promise.all([
-      // Pacientes activos
+      // Active patients
       db.patients
-        .where('clinicaId').equals(clinicaId)
-        .filter((p) => !p.deletedAt && p.activo)
+        .where('clinicId').equals(clinicId)
+        .filter((p) => !p.deletedAt && p.active)
         .count(),
 
-      // Citas de hoy (todas)
+      // All appointments today
       db.appointments
-        .where('fecha').equals(hoy)
-        .filter((c) => !c.deletedAt && c.clinicaId === clinicaId)
+        .where('date').equals(today)
+        .filter((c) => !c.deletedAt && c.clinicId === clinicId)
         .count(),
 
-      // Citas de hoy pendientes o confirmadas
+      // Pending or confirmed appointments today
       db.appointments
-        .where('fecha').equals(hoy)
+        .where('date').equals(today)
         .filter(
           (c) =>
             !c.deletedAt &&
-            c.clinicaId === clinicaId &&
-            (c.estado === 'pendiente' || c.estado === 'confirmada' || c.estado === 'en_curso')
+            c.clinicId === clinicId &&
+            (c.status === 'pending' || c.status === 'confirmed' || c.status === 'in_progress')
         )
         .count(),
 
-      // Productos con stock bajo o sin stock
+      // Products at or below minimum stock
       db.products
-        .where('clinicaId').equals(clinicaId)
-        .filter((p) => !p.deletedAt && p.activo && p.stockActual <= p.stockMinimo)
+        .where('clinicId').equals(clinicId)
+        .filter((p) => !p.deletedAt && p.active && p.currentStock <= p.minimumStock)
         .count(),
 
-      // Consultas registradas este mes
+      // Consultations registered this month
       db.consultations
-        .where('clinicaId').equals(clinicaId)
+        .where('clinicId').equals(clinicId)
         .filter((c) => {
           if (c.deletedAt) return false;
-          const fecha = new Date(c.fecha);
-          const ahora = new Date();
+          const date  = new Date(c.date);
+          const now   = new Date();
           return (
-            fecha.getFullYear() === ahora.getFullYear() &&
-            fecha.getMonth()    === ahora.getMonth()
+            date.getFullYear() === now.getFullYear() &&
+            date.getMonth()    === now.getMonth()
           );
         })
         .count(),
     ]);
 
     return {
-      totalPacientes,
-      citasHoy,
-      citasPendientesHoy,
-      productosStockBajo,
-      consultasEsteMes,
+      totalPatients,
+      appointmentsToday,
+      appointmentsPendingToday,
+      lowStockProducts,
+      consultationsThisMonth,
     };
-  }, [hoy]);
+  }, [today]);
 
   return {
-    kpis:     datos,
-    loading: datos === undefined,
+    kpis:    data,
+    loading: data === undefined,
   };
 }
 
-/** Próximas appointments del día con datos de paciente unidos. */
+/** Upcoming appointments for today with patient data joined */
 export function useProximasCitasDia() {
-  const hoy = new Date().toISOString().slice(0, 10);
-  const horaActual = new Date().toTimeString().slice(0, 5);
+  const today       = new Date().toISOString().slice(0, 10);
+  const currentTime = new Date().toTimeString().slice(0, 5);
 
-  const resultado = useLiveQuery(async () => {
-    const clinicaId = await getClinicaId();
+  const result = useLiveQuery(async () => {
+    const clinicId = await getClinicaId();
     const appointments = await db.appointments
-      .where('fecha').equals(hoy)
+      .where('date').equals(today)
       .filter(
         (c) =>
           !c.deletedAt &&
-          c.clinicaId === clinicaId &&
-          (c.estado === 'pendiente' || c.estado === 'confirmada' || c.estado === 'en_curso') &&
-          c.horaInicio >= horaActual
+          c.clinicId === clinicId &&
+          (c.status === 'pending' || c.status === 'confirmed' || c.status === 'in_progress') &&
+          c.startTime >= currentTime
       )
       .toArray();
 
-    appointments.sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
+    appointments.sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-    const pacienteIds = [...new Set(appointments.map((c) => c.pacienteId))];
-    const patients   = await db.patients.bulkGet(pacienteIds);
-    const pacientesMap = new Map(patients.filter(Boolean).map((p) => [p!.id, p!]));
+    const patientIds = [...new Set(appointments.map((c) => c.patientId))];
+    const patients   = await db.patients.bulkGet(patientIds);
+    const patientMap = new Map(patients.filter(Boolean).map((p) => [p!.id, p!]));
 
     return appointments.slice(0, 6).map((c) => ({
       ...c,
-      nombrePaciente:  pacientesMap.get(c.pacienteId)?.nombre ?? 'Patient',
-      especiePaciente: pacientesMap.get(c.pacienteId)?.especie,
+      patientName:    patientMap.get(c.patientId)?.name ?? 'Patient',
+      patientSpecies: patientMap.get(c.patientId)?.species,
     }));
-  }, [hoy, horaActual]);
+  }, [today, currentTime]);
 
   return {
-    appointments:    resultado ?? [],
-    loading: resultado === undefined,
+    appointments: result ?? [],
+    loading:      result === undefined,
   };
 }
 
-/** Últimas 5 consultations registradas en la clínica. */
+/** Last 5 consultations registered at the clinic */
 export function useUltimasConsultasDashboard() {
-  const resultado = useLiveQuery(async () => {
-    const clinicaId = await getClinicaId();
+  const result = useLiveQuery(async () => {
+    const clinicId = await getClinicaId();
     const consultations = await db.consultations
-      .where('clinicaId').equals(clinicaId)
+      .where('clinicId').equals(clinicId)
       .filter((c) => !c.deletedAt)
       .reverse()
-      .sortBy('fecha')
+      .sortBy('date')
       .then((arr) => arr.slice(0, 5));
 
-    const pacienteIds = [...new Set(consultations.map((c) => c.pacienteId))];
-    const patients   = await db.patients.bulkGet(pacienteIds);
-    const pacientesMap = new Map(patients.filter(Boolean).map((p) => [p!.id, p!]));
+    const patientIds = [...new Set(consultations.map((c) => c.patientId))];
+    const patients   = await db.patients.bulkGet(patientIds);
+    const patientMap = new Map(patients.filter(Boolean).map((p) => [p!.id, p!]));
 
     return consultations.map((c) => ({
       ...c,
-      nombrePaciente: pacientesMap.get(c.pacienteId)?.nombre ?? 'Patient',
+      patientName: patientMap.get(c.patientId)?.name ?? 'Patient',
     }));
   }, []);
 
   return {
-    consultations: resultado ?? [],
-    loading:  resultado === undefined,
+    consultations: result ?? [],
+    loading:       result === undefined,
   };
 }

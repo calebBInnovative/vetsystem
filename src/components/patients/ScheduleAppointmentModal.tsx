@@ -26,13 +26,13 @@ export function AgendarCitaModal({ open, onClose, paciente }: Props) {
 
   const [fecha,      setFecha]      = useState(hoyStr);
   const [hora,       setHora]       = useState('09:00');
-  const [tipo,       setTipo]       = useState<AppointmentType>('consulta');
+  const [tipo,       setTipo]       = useState<AppointmentType>('consultation');
   const [duracion,   setDuracion]   = useState(30);
   const [motivo,     setMotivo]     = useState('');
   const [loading,   setCargando]   = useState(false);
   const [guardada,   setGuardada]   = useState(false);
   const [error,      setError]      = useState('');
-  const especie = PET_SPECIES[paciente.especie];
+  const especie = PET_SPECIES[paciente.species];
 
   async function handleAgendar() {
     if (!fecha) { setError('Selecciona la fecha'); return; }
@@ -40,12 +40,12 @@ export function AgendarCitaModal({ open, onClose, paciente }: Props) {
     setError('');
     try {
       await createAppointment({
-        pacienteId:      paciente.id,
-        fecha,
-        horaInicio:      hora,
-        duracionMinutos: duracion,
-        tipo,
-        motivo:          motivo.trim() || 'Appointment agendada',
+        patientId:       paciente.id,
+        date:            fecha,
+        startTime:       hora,
+        durationMinutes: duracion,
+        type:            tipo,
+        reason:          motivo.trim() || 'Appointment agendada',
       });
       setGuardada(true);
     } catch (e) {
@@ -59,7 +59,7 @@ export function AgendarCitaModal({ open, onClose, paciente }: Props) {
     setGuardada(false);
     setFecha(hoyStr);
     setHora('09:00');
-    setTipo('consulta');
+    setTipo('consultation');
     setDuracion(30);
     setMotivo('');
     setError('');
@@ -79,7 +79,7 @@ export function AgendarCitaModal({ open, onClose, paciente }: Props) {
             <CheckCircle2 size={48} className="text-green-500" />
             <p className="font-semibold text-lg">¡Appointment agendada!</p>
             <p className="text-sm text-muted-foreground">
-              {paciente.nombre} · {fecha.split('-').reverse().join('/')} a las {hora}
+              {paciente.name} · {fecha.split('-').reverse().join('/')} a las {hora}
             </p>
             <div className="flex gap-2 mt-2 w-full">
               <Button variant="outline" className="flex-1" onClick={handleCerrar}>
@@ -100,10 +100,10 @@ export function AgendarCitaModal({ open, onClose, paciente }: Props) {
             <div className="flex items-center gap-3 bg-muted/50 rounded-xl px-4 py-3">
               <span className="text-2xl">{especie.emoji}</span>
               <div>
-                <p className="font-semibold text-sm">{paciente.nombre}</p>
+                <p className="font-semibold text-sm">{paciente.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {especie.label}{paciente.raza && ` · ${paciente.raza}`}
-                  {paciente.dueno && ` · ${paciente.dueno.nombre}`}
+                  {especie.label}{paciente.breed && ` · ${paciente.breed}`}
+                  {paciente.owner && ` · ${paciente.owner.name}`}
                 </p>
               </div>
             </div>

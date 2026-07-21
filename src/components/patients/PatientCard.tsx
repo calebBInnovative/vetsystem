@@ -12,9 +12,9 @@ interface PacienteCardProps {
 }
 
 export function PacienteCard({ paciente }: PacienteCardProps) {
-  const especie = PET_SPECIES[paciente.especie];
+  const especie = PET_SPECIES[paciente.species];
   const sincronizado = paciente.syncStatus === 'synced';
-  const edad = paciente.fechaNacimiento ? calcularEdad(paciente.fechaNacimiento) : null;
+  const edad = paciente.birthDate ? calcularEdad(paciente.birthDate) : null;
 
   return (
     <Link href={`/patients/${paciente.id}`} className="block group">
@@ -30,12 +30,12 @@ export function PacienteCard({ paciente }: PacienteCardProps) {
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <h3 className="font-semibold truncate group-hover:text-primary transition-colors">
-                  {paciente.nombre}
+                  {paciente.name}
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {especie.label}
-                  {paciente.raza && ` · ${paciente.raza}`}
-                  {` · ${paciente.sexo === 'macho' ? '♂' : '♀'}`}
+                  {paciente.breed && ` · ${paciente.breed}`}
+                  {` · ${paciente.sex === 'male' ? '♂' : '♀'}`}
                   {edad && ` · ${edad}`}
                 </p>
               </div>
@@ -51,17 +51,17 @@ export function PacienteCard({ paciente }: PacienteCardProps) {
             </div>
 
             {/* Dueño */}
-            {paciente.dueno && (
+            {paciente.owner && (
               <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground">
                 <Phone size={11} className="shrink-0" />
-                <span className="truncate font-medium">{paciente.dueno.nombre}</span>
+                <span className="truncate font-medium">{paciente.owner.name}</span>
                 <span className="text-border shrink-0">·</span>
-                <span className="shrink-0">{paciente.dueno.telefono}</span>
+                <span className="shrink-0">{paciente.owner.phone}</span>
               </div>
             )}
 
-            {paciente.peso && (
-              <p className="text-xs text-muted-foreground mt-1">{paciente.peso} kg</p>
+            {paciente.weight && (
+              <p className="text-xs text-muted-foreground mt-1">{paciente.weight} kg</p>
             )}
           </div>
         </div>
@@ -79,9 +79,9 @@ export function PacienteCard({ paciente }: PacienteCardProps) {
   );
 }
 
-function calcularEdad(fechaNacimiento: string): string {
+function calcularEdad(birthDate: string): string {
   const hoy = new Date();
-  const nac = new Date(fechaNacimiento);
+  const nac = new Date(birthDate);
   const meses =
     (hoy.getFullYear() - nac.getFullYear()) * 12 + (hoy.getMonth() - nac.getMonth());
 

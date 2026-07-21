@@ -50,8 +50,8 @@ export function AgendaDia({ fecha }: AgendaDiaProps) {
   }
 
   // Separar en activas y finalizadas/canceladas
-  const activas    = appointments.filter((c) => !['completada', 'cancelada', 'no_asistio'].includes(c.estado));
-  const finalizadas = appointments.filter((c) => ['completada', 'cancelada', 'no_asistio'].includes(c.estado));
+  const activas    = appointments.filter((c) => !['completed', 'cancelled', 'no_show'].includes(c.status));
+  const finalizadas = appointments.filter((c) => ['completed', 'cancelled', 'no_show'].includes(c.status));
 
   return (
     <div className="space-y-6">

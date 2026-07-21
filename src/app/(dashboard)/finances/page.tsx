@@ -10,26 +10,26 @@ import { Plus, Search, Filter } from 'lucide-react';
 import type { PaymentStatus } from '@/types/finances';
 
 const FILTROS_ESTADO: { label: string; valor: PaymentStatus | 'todos' }[] = [
-  { label: 'Todos',        valor: 'todos'       },
-  { label: 'Pagados',      valor: 'pagado'      },
-  { label: 'Pendientes',   valor: 'pendiente'   },
-  { label: 'Cancelados',   valor: 'cancelado'   },
-  { label: 'Reembolsados', valor: 'reembolsado' },
+  { label: 'Todos',        valor: 'todos'      },
+  { label: 'Pagados',      valor: 'paid'       },
+  { label: 'Pendientes',   valor: 'pending'    },
+  { label: 'Cancelados',   valor: 'cancelled'  },
+  { label: 'Reembolsados', valor: 'refunded'   },
 ];
 
 export default function FinancesPage() {
   const [filtroEstado, setFiltroEstado] = useState<PaymentStatus | 'todos'>('todos');
-  const [busqueda, setBusqueda] = useState('');
+  const [searchQuery, setSearchQuery]   = useState('');
 
   const { payments, loading } = usePayments();
 
   const pagosFiltrados = payments.filter((p) => {
-    if (filtroEstado !== 'todos' && p.estado !== filtroEstado) return false;
-    if (busqueda) {
-      const q = busqueda.toLowerCase();
+    if (filtroEstado !== 'todos' && p.status !== filtroEstado) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
       return (
-        p.concepto.toLowerCase().includes(q) ||
-        p.nombrePaciente?.toLowerCase().includes(q)
+        p.concept.toLowerCase().includes(q) ||
+        p.patientName?.toLowerCase().includes(q)
       );
     }
     return true;
@@ -59,8 +59,8 @@ export default function FinancesPage() {
         <div className="relative flex-1">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Buscar por concepto o paciente…"
             className="w-full rounded-xl border border-input bg-background pl-9 pr-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
@@ -95,11 +95,11 @@ export default function FinancesPage() {
         <div className="text-center py-16 text-muted-foreground">
           <p className="text-lg font-medium">Sin payments</p>
           <p className="text-sm mt-1">
-            {busqueda || filtroEstado !== 'todos'
+            {searchQuery || filtroEstado !== 'todos'
               ? 'No hay resultados para los filtros actuales'
               : 'Registra el primer pago del mes'}
           </p>
-          {!busqueda && filtroEstado === 'todos' && (
+          {!searchQuery && filtroEstado === 'todos' && (
             <Link href="/finances/new">
               <Button size="sm" className="mt-4 gap-1.5">
                 <Plus size={14} /> Registrar pago

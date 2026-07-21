@@ -32,15 +32,15 @@ export function CitaForm({
   } = useForm<CitaFormData>({
     resolver: zodResolver(citaSchema),
     defaultValues: {
-      tipo:             'consulta',
-      duracionMinutos:  30,
-      horaInicio:       '08:00',
-      fecha:            new Date().toISOString().slice(0, 10),
+      type:            'consultation',
+      durationMinutes: 30,
+      startTime:       '08:00',
+      date:            new Date().toISOString().slice(0, 10),
       ...defaultValues,
     },
   });
 
-  const tipoActual = watch('tipo');
+  const tipoActual = watch('type');
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
@@ -49,11 +49,11 @@ export function CitaForm({
       <section>
         <h3 className={seccionLabel}>Patient</h3>
         <PacienteSelector
-          value={watch('pacienteId')}
-          onChange={(id) => setValue('pacienteId', id, { shouldValidate: true })}
-          hasError={!!errors.pacienteId}
+          value={watch('patientId')}
+          onChange={(id) => setValue('patientId', id, { shouldValidate: true })}
+          hasError={!!errors.patientId}
         />
-        {errors.pacienteId && <Err>{errors.pacienteId.message}</Err>}
+        {errors.patientId && <Err>{errors.patientId.message}</Err>}
       </section>
 
       {/* ── Tipo de cita ─────────────────────────────────── */}
@@ -65,7 +65,7 @@ export function CitaForm({
               <button
                 key={valor}
                 type="button"
-                onClick={() => setValue('tipo', valor, { shouldValidate: true })}
+                onClick={() => setValue('type', valor, { shouldValidate: true })}
                 className={cn(
                   'flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all text-left',
                   tipoActual === valor
@@ -79,7 +79,7 @@ export function CitaForm({
             )
           )}
         </div>
-        {errors.tipo && <Err>{errors.tipo.message}</Err>}
+        {errors.type && <Err>{errors.type.message}</Err>}
       </section>
 
       {/* ── Fecha y hora ─────────────────────────────────── */}
@@ -93,14 +93,14 @@ export function CitaForm({
               Fecha <span className="text-destructive">*</span>
             </label>
             <DatePicker
-              value={watch('fecha')}
-              onChange={(v) => setValue('fecha', v ?? '', { shouldValidate: true })}
+              value={watch('date')}
+              onChange={(v) => setValue('date', v ?? '', { shouldValidate: true })}
               placeholder="Selecciona la fecha"
-              hasError={!!errors.fecha}
+              hasError={!!errors.date}
               fromDate={new Date()}
               toDate={new Date(new Date().getFullYear() + 2, 11, 31)}
             />
-            {errors.fecha && <Err>{errors.fecha.message}</Err>}
+            {errors.date && <Err>{errors.date.message}</Err>}
           </div>
 
           {/* Hora de inicio */}
@@ -109,18 +109,18 @@ export function CitaForm({
               Hora de inicio <span className="text-destructive">*</span>
             </label>
             <input
-              {...register('horaInicio')}
+              {...register('startTime')}
               type="time"
-              className={field(!!errors.horaInicio)}
+              className={field(!!errors.startTime)}
             />
-            {errors.horaInicio && <Err>{errors.horaInicio.message}</Err>}
+            {errors.startTime && <Err>{errors.startTime.message}</Err>}
           </div>
 
           {/* Duración */}
           <div>
             <label className={labelClass}>Duración</label>
             <select
-              {...register('duracionMinutos')}
+              {...register('durationMinutes')}
               className={field(false)}
             >
               {APPOINTMENT_DURATIONS.map((d) => (
@@ -142,18 +142,18 @@ export function CitaForm({
               Motivo <span className="text-destructive">*</span>
             </label>
             <input
-              {...register('motivo')}
+              {...register('reason')}
               placeholder="¿Por qué viene la mascota?"
-              className={field(!!errors.motivo)}
+              className={field(!!errors.reason)}
               autoFocus
             />
-            {errors.motivo && <Err>{errors.motivo.message}</Err>}
+            {errors.reason && <Err>{errors.reason.message}</Err>}
           </div>
 
           <div>
             <label className={labelClass}>Veterinario asignado</label>
             <input
-              {...register('veterinario')}
+              {...register('veterinarian')}
               placeholder="Nombre del veterinario"
               className={field(false)}
             />
@@ -162,7 +162,7 @@ export function CitaForm({
           <div>
             <label className={labelClass}>Notas internas</label>
             <input
-              {...register('notas')}
+              {...register('notes')}
               placeholder="Notas adicionales..."
               className={field(false)}
             />

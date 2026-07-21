@@ -19,20 +19,20 @@ interface Props {
 
 export function IniciarConsultaModal({ open, onClose, paciente }: Props) {
   const router    = useRouter();
-  const [tipo,    setTipo]    = useState<ConsultationType>('consulta_general');
+  const [tipo,    setTipo]    = useState<ConsultationType>('general_consultation');
   const [motivo,  setMotivo]  = useState('');
   const [loading,setCargando]= useState(false);
   const [error,   setError]   = useState('');
-  const especie = PET_SPECIES[paciente.especie];
+  const especie = PET_SPECIES[paciente.species];
 
   async function handleIniciar() {
     setCargando(true);
     setError('');
     try {
       const id = await startConsultation({
-        pacienteId: paciente.id,
-        tipo,
-        motivo: motivo.trim() || undefined,
+        patientId: paciente.id,
+        type: tipo,
+        reason: motivo.trim() || undefined,
       });
       router.push(`/consultations/${id}`);
     } catch (e) {
@@ -53,10 +53,10 @@ export function IniciarConsultaModal({ open, onClose, paciente }: Props) {
           <div className="flex items-center gap-3 bg-muted/50 rounded-xl px-4 py-3">
             <span className="text-2xl">{especie.emoji}</span>
             <div>
-              <p className="font-semibold text-sm">{paciente.nombre}</p>
+              <p className="font-semibold text-sm">{paciente.name}</p>
               <p className="text-xs text-muted-foreground">
-                {especie.label}{paciente.raza && ` · ${paciente.raza}`}
-                {paciente.dueno && ` · ${paciente.dueno.nombre}`}
+                {especie.label}{paciente.breed && ` · ${paciente.breed}`}
+                {paciente.owner && ` · ${paciente.owner.name}`}
               </p>
             </div>
           </div>

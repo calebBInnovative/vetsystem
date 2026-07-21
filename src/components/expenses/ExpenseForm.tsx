@@ -27,20 +27,20 @@ export function GastoFijoForm({ open, onClose, gasto }: Props) {
   const editando = !!gasto;
 
   const [nombre,    setNombre]    = useState('');
-  const [categoria, setCategoria] = useState<ExpenseCategory>('otros');
+  const [categoria, setCategoria] = useState<ExpenseCategory>('other');
   const [monto,     setMonto]     = useState('');
-  const [frecuencia, setFrecuencia] = useState<ExpenseFrequency>('mensual');
+  const [frecuencia, setFrecuencia] = useState<ExpenseFrequency>('monthly');
   const [diaPago,   setDiaPago]   = useState('1');
   const [guardando, setGuardando] = useState(false);
   const [error,     setError]     = useState('');
 
   useEffect(() => {
     if (open) {
-      setNombre(gasto?.nombre    ?? '');
-      setCategoria(gasto?.categoria ?? 'otros');
-      setMonto(gasto?.monto != null ? String(gasto.monto) : '');
-      setFrecuencia(gasto?.frecuencia ?? 'mensual');
-      setDiaPago(gasto?.diaPago != null ? String(gasto.diaPago) : '1');
+      setNombre(gasto?.name      ?? '');
+      setCategoria(gasto?.category ?? 'other');
+      setMonto(gasto?.amount != null ? String(gasto.amount) : '');
+      setFrecuencia(gasto?.frequency ?? 'monthly');
+      setDiaPago(gasto?.paymentDay != null ? String(gasto.paymentDay) : '1');
       setError('');
     }
   }, [open, gasto]);
@@ -63,19 +63,19 @@ export function GastoFijoForm({ open, onClose, gasto }: Props) {
     try {
       if (editando && gasto) {
         await updateFixedExpense(gasto.id, {
-          nombre:    nombre.trim(),
-          monto:     montoNum,
-          categoria,
-          frecuencia,
-          diaPago:   diaPagoNum,
+          name:       nombre.trim(),
+          amount:     montoNum,
+          category:   categoria,
+          frequency:  frecuencia,
+          paymentDay: diaPagoNum,
         });
       } else {
         await createFixedExpense({
-          nombre:    nombre.trim(),
-          monto:     montoNum,
-          categoria,
-          frecuencia,
-          diaPago:   diaPagoNum,
+          name:       nombre.trim(),
+          amount:     montoNum,
+          category:   categoria,
+          frequency:  frecuencia,
+          paymentDay: diaPagoNum,
         });
       }
       onClose();

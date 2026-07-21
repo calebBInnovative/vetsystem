@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 
 interface ProductoFormProps {
-  onSubmit: (datos: ProductoFormData) => Promise<void>;
+  onSubmit: (data: ProductoFormData) => Promise<void>;
   loading?: boolean;
   defaultValues?: Partial<ProductoFormData>;
   textoBoton?: string;
@@ -31,15 +31,15 @@ export function ProductoForm({
   } = useForm<ProductoFormData>({
     resolver: zodResolver(productoSchema),
     defaultValues: {
-      categoria:       'medicamento',
-      unidad:          'unidad',
-      stockActual:     0,
-      stockMinimo:     5,
+      category:     'medication',
+      unit:         'unit',
+      currentStock: 0,
+      minimumStock: 5,
       ...defaultValues,
     },
   });
 
-  const categoriaActual = watch('categoria');
+  const categoryActual = watch('category');
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
@@ -53,10 +53,10 @@ export function ProductoForm({
               <button
                 key={valor}
                 type="button"
-                onClick={() => setValue('categoria', valor, { shouldValidate: true })}
+                onClick={() => setValue('category', valor, { shouldValidate: true })}
                 className={cn(
                   'flex flex-col items-center gap-1 p-2.5 rounded-xl border-2 text-xs font-medium transition-all',
-                  categoriaActual === valor
+                  categoryActual === valor
                     ? 'border-primary bg-primary/10 text-primary'
                     : 'border-border hover:border-primary/40 text-muted-foreground'
                 )}
@@ -67,7 +67,7 @@ export function ProductoForm({
             )
           )}
         </div>
-        {errors.categoria && <Err>{errors.categoria.message}</Err>}
+        {errors.category && <Err>{errors.category.message}</Err>}
       </section>
 
       {/* ── Datos básicos ────────────────────────────────── */}
@@ -80,18 +80,18 @@ export function ProductoForm({
               Nombre <span className="text-destructive">*</span>
             </label>
             <input
-              {...register('nombre')}
+              {...register('name')}
               placeholder="Nombre del producto o medicamento"
-              className={field(!!errors.nombre)}
+              className={field(!!errors.name)}
               autoFocus
             />
-            {errors.nombre && <Err>{errors.nombre.message}</Err>}
+            {errors.name && <Err>{errors.name.message}</Err>}
           </div>
 
           <div className="sm:col-span-2">
             <label className={labelClass}>Descripción</label>
             <textarea
-              {...register('descripcion')}
+              {...register('description')}
               rows={2}
               placeholder="Descripción, concentración, presentación..."
               className={cn(field(false), 'resize-none')}
@@ -101,7 +101,7 @@ export function ProductoForm({
           <div>
             <label className={labelClass}>Proveedor / Laboratorio</label>
             <input
-              {...register('proveedor')}
+              {...register('supplier')}
               placeholder="Nombre del proveedor"
               className={field(false)}
             />
@@ -111,12 +111,12 @@ export function ProductoForm({
             <label className={labelClass}>
               Unidad de medida <span className="text-destructive">*</span>
             </label>
-            <select {...register('unidad')} className={field(!!errors.unidad)}>
+            <select {...register('unit')} className={field(!!errors.unit)}>
               {(Object.entries(MEASUREMENT_UNITS) as [string, string][]).map(([val, label]) => (
                 <option key={val} value={val}>{label}</option>
               ))}
             </select>
-            {errors.unidad && <Err>{errors.unidad.message}</Err>}
+            {errors.unit && <Err>{errors.unit.message}</Err>}
           </div>
 
         </div>
@@ -132,14 +132,14 @@ export function ProductoForm({
               Stock actual <span className="text-destructive">*</span>
             </label>
             <input
-              {...register('stockActual')}
+              {...register('currentStock')}
               type="number"
               min="0"
               step="any"
               placeholder="0"
-              className={field(!!errors.stockActual)}
+              className={field(!!errors.currentStock)}
             />
-            {errors.stockActual && <Err>{errors.stockActual.message}</Err>}
+            {errors.currentStock && <Err>{errors.currentStock.message}</Err>}
           </div>
 
           <div>
@@ -147,38 +147,38 @@ export function ProductoForm({
               Stock mínimo <span className="text-destructive">*</span>
             </label>
             <input
-              {...register('stockMinimo')}
+              {...register('minimumStock')}
               type="number"
               min="0"
               step="any"
               placeholder="5"
-              className={field(!!errors.stockMinimo)}
+              className={field(!!errors.minimumStock)}
             />
-            {errors.stockMinimo && <Err>{errors.stockMinimo.message}</Err>}
+            {errors.minimumStock && <Err>{errors.minimumStock.message}</Err>}
           </div>
 
           <div>
             <label className={labelClass}>Precio de venta ($)</label>
             <input
-              {...register('precioVenta')}
+              {...register('salePrice')}
               type="number"
               step="0.01"
               min="0"
               placeholder="0.00"
-              className={field(!!errors.precioVenta)}
+              className={field(!!errors.salePrice)}
             />
-            {errors.precioVenta && <Err>{errors.precioVenta.message}</Err>}
+            {errors.salePrice && <Err>{errors.salePrice.message}</Err>}
           </div>
 
           <div>
             <label className={labelClass}>Precio de costo ($)</label>
             <input
-              {...register('precioCosto')}
+              {...register('costPrice')}
               type="number"
               step="0.01"
               min="0"
               placeholder="0.00"
-              className={field(!!errors.precioCosto)}
+              className={field(false)}
             />
           </div>
 
@@ -193,7 +193,7 @@ export function ProductoForm({
           <div>
             <label className={labelClass}>Número de lote</label>
             <input
-              {...register('lote')}
+              {...register('batch')}
               placeholder="Ej: LOT-2024-001"
               className={field(false)}
             />
@@ -202,8 +202,8 @@ export function ProductoForm({
           <div>
             <label className={labelClass}>Fecha de vencimiento</label>
             <DatePicker
-              value={watch('fechaVencimiento')}
-              onChange={(v) => setValue('fechaVencimiento', v, { shouldValidate: true })}
+              value={watch('expirationDate')}
+              onChange={(v) => setValue('expirationDate', v, { shouldValidate: true })}
               placeholder="Selecciona la fecha"
               toDate={new Date(new Date().getFullYear() + 10, 11, 31)}
               fromDate={new Date()}

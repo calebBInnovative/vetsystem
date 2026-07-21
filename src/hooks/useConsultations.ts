@@ -5,302 +5,300 @@ import { db, getClinicaId, type SyncQueueItem } from '@/lib/db/database';
 import type { ConsultationLocal, ConsultationWithPatient, ConsultationStatus, ConsultationType } from '@/types/consultation';
 import type { ConsultaFormData } from '@/lib/validations/consultation.schema';
 
-const VETERINARIO  = 'Dra. Patricia Vega';
+const DEFAULT_VETERINARIAN = 'Dra. Patricia Vega';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HOOKS DE LECTURA
+// READ HOOKS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Lista de consultations de la clínica con filtros opcionales */
-export function useConsultations(filtros?: {
-  estado?: ConsultationStatus;
-  tipo?: ConsultationType;
-  fechaDesde?: number;
-  fechaHasta?: number;
+export function useConsultations(filters?: {
+  status?: ConsultationStatus;
+  type?: ConsultationType;
+  dateFrom?: number;
+  dateTo?: number;
 }) {
-  const resultado = useLiveQuery(async () => {
-    const clinicaId = await getClinicaId();
+  const result = useLiveQuery(async () => {
+    const clinicId = await getClinicaId();
     let consultations = await db.consultations
-      .where('clinicaId')
-      .equals(clinicaId)
+      .where('clinicId')
+      .equals(clinicId)
       .filter((c) => !c.deletedAt)
       .toArray();
 
-    if (filtros?.estado)     consultations = consultations.filter((c) => c.estado === filtros.estado);
-    if (filtros?.tipo)       consultations = consultations.filter((c) => c.tipo   === filtros.tipo);
-    if (filtros?.fechaDesde) consultations = consultations.filter((c) => c.fecha  >= filtros.fechaDesde!);
-    if (filtros?.fechaHasta) consultations = consultations.filter((c) => c.fecha  <= filtros.fechaHasta!);
+    if (filters?.status)   consultations = consultations.filter((c) => c.status === filters.status);
+    if (filters?.type)     consultations = consultations.filter((c) => c.type   === filters.type);
+    if (filters?.dateFrom) consultations = consultations.filter((c) => c.date   >= filters.dateFrom!);
+    if (filters?.dateTo)   consultations = consultations.filter((c) => c.date   <= filters.dateTo!);
 
-    consultations.sort((a, b) => b.fecha - a.fecha);
+    consultations.sort((a, b) => b.date - a.date);
 
-    const pacienteIds  = [...new Set(consultations.map((c) => c.pacienteId))];
-    const patients    = await db.patients.bulkGet(pacienteIds);
-    const pacientesMap = new Map(patients.filter(Boolean).map((p) => [p!.id, p!]));
+    const patientIds  = [...new Set(consultations.map((c) => c.patientId))];
+    const patients    = await db.patients.bulkGet(patientIds);
+    const patientMap  = new Map(patients.filter(Boolean).map((p) => [p!.id, p!]));
 
-    const duenoIds  = [...new Set(consultations.map((c) => c.duenoId).filter(Boolean))];
-    const duenos    = await db.owners.bulkGet(duenoIds);
-    const duenosMap = new Map(duenos.filter(Boolean).map((d) => [d!.id, d!]));
+    const ownerIds    = [...new Set(consultations.map((c) => c.ownerId).filter(Boolean))];
+    const owners      = await db.owners.bulkGet(ownerIds);
+    const ownerMap    = new Map(owners.filter(Boolean).map((d) => [d!.id, d!]));
 
     return consultations.map<ConsultationWithPatient>((c) => ({
       ...c,
-      nombrePaciente:  pacientesMap.get(c.pacienteId)?.nombre,
-      especiePaciente: pacientesMap.get(c.pacienteId)?.especie,
-      nombreDueno:     duenosMap.get(c.duenoId)?.nombre,
+      patientName:    patientMap.get(c.patientId)?.name,
+      patientSpecies: patientMap.get(c.patientId)?.species,
+      ownerName:      ownerMap.get(c.ownerId)?.name,
     }));
-  }, [filtros?.estado, filtros?.tipo, filtros?.fechaDesde, filtros?.fechaHasta]);
+  }, [filters?.status, filters?.type, filters?.dateFrom, filters?.dateTo]);
 
   return {
-    consultations: resultado ?? [],
-    loading:  resultado === undefined,
+    consultations: result ?? [],
+    loading: result === undefined,
   };
 }
 
-/** Consultas en proceso (activas ahora) */
+/** Consultations currently in progress */
 export function useConsultasEnProceso() {
-  const resultado = useLiveQuery(async () => {
-    const clinicaId = await getClinicaId();
+  const result = useLiveQuery(async () => {
+    const clinicId = await getClinicaId();
     const consultations = await db.consultations
-      .where('estado')
-      .equals('en_proceso')
-      .filter((c) => !c.deletedAt && c.clinicaId === clinicaId)
+      .where('status')
+      .equals('in_progress')
+      .filter((c) => !c.deletedAt && c.clinicId === clinicId)
       .toArray();
 
-    const pacienteIds  = [...new Set(consultations.map((c) => c.pacienteId))];
-    const patients    = await db.patients.bulkGet(pacienteIds);
-    const pacientesMap = new Map(patients.filter(Boolean).map((p) => [p!.id, p!]));
+    const patientIds = [...new Set(consultations.map((c) => c.patientId))];
+    const patients   = await db.patients.bulkGet(patientIds);
+    const patientMap = new Map(patients.filter(Boolean).map((p) => [p!.id, p!]));
 
     return consultations.map<ConsultationWithPatient>((c) => ({
       ...c,
-      nombrePaciente:  pacientesMap.get(c.pacienteId)?.nombre,
-      especiePaciente: pacientesMap.get(c.pacienteId)?.especie,
+      patientName:    patientMap.get(c.patientId)?.name,
+      patientSpecies: patientMap.get(c.patientId)?.species,
     }));
   }, []);
 
-  return resultado ?? [];
+  return result ?? [];
 }
 
-/** Una consulta individual por ID */
+/** Single consultation by ID with owner and patient joined */
 export function useConsultation(id: string) {
-  const resultado = useLiveQuery(async () => {
+  const result = useLiveQuery(async () => {
     const c = await db.consultations.get(id);
     if (!c || c.deletedAt) return null;
 
-    const paciente = await db.patients.get(c.pacienteId);
-    const dueno    = c.duenoId ? await db.owners.get(c.duenoId) : undefined;
+    const patient = await db.patients.get(c.patientId);
+    const owner   = c.ownerId ? await db.owners.get(c.ownerId) : undefined;
 
     return {
       ...c,
-      nombrePaciente:  paciente?.nombre,
-      especiePaciente: paciente?.especie,
-      nombreDueno:     dueno?.nombre,
-      telefonoDueno:   dueno?.telefono,
+      patientName:    patient?.name,
+      patientSpecies: patient?.species,
+      ownerName:      owner?.name,
+      ownerPhone:     owner?.phone,
     };
   }, [id]);
 
   return {
-    consulta: resultado ?? null,
-    loading: resultado === undefined,
+    consulta: result ?? null,
+    loading: result === undefined,
   };
 }
 
-/** Historial de consultations de un paciente */
-export function useConsultasPaciente(pacienteId: string) {
-  const resultado = useLiveQuery(async () => {
+/** All consultations for a specific patient */
+export function useConsultasPaciente(patientId: string) {
+  const result = useLiveQuery(async () => {
     const consultations = await db.consultations
-      .where('pacienteId')
-      .equals(pacienteId)
+      .where('patientId')
+      .equals(patientId)
       .filter((c) => !c.deletedAt)
       .toArray();
-    return consultations.sort((a, b) => b.fecha - a.fecha);
-  }, [pacienteId]);
+    return consultations.sort((a, b) => b.date - a.date);
+  }, [patientId]);
 
   return {
-    consultations: resultado ?? [],
-    loading:  resultado === undefined,
+    consultations: result ?? [],
+    loading: result === undefined,
   };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MUTACIONES
+// MUTATIONS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Inicia una nueva consulta en estado "en_proceso" */
-export async function startConsultation(datos: {
-  pacienteId: string;
-  citaId?: string;
-  tipo?: ConsultaFormData['tipo'];
-  motivo?: string;
+/** Opens a new consultation in "in_progress" status */
+export async function startConsultation(data: {
+  patientId: string;
+  appointmentId?: string;
+  type?: ConsultaFormData['type'];
+  reason?: string;
 }): Promise<string> {
-  const ahora = Date.now();
-  const id    = crypto.randomUUID();
-  const clinicaId = await getClinicaId();
+  const now      = Date.now();
+  const id       = crypto.randomUUID();
+  const clinicId = await getClinicaId();
 
-  const paciente = await db.patients.get(datos.pacienteId);
-  if (!paciente) throw new Error('Patient no encontrado');
+  const patient = await db.patients.get(data.patientId);
+  if (!patient) throw new Error('Patient not found');
 
-  const nueva: ConsultationLocal = {
+  const newConsultation: ConsultationLocal = {
     id,
-    pacienteId: datos.pacienteId,
-    duenoId:    paciente.duenoId,
-    clinicaId:  clinicaId,
-    citaId:     datos.citaId,
-    fecha:      ahora,
-    tipo:       datos.tipo ?? 'consulta_general',
-    estado:     'en_proceso',
-    motivo:     datos.motivo ?? '',
-    items:      [],
-    subtotal:   0,
-    descuento:  0,
-    total:      0,
-    veterinario: VETERINARIO,
-    creadoEn:   ahora,
-    syncStatus: 'pending',
-    updatedAt:  ahora,
+    patientId:     data.patientId,
+    ownerId:       patient.ownerId,
+    clinicId:      clinicId,
+    appointmentId: data.appointmentId,
+    date:          now,
+    type:          data.type ?? 'general_consultation',
+    status:        'in_progress',
+    reason:        data.reason ?? '',
+    items:         [],
+    subtotal:      0,
+    discount:      0,
+    total:         0,
+    veterinarian:  DEFAULT_VETERINARIAN,
+    createdAt:     now,
+    syncStatus:    'pending',
+    updatedAt:     now,
   };
 
-  await db.consultations.add(nueva);
-  await encolarSync({ coleccion: 'consultations', documentoId: id, operacion: 'create', datos: nueva, intentos: 0, creadoEn: ahora });
+  await db.consultations.add(newConsultation);
+  await encolarSync({ collection: 'consultations', documentId: id, operation: 'create', data: newConsultation, attempts: 0, createdAt: now });
 
-  // Si viene de una cita, marcarla como en_curso
-  if (datos.citaId) {
-    await db.appointments.update(datos.citaId, { estado: 'en_curso', updatedAt: ahora, syncStatus: 'pending' });
-    await encolarSync({ coleccion: 'appointments', documentoId: datos.citaId, operacion: 'update', datos: { id: datos.citaId, estado: 'en_curso', updatedAt: ahora }, intentos: 0, creadoEn: ahora });
+  // If from an appointment, mark it as in_progress
+  if (data.appointmentId) {
+    await db.appointments.update(data.appointmentId, { status: 'in_progress', updatedAt: now, syncStatus: 'pending' });
+    await encolarSync({ collection: 'appointments', documentId: data.appointmentId, operation: 'update', data: { id: data.appointmentId, status: 'in_progress', updatedAt: now }, attempts: 0, createdAt: now });
   }
 
   return id;
 }
 
-/** Guarda los datos clínicos sin finalizar (auto-guardado) */
-export async function saveConsultation(id: string, datos: ConsultaFormData): Promise<void> {
-  const ahora = Date.now();
-  const subtotal = calcularSubtotal(datos.items ?? []);
-  const descuento = datos.descuento ?? 0;
-  const total = Math.max(0, subtotal - descuento);
+/** Auto-save: persist clinical data without finalizing */
+export async function saveConsultation(id: string, data: ConsultaFormData): Promise<void> {
+  const now       = Date.now();
+  const subtotal  = calcSubtotal(data.items ?? []);
+  const discount  = data.discount ?? 0;
+  const total     = Math.max(0, subtotal - discount);
 
-  const cambios: Partial<ConsultationLocal> = {
-    tipo:                  datos.tipo,
-    motivo:                datos.motivo,
-    peso:                  datos.peso,
-    temperatura:           datos.temperatura,
-    frecuenciaCardiaca:    datos.frecuenciaCardiaca,
-    frecuenciaRespiratoria:datos.frecuenciaRespiratoria,
-    anamnesis:             datos.anamnesis    || undefined,
-    examenFisico:          datos.examenFisico || undefined,
-    diagnostico:           datos.diagnostico  || undefined,
-    tratamiento:           datos.tratamiento  || undefined,
-    observaciones:         datos.observaciones|| undefined,
-    proximaVisita:         datos.proximaVisita|| undefined,
-    veterinario:           datos.veterinario  || undefined,
-    items:                 datos.items,
+  const changes: Partial<ConsultationLocal> = {
+    type:              data.type,
+    reason:            data.reason,
+    weight:            data.weight,
+    temperature:       data.temperature,
+    heartRate:         data.heartRate,
+    respiratoryRate:   data.respiratoryRate,
+    anamnesis:         data.anamnesis    || undefined,
+    physicalExam:      data.physicalExam || undefined,
+    diagnosis:         data.diagnosis    || undefined,
+    treatment:         data.treatment    || undefined,
+    observations:      data.observations || undefined,
+    nextVisit:         data.nextVisit    || undefined,
+    veterinarian:      data.veterinarian || undefined,
+    items:             data.items,
     subtotal,
-    descuento,
+    discount,
     total,
-    updatedAt:  ahora,
-    syncStatus: 'pending',
+    updatedAt:         now,
+    syncStatus:        'pending',
   };
 
-  await db.consultations.update(id, cambios);
-  await encolarSync({ coleccion: 'consultations', documentoId: id, operacion: 'update', datos: { id, ...cambios }, intentos: 0, creadoEn: ahora });
+  await db.consultations.update(id, changes);
+  await encolarSync({ collection: 'consultations', documentId: id, operation: 'update', data: { id, ...changes }, attempts: 0, createdAt: now });
 }
 
-/** Finaliza la consulta: completa inventario, genera pago */
-export async function finalizeConsultation(id: string, datos: ConsultaFormData): Promise<void> {
-  const ahora    = Date.now();
-  const subtotal = calcularSubtotal(datos.items ?? []);
-  const descuento = datos.descuento ?? 0;
-  const total    = Math.max(0, subtotal - descuento);
-  const clinicaId = await getClinicaId();
+/** Finalize: update inventory, mark appointment completed */
+export async function finalizeConsultation(id: string, data: ConsultaFormData): Promise<void> {
+  const now       = Date.now();
+  const subtotal  = calcSubtotal(data.items ?? []);
+  const discount  = data.discount ?? 0;
+  const total     = Math.max(0, subtotal - discount);
+  const clinicId  = await getClinicaId();
 
   await db.transaction('rw',
     [db.consultations, db.products, db.movements, db.appointments, db.syncQueue],
     async () => {
-      const consulta = await db.consultations.get(id);
-      if (!consulta) throw new Error('Consultation no encontrada');
+      const consultation = await db.consultations.get(id);
+      if (!consultation) throw new Error('Consultation not found');
 
-      // 1 — Guardar datos clínicos completos
+      // 1 — Save full clinical data and mark completed
       await db.consultations.update(id, {
-        tipo:                  datos.tipo,
-        motivo:                datos.motivo,
-        peso:                  datos.peso,
-        temperatura:           datos.temperatura,
-        frecuenciaCardiaca:    datos.frecuenciaCardiaca,
-        frecuenciaRespiratoria:datos.frecuenciaRespiratoria,
-        anamnesis:             datos.anamnesis    || undefined,
-        examenFisico:          datos.examenFisico || undefined,
-        diagnostico:           datos.diagnostico  || undefined,
-        tratamiento:           datos.tratamiento  || undefined,
-        observaciones:         datos.observaciones|| undefined,
-        proximaVisita:         datos.proximaVisita|| undefined,
-        veterinario:           datos.veterinario  || undefined,
-        items:                 datos.items,
+        type:              data.type,
+        reason:            data.reason,
+        weight:            data.weight,
+        temperature:       data.temperature,
+        heartRate:         data.heartRate,
+        respiratoryRate:   data.respiratoryRate,
+        anamnesis:         data.anamnesis    || undefined,
+        physicalExam:      data.physicalExam || undefined,
+        diagnosis:         data.diagnosis    || undefined,
+        treatment:         data.treatment    || undefined,
+        observations:      data.observations || undefined,
+        nextVisit:         data.nextVisit    || undefined,
+        veterinarian:      data.veterinarian || undefined,
+        items:             data.items,
         subtotal,
-        descuento,
+        discount,
         total,
-        estado:     'completada',
-        updatedAt:  ahora,
+        status:     'completed',
+        updatedAt:  now,
         syncStatus: 'pending',
       });
 
-      // 2 — Descontar inventario por cada producto (no services)
-      for (const item of (datos.items ?? []).filter((i) => !i.esServicio && i.productoId)) {
-        const prod = await db.products.get(item.productoId!);
+      // 2 — Deduct inventory for each product item (not services)
+      for (const item of (data.items ?? []).filter((i) => !i.isService && i.productId)) {
+        const prod = await db.products.get(item.productId!);
         if (!prod) continue;
-        const stockNuevo = Math.max(0, prod.stockActual - item.cantidad);
-        await db.products.update(item.productoId!, {
-          stockActual: stockNuevo,
-          updatedAt:   ahora,
-          syncStatus:  'pending',
+        const newStock = Math.max(0, prod.currentStock - item.quantity);
+        await db.products.update(item.productId!, {
+          currentStock: newStock,
+          updatedAt:    now,
+          syncStatus:   'pending',
         });
-        await encolarSync({ coleccion: 'products', documentoId: item.productoId!, operacion: 'update', datos: { id: item.productoId!, stockActual: stockNuevo, updatedAt: ahora }, intentos: 0, creadoEn: ahora });
+        await encolarSync({ collection: 'products', documentId: item.productId!, operation: 'update', data: { id: item.productId!, currentStock: newStock, updatedAt: now }, attempts: 0, createdAt: now });
 
         const movId = crypto.randomUUID();
         await db.movements.add({
-          id:           movId,
-          productoId:   item.productoId!,
-          clinicaId:    clinicaId,
-          tipo:         'salida',
-          cantidad:     item.cantidad,
-          stockAntes:   prod.stockActual,
-          stockDespues: stockNuevo,
-          motivo:       `Consultation #${id.slice(0, 8)}`,
-          referenciaId: id,
-          creadoEn:     ahora,
-          syncStatus:   'pending',
-          updatedAt:    ahora,
+          id:          movId,
+          productId:   item.productId!,
+          clinicId:    clinicId,
+          type:        'exit',
+          quantity:    item.quantity,
+          stockBefore: prod.currentStock,
+          stockAfter:  newStock,
+          reason:      `Consultation #${id.slice(0, 8)}`,
+          referenceId: id,
+          createdAt:   now,
+          syncStatus:  'pending',
+          updatedAt:   now,
         });
-        await encolarSync({ coleccion: 'movements', documentoId: movId, operacion: 'create', datos: { id: movId, productoId: item.productoId!, clinicaId, tipo: 'salida', cantidad: item.cantidad, stockAntes: prod.stockActual, stockDespues: stockNuevo, motivo: `Consultation #${id.slice(0, 8)}`, referenciaId: id, creadoEn: ahora, syncStatus: 'pending', updatedAt: ahora }, intentos: 0, creadoEn: ahora });
+        await encolarSync({ collection: 'movements', documentId: movId, operation: 'create', data: { id: movId, productId: item.productId!, clinicId, type: 'exit', quantity: item.quantity, stockBefore: prod.currentStock, stockAfter: newStock, reason: `Consultation #${id.slice(0, 8)}`, referenceId: id, createdAt: now, syncStatus: 'pending', updatedAt: now }, attempts: 0, createdAt: now });
       }
 
-      // 3 — Marcar cita como completada si aplica
-      if (consulta.citaId) {
-        await db.appointments.update(consulta.citaId, { estado: 'completada', updatedAt: ahora, syncStatus: 'pending' });
-        await encolarSync({ coleccion: 'appointments', documentoId: consulta.citaId, operacion: 'update', datos: { id: consulta.citaId, estado: 'completada', updatedAt: ahora }, intentos: 0, creadoEn: ahora });
+      // 3 — Mark appointment as completed if linked
+      if (consultation.appointmentId) {
+        await db.appointments.update(consultation.appointmentId, { status: 'completed', updatedAt: now, syncStatus: 'pending' });
+        await encolarSync({ collection: 'appointments', documentId: consultation.appointmentId, operation: 'update', data: { id: consultation.appointmentId, status: 'completed', updatedAt: now }, attempts: 0, createdAt: now });
       }
 
-      // 5 — Encolar sync
+      // 4 — Enqueue full consultation sync
       const final = await db.consultations.get(id);
       if (final) {
-        await encolarSync({ coleccion: 'consultations', documentoId: id, operacion: 'update', datos: final, intentos: 0, creadoEn: ahora });
+        await encolarSync({ collection: 'consultations', documentId: id, operation: 'update', data: final, attempts: 0, createdAt: now });
       }
     }
   );
 }
 
-/** Cancela una consulta en proceso */
+/** Cancel a consultation in progress */
 export async function cancelConsultation(id: string): Promise<void> {
-  const ahora = Date.now();
-  await db.consultations.update(id, { estado: 'cancelada', updatedAt: ahora, syncStatus: 'pending' });
-  await encolarSync({ coleccion: 'consultations', documentoId: id, operacion: 'update', datos: { id, estado: 'cancelada', updatedAt: ahora }, intentos: 0, creadoEn: ahora });
+  const now = Date.now();
+  await db.consultations.update(id, { status: 'cancelled', updatedAt: now, syncStatus: 'pending' });
+  await encolarSync({ collection: 'consultations', documentId: id, operation: 'update', data: { id, status: 'cancelled', updatedAt: now }, attempts: 0, createdAt: now });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-function calcularSubtotal(items: ConsultaFormData['items']): number {
+function calcSubtotal(items: ConsultaFormData['items']): number {
   return items.reduce((s, i) => s + i.subtotal, 0);
 }
-
 
 async function encolarSync(item: Omit<SyncQueueItem, 'id'>): Promise<void> {
   await db.syncQueue.add(item as SyncQueueItem);

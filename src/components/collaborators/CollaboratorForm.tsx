@@ -29,9 +29,9 @@ export function ColaboradorForm({ open, onClose, colaborador }: Props) {
 
   const [nombre,         setNombre]         = useState('');
   const [rol,            setRol]            = useState('');
-  const [tipo,           setTipo]           = useState<CollaboratorType>('empleado');
+  const [tipo,           setTipo]           = useState<CollaboratorType>('employee');
   const [salario,        setSalario]        = useState('');
-  const [frecuenciaPago, setFrecuenciaPago] = useState<CollaboratorPaymentFrequency>('mensual');
+  const [frecuenciaPago, setFrecuenciaPago] = useState<CollaboratorPaymentFrequency>('monthly');
   const [telefono,       setTelefono]       = useState('');
   const [notas,          setNotas]          = useState('');
   const [guardando,      setGuardando]      = useState(false);
@@ -39,13 +39,13 @@ export function ColaboradorForm({ open, onClose, colaborador }: Props) {
 
   useEffect(() => {
     if (open) {
-      setNombre(colaborador?.nombre          ?? '');
-      setRol(colaborador?.rol                ?? '');
-      setTipo(colaborador?.tipo              ?? 'empleado');
-      setSalario(colaborador?.salario != null ? String(colaborador.salario) : '');
-      setFrecuenciaPago(colaborador?.frecuenciaPago ?? 'mensual');
-      setTelefono(colaborador?.telefono      ?? '');
-      setNotas(colaborador?.notas            ?? '');
+      setNombre(colaborador?.name             ?? '');
+      setRol(colaborador?.role               ?? '');
+      setTipo(colaborador?.type              ?? 'employee');
+      setSalario(colaborador?.salary != null ? String(colaborador.salary) : '');
+      setFrecuenciaPago(colaborador?.paymentFrequency ?? 'monthly');
+      setTelefono(colaborador?.phone         ?? '');
+      setNotas(colaborador?.notes            ?? '');
       setError('');
     }
   }, [open, colaborador]);
@@ -63,23 +63,23 @@ export function ColaboradorForm({ open, onClose, colaborador }: Props) {
     try {
       if (editando && colaborador) {
         await updateCollaborator(colaborador.id, {
-          nombre:         nombre.trim(),
-          rol:            rol.trim(),
-          tipo,
-          salario:        salarioNum,
-          frecuenciaPago,
-          telefono:       telefono.trim() || undefined,
-          notas:          notas.trim()    || undefined,
+          name:             nombre.trim(),
+          role:             rol.trim(),
+          type:             tipo,
+          salary:           salarioNum,
+          paymentFrequency: frecuenciaPago,
+          phone:            telefono.trim() || undefined,
+          notes:            notas.trim()    || undefined,
         });
       } else {
         await createCollaborator({
-          nombre:         nombre.trim(),
-          rol:            rol.trim(),
-          tipo,
-          salario:        salarioNum,
-          frecuenciaPago,
-          telefono:       telefono.trim() || undefined,
-          notas:          notas.trim()    || undefined,
+          name:             nombre.trim(),
+          role:             rol.trim(),
+          type:             tipo,
+          salary:           salarioNum,
+          paymentFrequency: frecuenciaPago,
+          phone:            telefono.trim() || undefined,
+          notes:            notas.trim()    || undefined,
         });
       }
       onClose();

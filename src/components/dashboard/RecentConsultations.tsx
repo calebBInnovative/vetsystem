@@ -38,26 +38,26 @@ export function UltimasConsultas() {
       ) : (
         <div className="space-y-2">
           {consultations.map((c) => {
-            const tipo = CONSULTATION_TYPES[c.tipo];
+            const tipo = CONSULTATION_TYPES[c.type];
             return (
               <Link
                 key={c.id}
-                href={`/patients/${c.pacienteId}/historial`}
+                href={`/patients/${c.patientId}/history`}
                 className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 transition-colors group"
               >
                 <span className="text-xl leading-none shrink-0">{tipo.emoji}</span>
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm truncate group-hover:text-primary transition-colors">
-                    {c.nombrePaciente}
+                    {c.patientName}
                   </p>
-                  <p className="text-xs text-muted-foreground truncate">{c.motivo}</p>
+                  <p className="text-xs text-muted-foreground truncate">{c.reason}</p>
                 </div>
                 <div className="text-right shrink-0">
                   <Badge variant="secondary" className={cn('text-xs mb-1', tipo.color)}>
                     {tipo.label}
                   </Badge>
                   <p className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(c.fecha), { addSuffix: true, locale: es })}
+                    {formatDistanceToNow(new Date(c.date), { addSuffix: true, locale: es })}
                   </p>
                 </div>
               </Link>

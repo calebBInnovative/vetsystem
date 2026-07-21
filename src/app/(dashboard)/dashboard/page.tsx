@@ -18,7 +18,7 @@ export default function DashboardPage() {
   const tarjetas = [
     {
       label:     'Pacientes activos',
-      valor:     kpis?.totalPacientes ?? 0,
+      valor:     kpis?.totalPatients ?? 0,
       icon:      Users,
       color:     'text-primary',
       bg:        'bg-primary/10',
@@ -27,27 +27,27 @@ export default function DashboardPage() {
     },
     {
       label:     'Citas hoy',
-      valor:     kpis?.citasHoy ?? 0,
+      valor:     kpis?.appointmentsToday ?? 0,
       icon:      Calendar,
       color:     'text-blue-500',
       bg:        'bg-blue-500/10',
       href:      '/schedule',
-      subtitulo: kpis?.citasPendientesHoy
-        ? `${kpis.citasPendientesHoy} pendiente${kpis.citasPendientesHoy !== 1 ? 's' : ''}`
+      subtitulo: kpis?.appointmentsPendingToday
+        ? `${kpis.appointmentsPendingToday} pendiente${kpis.appointmentsPendingToday !== 1 ? 's' : ''}`
         : 'sin pendientes',
     },
     {
       label:     'Stock bajo',
-      valor:     kpis?.productosStockBajo ?? 0,
+      valor:     kpis?.lowStockProducts ?? 0,
       icon:      Package,
-      color:     kpis?.productosStockBajo ? 'text-amber-500' : 'text-green-500',
-      bg:        kpis?.productosStockBajo ? 'bg-amber-500/10' : 'bg-green-500/10',
+      color:     kpis?.lowStockProducts ? 'text-amber-500' : 'text-green-500',
+      bg:        kpis?.lowStockProducts ? 'bg-amber-500/10' : 'bg-green-500/10',
       href:      '/inventory',
-      subtitulo: kpis?.productosStockBajo ? 'products' : 'todo en orden',
+      subtitulo: kpis?.lowStockProducts ? 'products' : 'todo en orden',
     },
     {
       label:     'Consultas este mes',
-      valor:     kpis?.consultasEsteMes ?? 0,
+      valor:     kpis?.consultationsThisMonth ?? 0,
       icon:      ClipboardList,
       color:     'text-purple-500',
       bg:        'bg-purple-500/10',

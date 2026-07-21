@@ -8,204 +8,202 @@ import type { IncomeType } from '@/types/finances';
 import { PAYMENT_TYPE_BY_CONSULTATION } from '@/types/consultation';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HOOKS DE LECTURA
+// READ HOOKS
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function useInvoices(filtros?: {
-  estado?: InvoiceStatus;
-  pacienteId?: string;
-  duenoId?: string;
-  fechaDesde?: string;
-  fechaHasta?: string;
+export function useInvoices(filters?: {
+  status?: InvoiceStatus;
+  patientId?: string;
+  ownerId?: string;
+  dateFrom?: string;
+  dateTo?: string;
 }) {
-  const resultado = useLiveQuery(async () => {
-    const clinicaId = await getClinicaId();
+  const result = useLiveQuery(async () => {
+    const clinicId = await getClinicaId();
     let invoices = await db.invoices
-      .where('clinicaId')
-      .equals(clinicaId)
+      .where('clinicId')
+      .equals(clinicId)
       .filter((f) => !f.deletedAt)
       .toArray();
 
-    if (filtros?.estado)     invoices = invoices.filter((f) => f.estado     === filtros.estado);
-    if (filtros?.pacienteId) invoices = invoices.filter((f) => f.pacienteId === filtros.pacienteId);
-    if (filtros?.duenoId)    invoices = invoices.filter((f) => f.duenoId    === filtros.duenoId);
-    if (filtros?.fechaDesde) invoices = invoices.filter((f) => f.fecha      >= filtros.fechaDesde!);
-    if (filtros?.fechaHasta) invoices = invoices.filter((f) => f.fecha      <= filtros.fechaHasta!);
+    if (filters?.status)    invoices = invoices.filter((f) => f.status    === filters.status);
+    if (filters?.patientId) invoices = invoices.filter((f) => f.patientId === filters.patientId);
+    if (filters?.ownerId)   invoices = invoices.filter((f) => f.ownerId   === filters.ownerId);
+    if (filters?.dateFrom)  invoices = invoices.filter((f) => f.date      >= filters.dateFrom!);
+    if (filters?.dateTo)    invoices = invoices.filter((f) => f.date      <= filters.dateTo!);
 
-    invoices.sort((a, b) => b.creadoEn - a.creadoEn);
+    invoices.sort((a, b) => b.createdAt - a.createdAt);
 
-    const pacienteIds  = [...new Set(invoices.map((f) => f.pacienteId).filter((id): id is string => !!id))];
-    const duenoIds     = [...new Set(invoices.map((f) => f.duenoId).filter((id): id is string => !!id))];
-    const patients    = await db.patients.bulkGet(pacienteIds);
-    const duenos       = await db.owners.bulkGet(duenoIds);
-    const pacientesMap = new Map(patients.filter(Boolean).map((p) => [p!.id, p!]));
-    const duenosMap    = new Map(duenos.filter(Boolean).map((d) => [d!.id, d!]));
+    const patientIds  = [...new Set(invoices.map((f) => f.patientId).filter((id): id is string => !!id))];
+    const ownerIds    = [...new Set(invoices.map((f) => f.ownerId).filter((id): id is string => !!id))];
+    const patients    = await db.patients.bulkGet(patientIds);
+    const owners      = await db.owners.bulkGet(ownerIds);
+    const patientMap  = new Map(patients.filter(Boolean).map((p) => [p!.id, p!]));
+    const ownerMap    = new Map(owners.filter(Boolean).map((d) => [d!.id, d!]));
 
     return invoices.map<InvoiceWithDetails>((f) => ({
       ...f,
-      nombrePaciente:  f.pacienteId ? pacientesMap.get(f.pacienteId)?.nombre    : undefined,
-      especiePaciente: f.pacienteId ? pacientesMap.get(f.pacienteId)?.especie   : undefined,
-      razaPaciente:    f.pacienteId ? pacientesMap.get(f.pacienteId)?.raza      : undefined,
-      nombreDueno:     f.duenoId    ? duenosMap.get(f.duenoId)?.nombre          : undefined,
-      telefonoDueno:   f.duenoId    ? duenosMap.get(f.duenoId)?.telefono        : undefined,
+      patientName:    f.patientId ? patientMap.get(f.patientId)?.name    : undefined,
+      patientSpecies: f.patientId ? patientMap.get(f.patientId)?.species : undefined,
+      patientBreed:   f.patientId ? patientMap.get(f.patientId)?.breed   : undefined,
+      ownerName:      f.ownerId   ? ownerMap.get(f.ownerId)?.name        : undefined,
+      ownerPhone:     f.ownerId   ? ownerMap.get(f.ownerId)?.phone       : undefined,
     }));
-  }, [filtros?.estado, filtros?.pacienteId, filtros?.duenoId, filtros?.fechaDesde, filtros?.fechaHasta]);
+  }, [filters?.status, filters?.patientId, filters?.ownerId, filters?.dateFrom, filters?.dateTo]);
 
   return {
-    invoices: resultado ?? [],
-    loading: resultado === undefined,
+    invoices: result ?? [],
+    loading: result === undefined,
   };
 }
 
 export function useInvoice(id: string) {
-  const resultado = useLiveQuery(async () => {
+  const result = useLiveQuery(async () => {
     const f = await db.invoices.get(id);
     if (!f || f.deletedAt) return null;
 
-    const paciente = f.pacienteId ? await db.patients.get(f.pacienteId) : undefined;
-    const dueno    = f.duenoId ? await db.owners.get(f.duenoId) : undefined;
+    const patient = f.patientId ? await db.patients.get(f.patientId) : undefined;
+    const owner   = f.ownerId   ? await db.owners.get(f.ownerId)     : undefined;
 
     return {
       ...f,
-      nombrePaciente:  paciente?.nombre,
-      especiePaciente: paciente?.especie,
-      razaPaciente:    paciente?.raza,
-      nombreDueno:     dueno?.nombre,
-      telefonoDueno:   dueno?.telefono,
+      patientName:    patient?.name,
+      patientSpecies: patient?.species,
+      patientBreed:   patient?.breed,
+      ownerName:      owner?.name,
+      ownerPhone:     owner?.phone,
     } as InvoiceWithDetails;
   }, [id]);
 
   return {
-    factura:  resultado ?? null,
-    loading: resultado === undefined,
+    factura: result ?? null,
+    loading: result === undefined,
   };
 }
 
-export function usePatientInvoices(pacienteId: string) {
-  const resultado = useLiveQuery(async () => {
+export function usePatientInvoices(patientId: string) {
+  const result = useLiveQuery(async () => {
     const invoices = await db.invoices
-      .where('pacienteId')
-      .equals(pacienteId)
+      .where('patientId')
+      .equals(patientId)
       .filter((f) => !f.deletedAt)
       .toArray();
-    return invoices.sort((a, b) => b.creadoEn - a.creadoEn);
-  }, [pacienteId]);
+    return invoices.sort((a, b) => b.createdAt - a.createdAt);
+  }, [patientId]);
 
   return {
-    invoices: resultado ?? [],
-    loading: resultado === undefined,
+    invoices: result ?? [],
+    loading: result === undefined,
   };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MUTACIONES
+// MUTATIONS
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface CreateInvoiceInput {
-  consulta: ConsultationLocal;
-  metodoPago: InvoicePaymentMethod;
-  estado: InvoiceStatus;
-  /** Monto efectivamente cobrado — solo para parcialmente_pagada */
-  montoPagado?: number;
-  /** Override del descuento de la consulta */
-  descuento?: number;
-  notas?: string;
+  consultation: ConsultationLocal;
+  paymentMethod: InvoicePaymentMethod;
+  status: InvoiceStatus;
+  /** Amount already collected — relevant for partially_paid */
+  amountPaid?: number;
+  /** Override the consultation discount */
+  discount?: number;
+  notes?: string;
 }
 
-/** Crea la factura, crea el pago (si aplica) y enlaza ambos a la consulta */
+/** Creates invoice, creates payment (if any), and links both to the consultation */
 export async function createInvoice(input: CreateInvoiceInput): Promise<string> {
-  const ahora     = Date.now();
+  const now       = Date.now();
   const id        = crypto.randomUUID();
-  const clinicaId = await getClinicaId();
-  const numero    = await generarNumeroFactura(clinicaId);
-  const descuento = input.descuento ?? input.consulta.descuento;
-  const subtotal  = input.consulta.subtotal;
-  const total     = Math.max(0, subtotal - descuento);
+  const clinicId  = await getClinicaId();
+  const number    = await generateInvoiceNumber(clinicId);
+  const discount  = input.discount ?? input.consultation.discount;
+  const subtotal  = input.consultation.subtotal;
+  const total     = Math.max(0, subtotal - discount);
 
-  const montoPagado =
-    input.estado === 'pagada'              ? total :
-    input.estado === 'parcialmente_pagada' ? (input.montoPagado ?? 0) :
+  const amountPaid =
+    input.status === 'paid'            ? total :
+    input.status === 'partially_paid'  ? (input.amountPaid ?? 0) :
     0;
 
-  const factura: InvoiceLocal = {
+  const invoice: InvoiceLocal = {
     id,
-    numero,
-    consultaId:  input.consulta.id,
-    pacienteId:  input.consulta.pacienteId,
-    duenoId:     input.consulta.duenoId,
-    clinicaId:   clinicaId,
-    fecha:       new Date(ahora).toISOString().slice(0, 10),
-    items:       input.consulta.items.map((item) => ({
-      id:              item.id,
-      descripcion:     item.descripcion,
-      cantidad:        item.cantidad,
-      precioUnitario:  item.precioUnitario,
-      subtotal:        item.subtotal,
-      tipo:            item.esServicio ? 'servicio' : 'producto',
-      productoId:      item.productoId,
+    number,
+    consultationId: input.consultation.id,
+    patientId:      input.consultation.patientId,
+    ownerId:        input.consultation.ownerId,
+    clinicId:       clinicId,
+    date:           new Date(now).toISOString().slice(0, 10),
+    items:          input.consultation.items.map((item) => ({
+      id:          item.id,
+      description: item.description,
+      quantity:    item.quantity,
+      unitPrice:   item.unitPrice,
+      subtotal:    item.subtotal,
+      type:        item.isService ? 'service' : 'product',
+      productId:   item.productId,
     })),
     subtotal,
-    descuento,
+    discount,
     total,
-    metodoPago:  input.metodoPago,
-    estado:      input.estado,
-    montoPagado,
-    notas:       input.notas,
-    creadoEn:    ahora,
-    syncStatus:  'pending',
-    updatedAt:   ahora,
+    paymentMethod:  input.paymentMethod,
+    status:         input.status,
+    amountPaid,
+    notes:          input.notes,
+    createdAt:      now,
+    syncStatus:     'pending',
+    updatedAt:      now,
   };
 
   await db.transaction('rw',
     [db.invoices, db.payments, db.consultations, db.syncQueue],
     async () => {
-      await db.invoices.add(factura);
+      await db.invoices.add(invoice);
 
-      // Enlazar factura a la consulta
-      await db.consultations.update(input.consulta.id, {
-        facturaId:  id,
-        updatedAt:  ahora,
+      // Link invoice to consultation
+      await db.consultations.update(input.consultation.id, {
+        invoiceId:  id,
+        updatedAt:  now,
         syncStatus: 'pending',
       });
-      await encolarSync({ coleccion: 'consultations', documentoId: input.consulta.id, operacion: 'update', datos: { id: input.consulta.id, facturaId: id, updatedAt: ahora }, intentos: 0, creadoEn: ahora });
+      await encolarSync({ collection: 'consultations', documentId: input.consultation.id, operation: 'update', data: { id: input.consultation.id, invoiceId: id, updatedAt: now }, attempts: 0, createdAt: now });
 
-      // Crear pago si hay algo cobrado o la factura está pendiente (cuenta por cobrar)
+      // Create payment if there is something to collect
       if (total > 0) {
-        const pagoId   = crypto.randomUUID();
-        const tipoPago = (PAYMENT_TYPE_BY_CONSULTATION[input.consulta.tipo] ?? 'consulta') as IncomeType;
+        const paymentId    = crypto.randomUUID();
+        const paymentType  = (PAYMENT_TYPE_BY_CONSULTATION[input.consultation.type] ?? 'consultation') as IncomeType;
+        // 'mixed' is valid in PaymentMethod — pass through directly
+        const paymentMethod = input.paymentMethod === 'mixed'
+          ? ('other' as const)
+          : input.paymentMethod;
 
-        // 'mixto' no existe en PaymentMethod → usar 'otro'
-        const metodoPagoPago =
-          input.metodoPago === 'mixto' ? 'otro' : input.metodoPago;
-
-        const estadoPago =
-          input.estado === 'pagada' ? 'pagado' : 'pendiente';
+        const paymentStatus = input.status === 'paid' ? 'paid' : 'pending';
 
         await db.payments.add({
-          id:          pagoId,
-          pacienteId:  input.consulta.pacienteId,
-          clinicaId:   clinicaId,
-          consultaId:  input.consulta.id,
-          fecha:       factura.fecha,
-          concepto:    `${numero} — ${input.consulta.motivo?.slice(0, 120) ?? ''}`,
-          tipo:        tipoPago,
-          monto:       input.estado === 'pagada' ? total : montoPagado || total,
-          metodoPago:  metodoPagoPago,
-          estado:      estadoPago,
-          notas:       input.notas,
-          creadoEn:    ahora,
-          syncStatus:  'pending',
-          updatedAt:   ahora,
+          id:             paymentId,
+          patientId:      input.consultation.patientId,
+          clinicId:       clinicId,
+          consultationId: input.consultation.id,
+          date:           invoice.date,
+          concept:        `${number} — ${input.consultation.reason?.slice(0, 120) ?? ''}`,
+          type:           paymentType,
+          amount:         input.status === 'paid' ? total : amountPaid || total,
+          paymentMethod:  paymentMethod,
+          status:         paymentStatus,
+          notes:          input.notes,
+          createdAt:      now,
+          syncStatus:     'pending',
+          updatedAt:      now,
         });
 
-        await db.invoices.update(id, { pagoId });
-        await encolarSync({ coleccion: 'payments', documentoId: pagoId, operacion: 'create', datos: { id: pagoId, pacienteId: input.consulta.pacienteId, clinicaId, consultaId: input.consulta.id, fecha: factura.fecha, tipo: tipoPago, monto: input.estado === 'pagada' ? total : montoPagado || total, metodoPago: metodoPagoPago, estado: estadoPago, notas: input.notas, creadoEn: ahora, syncStatus: 'pending', updatedAt: ahora }, intentos: 0, creadoEn: ahora });
+        await db.invoices.update(id, { paymentId });
+        await encolarSync({ collection: 'payments', documentId: paymentId, operation: 'create', data: { id: paymentId, patientId: input.consultation.patientId, clinicId, consultationId: input.consultation.id, date: invoice.date, type: paymentType, amount: input.status === 'paid' ? total : amountPaid || total, paymentMethod, status: paymentStatus, notes: input.notes, createdAt: now, syncStatus: 'pending', updatedAt: now }, attempts: 0, createdAt: now });
       }
 
-      // Sync queue
       const final = await db.invoices.get(id);
       if (final) {
-        await encolarSync({ coleccion: 'invoices', documentoId: id, operacion: 'create', datos: final, intentos: 0, creadoEn: ahora });
+        await encolarSync({ collection: 'invoices', documentId: id, operation: 'create', data: final, attempts: 0, createdAt: now });
       }
     }
   );
@@ -213,56 +211,56 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<string> 
   return id;
 }
 
-/** Marca una factura pendiente como pagada */
+/** Marks a pending invoice as paid */
 export async function markInvoicePaid(
   id: string,
-  metodoPago: InvoicePaymentMethod,
-  notas?: string
+  paymentMethod: InvoicePaymentMethod,
+  notes?: string
 ): Promise<void> {
-  const ahora   = Date.now();
-  const factura = await db.invoices.get(id);
-  if (!factura) throw new Error('Invoice no encontrada');
+  const now     = Date.now();
+  const invoice = await db.invoices.get(id);
+  if (!invoice) throw new Error('Invoice not found');
 
   await db.transaction('rw', [db.invoices, db.payments, db.syncQueue], async () => {
     await db.invoices.update(id, {
-      estado:      'pagada',
-      montoPagado: factura.total,
-      metodoPago,
-      notas:       notas ?? factura.notas,
-      updatedAt:   ahora,
+      status:      'paid',
+      amountPaid:  invoice.total,
+      paymentMethod,
+      notes:       notes ?? invoice.notes,
+      updatedAt:   now,
       syncStatus:  'pending',
     });
 
-    if (factura.pagoId) {
-      const metodoPagoPago = metodoPago === 'mixto' ? 'otro' : metodoPago;
-      await db.payments.update(factura.pagoId, {
-        estado:     'pagado',
-        metodoPago: metodoPagoPago,
-        monto:      factura.total,
-        updatedAt:  ahora,
-        syncStatus: 'pending',
+    if (invoice.paymentId) {
+      const pmMethod = paymentMethod === 'mixed' ? ('other' as const) : paymentMethod;
+      await db.payments.update(invoice.paymentId, {
+        status:        'paid',
+        paymentMethod: pmMethod,
+        amount:        invoice.total,
+        updatedAt:     now,
+        syncStatus:    'pending',
       });
-      await encolarSync({ coleccion: 'payments', documentoId: factura.pagoId, operacion: 'update', datos: { id: factura.pagoId, estado: 'pagado', metodoPago: metodoPagoPago, monto: factura.total, updatedAt: ahora }, intentos: 0, creadoEn: ahora });
+      await encolarSync({ collection: 'payments', documentId: invoice.paymentId, operation: 'update', data: { id: invoice.paymentId, status: 'paid', paymentMethod: pmMethod, amount: invoice.total, updatedAt: now }, attempts: 0, createdAt: now });
     }
 
-    await encolarSync({ coleccion: 'invoices', documentoId: id, operacion: 'update', datos: { id, estado: 'pagada', updatedAt: ahora }, intentos: 0, creadoEn: ahora });
+    await encolarSync({ collection: 'invoices', documentId: id, operation: 'update', data: { id, status: 'paid', updatedAt: now }, attempts: 0, createdAt: now });
   });
 }
 
-/** Cancela una factura */
+/** Cancels an invoice */
 export async function cancelInvoice(id: string): Promise<void> {
-  const ahora = Date.now();
-  await db.invoices.update(id, { estado: 'cancelada', updatedAt: ahora, syncStatus: 'pending' });
-  await encolarSync({ coleccion: 'invoices', documentoId: id, operacion: 'update', datos: { id, estado: 'cancelada', updatedAt: ahora }, intentos: 0, creadoEn: ahora });
+  const now = Date.now();
+  await db.invoices.update(id, { status: 'cancelled', updatedAt: now, syncStatus: 'pending' });
+  await encolarSync({ collection: 'invoices', documentId: id, operation: 'update', data: { id, status: 'cancelled', updatedAt: now }, attempts: 0, createdAt: now });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function generarNumeroFactura(clinicaId: string): Promise<string> {
+async function generateInvoiceNumber(clinicId: string): Promise<string> {
   const year  = new Date().getFullYear();
-  const count = await db.invoices.where('clinicaId').equals(clinicaId).count();
+  const count = await db.invoices.where('clinicId').equals(clinicId).count();
   return `FAC-${year}-${String(count + 1).padStart(4, '0')}`;
 }
 

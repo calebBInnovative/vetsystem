@@ -5,91 +5,94 @@ import { db, getClinicaId, type SyncQueueItem } from '@/lib/db/database';
 import type { ServiceLocal, ServiceCategory } from '@/types/service';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HOOKS DE LECTURA
+// READ HOOKS
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function useServices() {
-  const resultado = useLiveQuery(async () => {
-    const clinicaId = await getClinicaId();
+  const result = useLiveQuery(async () => {
+    const clinicId = await getClinicaId();
     const services = await db.services
-      .where('clinicaId')
-      .equals(clinicaId)
+      .where('clinicId')
+      .equals(clinicId)
       .filter((s) => !s.deletedAt)
       .toArray();
-    return services.sort((a, b) => a.categoria.localeCompare(b.categoria) || a.nombre.localeCompare(b.nombre));
+    return services.sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
   }, []);
 
   return {
-    services: resultado ?? [],
-    loading:  resultado === undefined,
+    services: result ?? [],
+    loading:  result === undefined,
   };
 }
 
-/** Solo los services activos — para el selector rápido en ConsultaForm */
+/** Active services only — for the quick-add selector in ConsultationForm */
 export function useServiciosActivos() {
-  const resultado = useLiveQuery(async () => {
-    const clinicaId = await getClinicaId();
+  const result = useLiveQuery(async () => {
+    const clinicId = await getClinicaId();
     const services = await db.services
-      .where('clinicaId')
-      .equals(clinicaId)
-      .filter((s) => !s.deletedAt && s.activo)
+      .where('clinicId')
+      .equals(clinicId)
+      .filter((s) => !s.deletedAt && s.active)
       .toArray();
-    return services.sort((a, b) => a.categoria.localeCompare(b.categoria) || a.nombre.localeCompare(b.nombre));
+    return services.sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
   }, []);
 
-  return resultado ?? [];
+  return result ?? [];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MUTACIONES
+// MUTATIONS
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface ServicioInput {
-  nombre: string;
-  descripcion?: string;
-  categoria: ServiceCategory;
-  precio: number;
+export interface ServiceInput {
+  name:         string;
+  description?: string;
+  category:     ServiceCategory;
+  price:        number;
 }
 
-export async function createService(input: ServicioInput): Promise<string> {
-  const ahora = Date.now();
-  const id    = crypto.randomUUID();
-  const clinicaId = await getClinicaId();
+export async function createService(input: ServiceInput): Promise<string> {
+  const now      = Date.now();
+  const id       = crypto.randomUUID();
+  const clinicId = await getClinicaId();
 
-  const servicio: ServiceLocal = {
+  const service: ServiceLocal = {
     id,
-    nombre:      input.nombre.trim(),
-    descripcion: input.descripcion?.trim() || undefined,
-    categoria:   input.categoria,
-    precio:      input.precio,
-    activo:      true,
-    clinicaId:   clinicaId,
-    creadoEn:    ahora,
+    name:        input.name.trim(),
+    description: input.description?.trim() || undefined,
+    category:    input.category,
+    price:       input.price,
+    active:      true,
+    clinicId:    clinicId,
+    createdAt:   now,
     syncStatus:  'pending',
-    updatedAt:   ahora,
+    updatedAt:   now,
   };
 
-  await db.services.add(servicio);
-  await encolarSync({ coleccion: 'services', documentoId: id, operacion: 'create', datos: servicio, intentos: 0, creadoEn: ahora });
+  await db.services.add(service);
+  await encolarSync({ collection: 'services', documentId: id, operation: 'create', data: service, attempts: 0, createdAt: now });
   return id;
 }
 
-export async function updateService(id: string, cambios: Partial<Pick<ServiceLocal, 'nombre' | 'descripcion' | 'categoria' | 'precio' | 'activo'>>): Promise<void> {
-  const ahora = Date.now();
-  await db.services.update(id, { ...cambios, updatedAt: ahora, syncStatus: 'pending' });
-  await encolarSync({ coleccion: 'services', documentoId: id, operacion: 'update', datos: { id, ...cambios, updatedAt: ahora }, intentos: 0, creadoEn: ahora });
+export async function updateService(
+  id: string,
+  changes: Partial<Pick<ServiceLocal, 'name' | 'description' | 'category' | 'price' | 'active'>>
+): Promise<void> {
+  const now = Date.now();
+  await db.services.update(id, { ...changes, updatedAt: now, syncStatus: 'pending' });
+  await encolarSync({ collection: 'services', documentId: id, operation: 'update', data: { id, ...changes, updatedAt: now }, attempts: 0, createdAt: now });
 }
 
 export async function toggleServicioActivo(id: string): Promise<void> {
   const s = await db.services.get(id);
   if (!s) return;
-  await updateService(id, { activo: !s.activo });
+  await updateService(id, { active: !s.active });
 }
 
 export async function deleteService(id: string): Promise<void> {
-  const ahora = Date.now();
-  await db.services.update(id, { deletedAt: ahora, syncStatus: 'pending', updatedAt: ahora });
-  await encolarSync({ coleccion: 'services', documentoId: id, operacion: 'delete', datos: { id, deletedAt: ahora }, intentos: 0, creadoEn: ahora });
+  const now = Date.now();
+  await db.services.update(id, { deletedAt: now, syncStatus: 'pending', updatedAt: now });
+  await encolarSync({ collection: 'services', documentId: id, operation: 'delete', data: { id, deletedAt: now }, attempts: 0, createdAt: now });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -1,44 +1,48 @@
 import type { SyncMeta } from './patient';
 
-export type SalePaymentMethod = 'efectivo' | 'tarjeta' | 'transferencia' | 'mixto';
-export type SaleStatus     = 'completada' | 'cancelada';
+export type SalePaymentMethod = 'cash' | 'card' | 'transfer' | 'mixed';
+export type SaleStatus        = 'completed' | 'cancelled';
 
 export interface SaleItem {
   id: string;
-  productoId: string;
-  descripcion: string;
-  cantidad: number;
-  unidad?: string;
-  precioUnitario: number;
+  /** Set for product items; undefined for service-only items */
+  productId?: string;
+  /** Set when the item comes from a service (no inventory deduction) */
+  serviceId?: string;
+  itemType?: 'product' | 'service';
+  description: string;
+  quantity: number;
+  unit?: string;
+  unitPrice: number;
   subtotal: number;
 }
 
 export interface Sale {
   id: string;
-  clinicaId: string;
+  clinicId: string;
   /** ISO date "YYYY-MM-DD" */
-  fecha: string;
+  date: string;
   items: SaleItem[];
   subtotal: number;
-  descuento: number;
+  discount: number;
   total: number;
-  metodoPago: SalePaymentMethod;
-  estado: SaleStatus;
-  /** Cliente opcional — puede ser una venta anónima */
-  pacienteId?: string;
-  notas?: string;
-  /** ID del PaymentLocal generado */
-  pagoId?: string;
-  /** ID de la InvoiceLocal generada */
-  facturaId?: string;
-  creadoEn: number;
+  paymentMethod: SalePaymentMethod;
+  status: SaleStatus;
+  /** Optional client — may be an anonymous sale */
+  patientId?: string;
+  notes?: string;
+  /** ID of the generated PaymentLocal */
+  paymentId?: string;
+  /** ID of the generated InvoiceLocal */
+  invoiceId?: string;
+  createdAt: number;
 }
 
 export interface SaleLocal extends Sale, SyncMeta {}
 
 export const SALE_PAYMENT_METHODS: Record<SalePaymentMethod, { label: string; emoji: string }> = {
-  efectivo:     { label: 'Efectivo',      emoji: '💵' },
-  tarjeta:      { label: 'Tarjeta',       emoji: '💳' },
-  transferencia:{ label: 'Transferencia', emoji: '🏦' },
-  mixto:        { label: 'Mixto',         emoji: '🔄' },
+  cash:     { label: 'Efectivo',      emoji: '💵' },
+  card:     { label: 'Tarjeta',       emoji: '💳' },
+  transfer: { label: 'Transferencia', emoji: '🏦' },
+  mixed:    { label: 'Mixto',         emoji: '🔄' },
 };

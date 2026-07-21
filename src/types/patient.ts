@@ -1,114 +1,114 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// TIPOS BASE — Módulo Pacientes
-// Usados tanto en Dexie (local) como en Firestore (cloud)
+// BASE TYPES — Patients Module
+// Used in both Dexie (local) and Firestore (cloud)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Especies soportadas por el sistema */
-export type PetSpecies = 'perro' | 'gato' | 'ave' | 'conejo' | 'reptil' | 'otro';
+/** Species supported by the system */
+export type PetSpecies = 'dog' | 'cat' | 'bird' | 'rabbit' | 'reptile' | 'other';
 
-/** PetSex biológico de la mascota */
-export type PetSex = 'macho' | 'hembra';
+/** Biological sex of the pet */
+export type PetSex = 'male' | 'female';
 
 /**
- * Estado de sincronización de un registro local.
- * - `synced`   → está igual en Firestore
- * - `pending`  → tiene cambios locales sin subir
- * - `conflict` → hay diferencias entre local y cloud (requiere resolución)
+ * Sync state of a local record.
+ * - `synced`   → matches Firestore
+ * - `pending`  → has local changes not yet uploaded
+ * - `conflict` → differences between local and cloud (requires resolution)
  */
 export type SyncStatus = 'synced' | 'pending' | 'conflict';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SYNC META
-// Campos que lleva CADA entidad local para gestionar la sincronización.
-// Se separan en su propia interface para reutilizarlos en otros módulos.
+// Fields carried by EVERY local entity to manage synchronization.
+// Separated into its own interface for reuse across modules.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface SyncMeta {
-  /** Estado actual frente a Firestore */
+  /** Current state against Firestore */
   syncStatus: SyncStatus;
-  /** Timestamp local de la última modificación (ms desde epoch) */
+  /** Local timestamp of the last modification (ms since epoch) */
   updatedAt: number;
-  /** Timestamp de la última vez que se sincronizó con Firestore */
+  /** Timestamp of the last successful sync with Firestore */
   cloudUpdatedAt?: number;
   /**
-   * Soft delete: si tiene valor, el registro está borrado lógicamente.
-   * Nunca se borra físico de Dexie para poder sincronizar la eliminación.
+   * Soft delete: if set, the record is logically deleted.
+   * Never physically removed from Dexie so the deletion can be synced.
    */
   deletedAt?: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DUEÑO
+// OWNER
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Datos puros del dueño (sin meta de sync) — espejo del schema de Firestore */
+/** Pure owner data (without sync meta) — mirrors the Firestore schema */
 export interface Owner {
   id: string;
-  nombre: string;
-  /** Número principal de contacto — también se usa para WhatsApp */
-  telefono: string;
+  name: string;
+  /** Primary contact number — also used for WhatsApp */
+  phone: string;
   email?: string;
-  direccion?: string;
-  notas?: string;
-  clinicaId: string;
-  creadoEn: number;
+  address?: string;
+  notes?: string;
+  clinicId: string;
+  createdAt: number;
 }
 
-/** Dueño tal como se almacena en Dexie (incluye campos de sync) */
+/** Owner as stored in Dexie (includes sync fields) */
 export interface OwnerLocal extends Owner, SyncMeta {}
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PACIENTE
+// PATIENT
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Datos puros del paciente — espejo del schema de Firestore */
+/** Pure patient data — mirrors the Firestore schema */
 export interface Patient {
   id: string;
-  nombre: string;
-  especie: PetSpecies;
-  raza?: string;
-  sexo: PetSex;
+  name: string;
+  species: PetSpecies;
+  breed?: string;
+  sex: PetSex;
   /** ISO 8601 date string: "YYYY-MM-DD" */
-  fechaNacimiento?: string;
-  /** Peso en kilogramos */
-  peso?: number;
+  birthDate?: string;
+  /** Weight in kilograms */
+  weight?: number;
   color?: string;
-  /** URL de foto (Firebase Storage en producción, base64 en offline) */
-  fotoUrl?: string;
-  /** Referencia al dueño — FK hacia la tabla `duenos` */
-  duenoId: string;
-  activo: boolean;
-  notas?: string;
-  clinicaId: string;
-  creadoEn: number;
+  /** Photo URL (Firebase Storage in production, base64 offline) */
+  photoUrl?: string;
+  /** Reference to the owner — FK to the `owners` table */
+  ownerId: string;
+  active: boolean;
+  notes?: string;
+  clinicId: string;
+  createdAt: number;
 }
 
-/** Patient tal como se almacena en Dexie (incluye campos de sync) */
+/** Patient as stored in Dexie (includes sync fields) */
 export interface PatientLocal extends Patient, SyncMeta {}
 
 /**
- * Patient con su dueño ya unido (join en memoria).
- * Usado para renderizado en listas y fichas sin queries adicionales.
+ * Patient with its owner already joined (in-memory join).
+ * Used for rendering in lists and cards without extra queries.
  */
 export interface PatientWithOwner extends PatientLocal {
-  dueno?: OwnerLocal;
+  owner?: OwnerLocal;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CONSTANTES DE UI
-// Centraliza labels y emojis para no duplicarlos en formularios y cards.
+// UI CONSTANTS
+// Centralises labels and emojis to avoid duplication in forms and cards.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const PET_SPECIES: Record<PetSpecies, { label: string; emoji: string }> = {
-  perro:  { label: 'Perro',  emoji: '🐕' },
-  gato:   { label: 'Gato',   emoji: '🐈' },
-  ave:    { label: 'Ave',    emoji: '🐦' },
-  conejo: { label: 'Conejo', emoji: '🐇' },
-  reptil: { label: 'Reptil', emoji: '🦎' },
-  otro:   { label: 'Otro',   emoji: '🐾' },
+  dog:     { label: 'Perro',  emoji: '🐕' },
+  cat:     { label: 'Gato',   emoji: '🐈' },
+  bird:    { label: 'Ave',    emoji: '🐦' },
+  rabbit:  { label: 'Conejo', emoji: '🐇' },
+  reptile: { label: 'Reptil', emoji: '🦎' },
+  other:   { label: 'Otro',   emoji: '🐾' },
 };
 
-export const PET_SEXES: Record<PetSex, { label: string; simbolo: string }> = {
-  macho:  { label: 'Macho',  simbolo: '♂' },
-  hembra: { label: 'Hembra', simbolo: '♀' },
+export const PET_SEXES: Record<PetSex, { label: string; symbol: string }> = {
+  male:   { label: 'Macho',  symbol: '♂' },
+  female: { label: 'Hembra', symbol: '♀' },
 };

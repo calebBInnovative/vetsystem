@@ -10,30 +10,30 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function NuevoProductoPage() {
+export default function NewProductPage() {
   const router = useRouter();
-  const [loading, setCargando] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (datos: ProductoFormData) => {
-    setCargando(true);
+    setLoading(true);
     try {
       const id = await createProduct(datos);
       toast.success('Producto registrado', {
-        description: `${datos.nombre} fue agregado al inventario.`,
+        description: `${datos.name} fue agregado al inventario.`,
       });
       router.push(`/inventory/${id}`);
     } catch {
       toast.error('Error al guardar', {
         description: 'No se pudo registrar el producto. Intenta de nuevo.',
       });
-      setCargando(false);
+      setLoading(false);
     }
   };
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
-        <Link href="/inventario">
+        <Link href="/inventory">
           <Button variant="ghost" size="icon">
             <ArrowLeft size={18} />
           </Button>

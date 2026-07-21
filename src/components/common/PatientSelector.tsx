@@ -8,8 +8,8 @@ import { Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface PacienteSelectorProps {
-  value?: string;                          // pacienteId seleccionado
-  onChange: (pacienteId: string) => void;
+  value?: string;                          // patientId seleccionado
+  onChange: (patientId: string) => void;
   hasError?: boolean;
   placeholder?: string;
 }
@@ -20,8 +20,8 @@ export function PacienteSelector({
   hasError = false,
   placeholder = 'Buscar paciente por nombre o dueño...',
 }: PacienteSelectorProps) {
-  const [busqueda, setBusqueda] = useState('');
-  const [abierto, setAbierto]   = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [abierto, setAbierto]         = useState(false);
   const contenedorRef = useRef<HTMLDivElement>(null);
 
   // Patient actualmente seleccionado
@@ -32,27 +32,27 @@ export function PacienteSelector({
 
   // Resultados de búsqueda
   const resultados = useLiveQuery(async () => {
-    const termino = busqueda.toLowerCase().trim();
+    const termino = searchQuery.toLowerCase().trim();
     if (!termino) return [];
 
     const [todosPacientes, todosDuenos] = await Promise.all([
-      db.patients.filter((p) => !p.deletedAt && p.activo).toArray(),
+      db.patients.filter((p) => !p.deletedAt && p.active).toArray(),
       db.owners.toArray(),
     ]);
     const duenosMap = new Map(todosDuenos.map((d) => [d.id, d]));
 
     return todosPacientes
       .filter((p) => {
-        const d = duenosMap.get(p.duenoId);
+        const d = duenosMap.get(p.ownerId);
         return (
-          p.nombre.toLowerCase().includes(termino) ||
-          (d?.nombre.toLowerCase().includes(termino) ?? false) ||
-          (d?.telefono.includes(termino) ?? false)
+          p.name.toLowerCase().includes(termino) ||
+          (d?.name.toLowerCase().includes(termino) ?? false) ||
+          (d?.phone.includes(termino) ?? false)
         );
       })
       .slice(0, 8)
-      .map((p) => ({ ...p, dueno: duenosMap.get(p.duenoId) }));
-  }, [busqueda]);
+      .map((p) => ({ ...p, owner: duenosMap.get(p.ownerId) }));
+  }, [searchQuery]);
 
   // Cerrar al hacer clic afuera
   useEffect(() => {
@@ -67,18 +67,18 @@ export function PacienteSelector({
 
   const seleccionar = (id: string) => {
     onChange(id);
-    setBusqueda('');
+    setSearchQuery('');
     setAbierto(false);
   };
 
   const limpiar = () => {
     onChange('');
-    setBusqueda('');
+    setSearchQuery('');
   };
 
   // Si hay paciente seleccionado, mostrar su chip
   if (value && pacienteSeleccionado) {
-    const especie = PET_SPECIES[pacienteSeleccionado.especie as PetSpecies];
+    const especie = PET_SPECIES[pacienteSeleccionado.species as PetSpecies];
     return (
       <div className={cn(
         'flex items-center gap-2 rounded-xl border bg-background px-3 py-2 text-sm',
@@ -86,7 +86,7 @@ export function PacienteSelector({
       )}>
         <span className="text-lg leading-none">{especie.emoji}</span>
         <div className="flex-1 min-w-0">
-          <p className="font-medium truncate">{pacienteSeleccionado.nombre}</p>
+          <p className="font-medium truncate">{pacienteSeleccionado.name}</p>
           <p className="text-xs text-muted-foreground truncate">{especie.label}</p>
         </div>
         <button
@@ -107,8 +107,8 @@ export function PacienteSelector({
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" size={15} />
         <input
           type="text"
-          value={busqueda}
-          onChange={(e) => { setBusqueda(e.target.value); setAbierto(true); }}
+          value={searchQuery}
+          onChange={(e) => { setSearchQuery(e.target.value); setAbierto(true); }}
           onFocus={() => setAbierto(true)}
           placeholder={placeholder}
           className={cn(
@@ -124,7 +124,7 @@ export function PacienteSelector({
       {abierto && resultados && resultados.length > 0 && (
         <div className="absolute z-50 top-full mt-1 w-full bg-popover border border-border rounded-xl shadow-lg overflow-hidden">
           {resultados.map((p) => {
-            const especie = PET_SPECIES[p.especie];
+            const especie = PET_SPECIES[p.species];
             return (
               <button
                 key={p.id}
@@ -134,10 +134,10 @@ export function PacienteSelector({
               >
                 <span className="text-xl leading-none shrink-0">{especie.emoji}</span>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate">{p.nombre}</p>
+                  <p className="font-medium truncate">{p.name}</p>
                   <p className="text-xs text-muted-foreground truncate">
-                    {especie.label}{p.raza && ` · ${p.raza}`}
-                    {p.dueno && ` · ${p.dueno.nombre}`}
+                    {especie.label}{p.breed && ` · ${p.breed}`}
+                    {p.owner && ` · ${p.owner.name}`}
                   </p>
                 </div>
               </button>
@@ -146,9 +146,9 @@ export function PacienteSelector({
         </div>
       )}
 
-      {abierto && busqueda.length > 0 && resultados?.length === 0 && (
+      {abierto && searchQuery.length > 0 && resultados?.length === 0 && (
         <div className="absolute z-50 top-full mt-1 w-full bg-popover border border-border rounded-xl shadow-lg px-4 py-3 text-sm text-muted-foreground">
-          Sin resultados para &ldquo;{busqueda}&rdquo;
+          Sin resultados para &ldquo;{searchQuery}&rdquo;
         </div>
       )}
     </div>

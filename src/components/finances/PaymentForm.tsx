@@ -31,16 +31,16 @@ export function PagoForm({ pacienteIdInicial, onExito, onCancelar }: PagoFormPro
   } = useForm<PagoFormData>({
     resolver: zodResolver(pagoSchema),
     defaultValues: {
-      pacienteId: pacienteIdInicial ?? '',
-      fecha:      hoy,
-      tipo:       'consulta',
-      metodoPago: 'efectivo',
-      estado:     'pagado',
+      patientId:     pacienteIdInicial ?? '',
+      date:          hoy,
+      type:          'consultation',
+      paymentMethod: 'cash',
+      status:        'paid',
     },
   });
 
-  const pacienteId = watch('pacienteId');
-  const fechaVal   = watch('fecha');
+  const pacienteId = watch('patientId');
+  const fechaVal   = watch('date');
 
   async function onSubmit(datos: PagoFormData) {
     setEnviando(true);
@@ -60,9 +60,9 @@ export function PagoForm({ pacienteIdInicial, onExito, onCancelar }: PagoFormPro
         <label className="text-sm font-medium">Patient *</label>
         <PacienteSelector
           value={pacienteId || undefined}
-          onChange={(id) => setValue('pacienteId', id, { shouldValidate: true })}
+          onChange={(id) => setValue('patientId', id, { shouldValidate: true })}
         />
-        {errors.pacienteId && <p className="text-xs text-destructive">{errors.pacienteId.message}</p>}
+        {errors.patientId && <p className="text-xs text-destructive">{errors.patientId.message}</p>}
       </div>
 
       {/* Fecha */}
@@ -70,21 +70,21 @@ export function PagoForm({ pacienteIdInicial, onExito, onCancelar }: PagoFormPro
         <label className="text-sm font-medium">Fecha *</label>
         <DatePicker
           value={fechaVal}
-          onChange={(v) => setValue('fecha', v ?? '', { shouldValidate: true })}
+          onChange={(v) => setValue('date', v ?? '', { shouldValidate: true })}
           toDate={new Date()}
         />
-        {errors.fecha && <p className="text-xs text-destructive">{errors.fecha.message}</p>}
+        {errors.date && <p className="text-xs text-destructive">{errors.date.message}</p>}
       </div>
 
       {/* Concepto */}
       <div className="space-y-1.5">
         <label className="text-sm font-medium">Concepto *</label>
         <input
-          {...register('concepto')}
+          {...register('concept')}
           placeholder="Ej: Consultation general, Vacuna antirrábica…"
           className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />
-        {errors.concepto && <p className="text-xs text-destructive">{errors.concepto.message}</p>}
+        {errors.concept && <p className="text-xs text-destructive">{errors.concept.message}</p>}
       </div>
 
       {/* Tipo de ingreso */}
@@ -92,12 +92,12 @@ export function PagoForm({ pacienteIdInicial, onExito, onCancelar }: PagoFormPro
         <label className="text-sm font-medium">Tipo de ingreso *</label>
         <div className="grid grid-cols-3 gap-2">
           {(Object.entries(INCOME_TYPES) as [string, { label: string; emoji: string }][]).map(([key, info]) => {
-            const activo = watch('tipo') === key;
+            const activo = watch('type') === key;
             return (
               <button
                 key={key}
                 type="button"
-                onClick={() => setValue('tipo', key as PagoFormData['tipo'], { shouldValidate: true })}
+                onClick={() => setValue('type', key as PagoFormData['type'], { shouldValidate: true })}
                 className={cn(
                   'flex flex-col items-center gap-1 rounded-xl border p-2.5 text-xs transition-colors',
                   activo
@@ -111,21 +111,21 @@ export function PagoForm({ pacienteIdInicial, onExito, onCancelar }: PagoFormPro
             );
           })}
         </div>
-        {errors.tipo && <p className="text-xs text-destructive">{errors.tipo.message}</p>}
+        {errors.type && <p className="text-xs text-destructive">{errors.type.message}</p>}
       </div>
 
       {/* Monto */}
       <div className="space-y-1.5">
         <label className="text-sm font-medium">Monto (C$) *</label>
         <input
-          {...register('monto')}
+          {...register('amount')}
           type="number"
           step="0.01"
           min="0"
           placeholder="0.00"
           className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />
-        {errors.monto && <p className="text-xs text-destructive">{errors.monto.message}</p>}
+        {errors.amount && <p className="text-xs text-destructive">{errors.amount.message}</p>}
       </div>
 
       {/* Método de pago */}
@@ -133,12 +133,12 @@ export function PagoForm({ pacienteIdInicial, onExito, onCancelar }: PagoFormPro
         <label className="text-sm font-medium">Método de pago *</label>
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
           {(Object.entries(PAYMENT_METHODS) as [string, { label: string; emoji: string }][]).map(([key, info]) => {
-            const activo = watch('metodoPago') === key;
+            const activo = watch('paymentMethod') === key;
             return (
               <button
                 key={key}
                 type="button"
-                onClick={() => setValue('metodoPago', key as PagoFormData['metodoPago'], { shouldValidate: true })}
+                onClick={() => setValue('paymentMethod', key as PagoFormData['paymentMethod'], { shouldValidate: true })}
                 className={cn(
                   'flex flex-col items-center gap-1 rounded-xl border p-2.5 text-xs transition-colors',
                   activo
@@ -152,20 +152,20 @@ export function PagoForm({ pacienteIdInicial, onExito, onCancelar }: PagoFormPro
             );
           })}
         </div>
-        {errors.metodoPago && <p className="text-xs text-destructive">{errors.metodoPago.message}</p>}
+        {errors.paymentMethod && <p className="text-xs text-destructive">{errors.paymentMethod.message}</p>}
       </div>
 
       {/* Estado */}
       <div className="space-y-1.5">
         <label className="text-sm font-medium">Estado</label>
         <select
-          {...register('estado')}
+          {...register('status')}
           className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
         >
-          <option value="pagado">Pagado</option>
-          <option value="pendiente">Pendiente</option>
-          <option value="cancelado">Cancelado</option>
-          <option value="reembolsado">Reembolsado</option>
+          <option value="paid">Pagado</option>
+          <option value="pending">Pendiente</option>
+          <option value="cancelled">Cancelado</option>
+          <option value="refunded">Reembolsado</option>
         </select>
       </div>
 
@@ -173,12 +173,12 @@ export function PagoForm({ pacienteIdInicial, onExito, onCancelar }: PagoFormPro
       <div className="space-y-1.5">
         <label className="text-sm font-medium">Notas</label>
         <textarea
-          {...register('notas')}
+          {...register('notes')}
           rows={2}
           placeholder="Observaciones opcionales…"
           className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
         />
-        {errors.notas && <p className="text-xs text-destructive">{errors.notas.message}</p>}
+        {errors.notes && <p className="text-xs text-destructive">{errors.notes.message}</p>}
       </div>
 
       {/* Acciones */}

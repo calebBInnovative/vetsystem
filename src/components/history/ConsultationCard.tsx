@@ -13,10 +13,10 @@ import { Badge } from '@/components/ui/badge';
 // Extended type for historial module: includes optional clinical-notes fields
 // stored alongside the standard ConsultationLocal by the history module.
 type HistoryConsultation = ConsultationLocal & {
-  pesoConsulta?: number;
-  sintomas?: string;
-  medicamentos?: Array<{ nombre: string; dosis: string; frecuencia: string; duracion: string; notas?: string }>;
-  proximaCita?: number;
+  consultationWeight?: number;
+  symptoms?: string;
+  medications?: Array<{ name: string; dosage: string; frequency: string; duration: string; notes?: string }>;
+  nextAppointment?: number;
 };
 
 interface ConsultaCardProps {
@@ -27,12 +27,12 @@ interface ConsultaCardProps {
 
 export function ConsultaCard({ consulta, pacienteId }: ConsultaCardProps) {
   const [expandida, setExpandida] = useState(false);
-  const tipo = CONSULTATION_TYPES[consulta.tipo];
-  const tieneMedicamentos = (consulta.medicamentos?.length ?? 0) > 0;
+  const tipo = CONSULTATION_TYPES[consulta.type];
+  const tieneMedicamentos = (consulta.medications?.length ?? 0) > 0;
   const tieneDetalle =
-    consulta.diagnostico ||
-    consulta.tratamiento ||
-    consulta.observaciones ||
+    consulta.diagnosis ||
+    consulta.treatment ||
+    consulta.observations ||
     tieneMedicamentos;
 
   return (
@@ -53,9 +53,9 @@ export function ConsultaCard({ consulta, pacienteId }: ConsultaCardProps) {
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="font-semibold truncate leading-tight">{consulta.motivo}</p>
+                <p className="font-semibold truncate leading-tight">{consulta.reason}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {format(new Date(consulta.fecha), "d 'de' MMMM 'de' yyyy, HH:mm", { locale: es })}
+                  {format(new Date(consulta.date), "d 'de' MMMM 'de' yyyy, HH:mm", { locale: es })}
                 </p>
               </div>
               <Badge variant="secondary" className={cn('text-xs shrink-0', tipo.color)}>
@@ -64,24 +64,24 @@ export function ConsultaCard({ consulta, pacienteId }: ConsultaCardProps) {
             </div>
 
             {/* Signos vitales */}
-            {(consulta.temperatura || consulta.pesoConsulta) && (
+            {(consulta.temperature || consulta.consultationWeight) && (
               <div className="flex items-center gap-3 mt-2">
-                {consulta.temperatura && (
+                {consulta.temperature && (
                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Thermometer size={12} />
-                    {consulta.temperatura} °C
+                    {consulta.temperature} °C
                   </span>
                 )}
-                {consulta.pesoConsulta && (
+                {consulta.consultationWeight && (
                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Weight size={12} />
-                    {consulta.pesoConsulta} kg
+                    {consulta.consultationWeight} kg
                   </span>
                 )}
                 {tieneMedicamentos && (
                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Pill size={12} />
-                    {consulta.medicamentos!.length} medicamento{consulta.medicamentos!.length !== 1 ? 's' : ''}
+                    {consulta.medications!.length} medicamento{consulta.medications!.length !== 1 ? 's' : ''}
                   </span>
                 )}
               </div>
@@ -90,9 +90,9 @@ export function ConsultaCard({ consulta, pacienteId }: ConsultaCardProps) {
         </div>
 
         {/* Diagnóstico resumido (primera línea siempre visible) */}
-        {consulta.diagnostico && !expandida && (
+        {consulta.diagnosis && !expandida && (
           <p className="mt-3 text-sm text-muted-foreground line-clamp-1 pl-[52px]">
-            <span className="font-medium text-foreground">Dx:</span> {consulta.diagnostico}
+            <span className="font-medium text-foreground">Dx:</span> {consulta.diagnosis}
           </p>
         )}
       </div>
@@ -103,17 +103,17 @@ export function ConsultaCard({ consulta, pacienteId }: ConsultaCardProps) {
           {expandida && (
             <div className="px-4 pb-4 space-y-3 border-t border-border/50 pt-3">
 
-              {consulta.sintomas && (
-                <Campo label="Síntomas">{consulta.sintomas}</Campo>
+              {consulta.symptoms && (
+                <Campo label="Síntomas">{consulta.symptoms}</Campo>
               )}
-              {consulta.diagnostico && (
-                <Campo label="Diagnóstico">{consulta.diagnostico}</Campo>
+              {consulta.diagnosis && (
+                <Campo label="Diagnóstico">{consulta.diagnosis}</Campo>
               )}
-              {consulta.tratamiento && (
-                <Campo label="Tratamiento">{consulta.tratamiento}</Campo>
+              {consulta.treatment && (
+                <Campo label="Tratamiento">{consulta.treatment}</Campo>
               )}
-              {consulta.observaciones && (
-                <Campo label="Observaciones">{consulta.observaciones}</Campo>
+              {consulta.observations && (
+                <Campo label="Observaciones">{consulta.observations}</Campo>
               )}
 
               {tieneMedicamentos && (
@@ -122,14 +122,14 @@ export function ConsultaCard({ consulta, pacienteId }: ConsultaCardProps) {
                     Medicamentos
                   </p>
                   <div className="space-y-2">
-                    {consulta.medicamentos!.map((med, i) => (
+                    {consulta.medications!.map((med, i) => (
                       <div key={i} className="bg-muted/40 rounded-lg px-3 py-2 text-sm">
-                        <span className="font-medium">{med.nombre}</span>
+                        <span className="font-medium">{med.name}</span>
                         <span className="text-muted-foreground">
-                          {' '}— {med.dosis}, {med.frecuencia}, {med.duracion}
+                          {' '}— {med.dosage}, {med.frequency}, {med.duration}
                         </span>
-                        {med.notas && (
-                          <p className="text-xs text-muted-foreground mt-0.5">{med.notas}</p>
+                        {med.notes && (
+                          <p className="text-xs text-muted-foreground mt-0.5">{med.notes}</p>
                         )}
                       </div>
                     ))}
@@ -137,11 +137,11 @@ export function ConsultaCard({ consulta, pacienteId }: ConsultaCardProps) {
                 </div>
               )}
 
-              {consulta.proximaCita && (
+              {consulta.nextAppointment && (
                 <div className="flex items-center gap-2 text-sm text-primary font-medium pt-1">
                   <Calendar size={14} />
                   Próxima cita:{' '}
-                  {format(new Date(consulta.proximaCita), "d 'de' MMMM 'de' yyyy", { locale: es })}
+                  {format(new Date(consulta.nextAppointment), "d 'de' MMMM 'de' yyyy", { locale: es })}
                 </div>
               )}
 

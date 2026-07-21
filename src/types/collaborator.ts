@@ -1,29 +1,29 @@
-export type CollaboratorType = 'empleado' | 'freelance';
-export type CollaboratorPaymentFrequency = 'semanal' | 'quincenal' | 'mensual';
+export type CollaboratorType = 'employee' | 'freelance';
+export type CollaboratorPaymentFrequency = 'weekly' | 'biweekly' | 'monthly';
 
 export const COLLABORATOR_TYPES: Record<CollaboratorType, string> = {
-  empleado:  'Empleado fijo',
+  employee:  'Empleado fijo',
   freelance: 'Freelance / Por services',
 };
 
 export const COLLABORATOR_PAYMENT_FREQUENCIES: Record<CollaboratorPaymentFrequency, string> = {
-  semanal:   'Semanal',
-  quincenal: 'Quincenal',
-  mensual:   'Mensual',
+  weekly:    'Semanal',
+  biweekly:  'Quincenal',
+  monthly:   'Mensual',
 };
 
 export interface Collaborator {
   id: string;
-  clinicaId: string;
-  nombre: string;
-  rol: string;           // free text: "Veterinario", "Recepcionista", etc.
-  tipo: CollaboratorType;
-  salario: number;
-  frecuenciaPago: CollaboratorPaymentFrequency;
+  clinicId: string;
+  name: string;
+  role: string;           // free text: "Veterinario", "Recepcionista", etc.
+  type: CollaboratorType;
+  salary: number;
+  paymentFrequency: CollaboratorPaymentFrequency;
   nextPaymentDate: string;   // YYYY-MM-DD
-  activo: boolean;
-  telefono?: string;
-  notas?: string;
+  active: boolean;
+  phone?: string;
+  notes?: string;
   syncStatus: 'synced' | 'pending' | 'conflict';
   createdAt: number;
   updatedAt: number;
@@ -32,12 +32,12 @@ export interface Collaborator {
 
 export interface CollaboratorPayment {
   id: string;
-  clinicaId: string;
-  colaboradorId: string;
-  monto: number;
-  periodo: string;       // e.g. "Quincenal 1–15 Jul 2026"
-  fechaPago: string;     // YYYY-MM-DD
-  notas?: string;
+  clinicId: string;
+  collaboratorId: string;
+  amount: number;
+  period: string;       // e.g. "Quincenal 1–15 Jul 2026"
+  paymentDate: string;  // YYYY-MM-DD
+  notes?: string;
   syncStatus: 'synced' | 'pending' | 'conflict';
   createdAt: number;
   updatedAt: number;
@@ -46,45 +46,45 @@ export interface CollaboratorPayment {
 
 // Returns next payment date based on frequency
 export function calculateNextCollaboratorPayment(
-  desde: string,
-  frecuencia: CollaboratorPaymentFrequency,
+  from: string,
+  frequency: CollaboratorPaymentFrequency,
 ): string {
-  const fecha = new Date(desde + 'T00:00:00');
-  if (frecuencia === 'semanal') {
-    fecha.setDate(fecha.getDate() + 7);
-  } else if (frecuencia === 'quincenal') {
-    fecha.setDate(fecha.getDate() + 15);
+  const date = new Date(from + 'T00:00:00');
+  if (frequency === 'weekly') {
+    date.setDate(date.getDate() + 7);
+  } else if (frequency === 'biweekly') {
+    date.setDate(date.getDate() + 15);
   } else {
-    fecha.setMonth(fecha.getMonth() + 1);
+    date.setMonth(date.getMonth() + 1);
   }
-  return fecha.toISOString().slice(0, 10);
+  return date.toISOString().slice(0, 10);
 }
 
-// Initial próximoPago: today or next occurrence based on frequency
-export function initialPaymentDate(frecuencia: CollaboratorPaymentFrequency): string {
-  const hoy = new Date();
-  if (frecuencia === 'semanal') {
+// Initial next payment date: today or next occurrence based on frequency
+export function initialPaymentDate(frequency: CollaboratorPaymentFrequency): string {
+  const today = new Date();
+  if (frequency === 'weekly') {
     // Next Monday
-    const dia = hoy.getDay();
-    const diasHasta = dia === 0 ? 1 : 8 - dia;
-    hoy.setDate(hoy.getDate() + diasHasta);
-  } else if (frecuencia === 'quincenal') {
+    const day = today.getDay();
+    const daysUntil = day === 0 ? 1 : 8 - day;
+    today.setDate(today.getDate() + daysUntil);
+  } else if (frequency === 'biweekly') {
     // Next 15th or 1st
-    if (hoy.getDate() < 15) {
-      hoy.setDate(15);
+    if (today.getDate() < 15) {
+      today.setDate(15);
     } else {
-      hoy.setMonth(hoy.getMonth() + 1, 1);
+      today.setMonth(today.getMonth() + 1, 1);
     }
   } else {
     // First of next month
-    hoy.setMonth(hoy.getMonth() + 1, 1);
+    today.setMonth(today.getMonth() + 1, 1);
   }
-  return hoy.toISOString().slice(0, 10);
+  return today.toISOString().slice(0, 10);
 }
 
 export function daysUntilCollaboratorPayment(nextPaymentDate: string): number {
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
-  const pago = new Date(nextPaymentDate + 'T00:00:00');
-  return Math.round((pago.getTime() - hoy.getTime()) / 86400000);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const paymentDate = new Date(nextPaymentDate + 'T00:00:00');
+  return Math.round((paymentDate.getTime() - today.getTime()) / 86400000);
 }

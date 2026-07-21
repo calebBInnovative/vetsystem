@@ -27,9 +27,9 @@ export function AlertasStock() {
       {/* Chips scrollables */}
       <div className="flex gap-2 overflow-x-auto flex-nowrap scrollbar-none min-w-0">
         {alerts.map((p) => {
-          const cat      = PRODUCT_CATEGORIES[p.categoria];
-          const unidad   = MEASUREMENT_UNITS[p.unidad];
-          const sinStock = p.stockActual === 0;
+          const cat      = PRODUCT_CATEGORIES[p.category];
+          const unidad   = MEASUREMENT_UNITS[p.unit];
+          const sinStock = p.currentStock === 0;
 
           return (
             <Link
@@ -39,13 +39,13 @@ export function AlertasStock() {
             >
               <span className="text-sm leading-none">{cat.emoji}</span>
               <span className="text-xs font-medium text-foreground whitespace-nowrap max-w-[120px] truncate">
-                {p.nombre}
+                {p.name}
               </span>
               <span className={cn(
                 'text-xs font-bold whitespace-nowrap',
                 sinStock ? 'text-red-500' : 'text-amber-600 dark:text-amber-400'
               )}>
-                {sinStock ? '0' : p.stockActual} {unidad}
+                {sinStock ? '0' : p.currentStock} {unidad}
               </span>
             </Link>
           );

@@ -24,10 +24,10 @@ export function NewConsultationView({ params }: { params: Promise<{ id: string }
       await createHistoryEntry(id, datos);
       toast.success('Consultation registrada', {
         description: paciente
-          ? `Consultation de ${paciente.nombre} guardada correctamente.`
+          ? `Consultation de ${paciente.name} guardada correctamente.`
           : 'Consultation guardada correctamente.',
       });
-      router.push(`/patients/${id}/historial`);
+      router.push(`/patients/${id}/history`);
     } catch {
       toast.error('Error al guardar', {
         description: 'No se pudo registrar la consulta. Intenta de nuevo.',
@@ -40,7 +40,7 @@ export function NewConsultationView({ params }: { params: Promise<{ id: string }
     <div className="max-w-2xl mx-auto space-y-6">
 
       <div className="flex items-center gap-3">
-        <Link href={`/patients/${id}/historial`}>
+        <Link href={`/patients/${id}/history`}>
           <Button variant="ghost" size="icon">
             <ArrowLeft size={18} />
           </Button>
@@ -49,7 +49,7 @@ export function NewConsultationView({ params }: { params: Promise<{ id: string }
           <h1 className="text-2xl font-bold">Nueva Consultation</h1>
           {paciente && (
             <p className="text-sm text-muted-foreground mt-0.5">
-              {paciente.nombre} · {paciente.especie}
+              {paciente.name} · {paciente.species}
             </p>
           )}
         </div>

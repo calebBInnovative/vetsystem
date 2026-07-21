@@ -15,10 +15,10 @@ function fmtFecha(iso: string) {
 }
 
 const ROLE_LABEL: Record<string, string> = {
-  master:      'Master',
-  admin:       'Administrador',
-  veterinario: 'Veterinario',
-  recepcion:   'Recepción',
+  master:       'Master',
+  admin:        'Administrador',
+  veterinarian: 'Veterinario',
+  reception:    'Recepción',
 };
 
 // ── HTML builder ──────────────────────────────────────────────────────────────
@@ -31,50 +31,52 @@ function buildHtml(factura: InvoiceWithDetails, session: SessionLocal | null): s
   const atendidoPor  = [roleLabel, emailAlias].filter(Boolean).join(' ');
 
   const metodos: Record<string, string> = {
-    efectivo: 'Efectivo', tarjeta: 'Tarjeta',
-    transferencia: 'Transferencia', mixto: 'Mixto',
+    cash:     'Efectivo',
+    card:     'Tarjeta',
+    transfer: 'Transferencia',
+    mixed:    'Mixto',
   };
 
-  const montoCobrado = factura.montoPagado > 0 ? factura.montoPagado : factura.total;
-  const saldoPend    = factura.estado === 'parcialmente_pagada'
-    ? factura.total - factura.montoPagado : 0;
+  const montoCobrado = factura.amountPaid > 0 ? factura.amountPaid : factura.total;
+  const saldoPend    = factura.status === 'partially_paid'
+    ? factura.total - factura.amountPaid : 0;
 
   // ── Items ──
   const itemsHtml = factura.items.map((item) => `
     <div class="item">
       <div class="item-row">
-        <span class="item-name">${escHtml(item.descripcion.toUpperCase())}</span>
+        <span class="item-name">${escHtml(item.description.toUpperCase())}</span>
         <span class="item-total">${fmtR(item.subtotal)}</span>
       </div>
       <div class="item-detail">
-        ${fmtQ(item.cantidad)}&nbsp;&nbsp;x&nbsp;&nbsp;${fmtR(item.precioUnitario)} / ${item.tipo === 'producto' ? 'Unidades' : 'Service'}
+        ${fmtQ(item.quantity)}&nbsp;&nbsp;x&nbsp;&nbsp;${fmtR(item.unitPrice)} / ${item.type === 'product' ? 'Unidades' : 'Service'}
       </div>
     </div>
   `).join('');
 
-  // ── Patient / dueño ──
-  const pacienteHtml = (factura.nombrePaciente || factura.nombreDueno) ? `
+  // ── Patient / owner ──
+  const pacienteHtml = (factura.patientName || factura.ownerName) ? `
     <div class="center info-block">
-      ${factura.nombrePaciente ? `<div>Patient: <strong>${escHtml(factura.nombrePaciente)}</strong>${factura.especiePaciente ? ` (${escHtml(factura.especiePaciente)})` : ''}</div>` : ''}
-      ${factura.nombreDueno    ? `<div>Due&ntilde;o: <strong>${escHtml(factura.nombreDueno)}</strong>${factura.telefonoDueno ? ` &middot; ${escHtml(factura.telefonoDueno)}` : ''}</div>` : ''}
+      ${factura.patientName ? `<div>Patient: <strong>${escHtml(factura.patientName)}</strong>${factura.patientSpecies ? ` (${escHtml(factura.patientSpecies)})` : ''}</div>` : ''}
+      ${factura.ownerName   ? `<div>Due&ntilde;o: <strong>${escHtml(factura.ownerName)}</strong>${factura.ownerPhone ? ` &middot; ${escHtml(factura.ownerPhone)}` : ''}</div>` : ''}
     </div>
     <div class="dash"></div>
   ` : '';
 
-  const descuentoHtml = factura.descuento > 0
-    ? `<div class="row small"><span>Descuento</span><span>- ${fmtR(factura.descuento)}</span></div>` : '';
+  const descuentoHtml = factura.discount > 0
+    ? `<div class="row small"><span>Descuento</span><span>- ${fmtR(factura.discount)}</span></div>` : '';
 
-  const saldoHtml = factura.estado === 'parcialmente_pagada'
+  const saldoHtml = factura.status === 'partially_paid'
     ? `<div class="row small"><span>Saldo pendiente</span><span>${fmtR(saldoPend)}</span></div>` : '';
 
-  const notasHtml = factura.notas
-    ? `<div class="dash"></div><div class="notas">${escHtml(factura.notas)}</div>` : '';
+  const notasHtml = factura.notes
+    ? `<div class="dash"></div><div class="notas">${escHtml(factura.notes)}</div>` : '';
 
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8" />
-<title>Recibo ${escHtml(factura.numero)}</title>
+<title>Recibo ${escHtml(factura.number)}</title>
 <style>
   @page { size: 80mm auto; margin: 4mm 5mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -180,7 +182,7 @@ function buildHtml(factura: InvoiceWithDetails, session: SessionLocal | null): s
   <div class="gap-md"></div>
   ` : ''}
 
-  <!-- 3. Patient / dueño (si aplica) -->
+  <!-- 3. Patient / owner (si aplica) -->
   ${pacienteHtml}
 
   <!-- 4. Items -->
@@ -198,7 +200,7 @@ function buildHtml(factura: InvoiceWithDetails, session: SessionLocal | null): s
     <span>${fmtR(factura.total)}</span>
   </div>
   <div class="row metodo">
-    <span>${escHtml(metodos[factura.metodoPago] ?? factura.metodoPago)}</span>
+    <span>${escHtml(metodos[factura.paymentMethod] ?? factura.paymentMethod)}</span>
     <span>${fmtR(montoCobrado)}</span>
   </div>
   ${saldoHtml}
@@ -207,8 +209,8 @@ function buildHtml(factura: InvoiceWithDetails, session: SessionLocal | null): s
 
   <!-- 6. Orden y fecha -->
   <div class="orden-block">
-    <div class="orden-num">Orden&nbsp;#&nbsp;${escHtml(factura.numero)}</div>
-    <div class="orden-date">${fmtFecha(factura.fecha)}</div>
+    <div class="orden-num">Orden&nbsp;#&nbsp;${escHtml(factura.number)}</div>
+    <div class="orden-date">${fmtFecha(factura.date)}</div>
   </div>
 
   ${notasHtml}
@@ -233,7 +235,6 @@ function escHtml(s: string): string {
 // ── Exportado ─────────────────────────────────────────────────────────────────
 
 export function printRecibo(factura: InvoiceWithDetails, session: SessionLocal | null): void {
-  // Abrir pestaña/ventana sin restricciones de tamaño — el @page controla el papel
   const win = window.open('', '_blank');
   if (!win) {
     window.print();

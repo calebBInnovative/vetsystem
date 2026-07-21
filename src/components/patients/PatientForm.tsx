@@ -33,18 +33,18 @@ export function PacienteForm({
   } = useForm<PacienteFormData>({
     resolver: zodResolver(pacienteSchema),
     defaultValues: {
-      especie: 'perro',
-      sexo: 'macho',
+      species: 'dog',
+      sex: 'male',
       ...defaultValues,
     },
   });
 
-  const especieActual = watch('especie');
-  const sexoActual = watch('sexo');
+  const speciesActual = watch('species');
+  const sexActual = watch('sex');
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-10">
-      
+
       {/* Datos de la Mascota */}
       <section className="space-y-6">
         <h3 className="text-lg font-semibold">Datos de la Mascota</h3>
@@ -52,15 +52,15 @@ export function PacienteForm({
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
           {/* Nombre */}
           <div className="sm:col-span-2">
-            <Label htmlFor="nombre">Nombre <span className="text-destructive">*</span></Label>
+            <Label htmlFor="name">Nombre <span className="text-destructive">*</span></Label>
             <Input
-              id="nombre"
-              {...register('nombre')}
+              id="name"
+              {...register('name')}
               placeholder="Ej: Max, Luna, Toby"
               autoFocus
-              className={cn(errors.nombre && "border-destructive")}
+              className={cn(errors.name && "border-destructive")}
             />
-            {errors.nombre && <p className="text-sm text-destructive mt-1">{errors.nombre.message}</p>}
+            {errors.name && <p className="text-sm text-destructive mt-1">{errors.name.message}</p>}
           </div>
 
           {/* PetSpecies */}
@@ -71,11 +71,11 @@ export function PacienteForm({
                 <button
                   key={valor}
                   type="button"
-                  onClick={() => setValue('especie', valor as PacienteFormData['especie'], { shouldValidate: true })}
+                  onClick={() => setValue('species', valor as PacienteFormData['species'], { shouldValidate: true })}
                   className={cn(
                     "flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all hover:border-primary/50",
-                    especieActual === valor 
-                      ? "border-primary bg-primary/5 text-primary" 
+                    speciesActual === valor
+                      ? "border-primary bg-primary/5 text-primary"
                       : "border-border"
                   )}
                 >
@@ -88,26 +88,26 @@ export function PacienteForm({
 
           {/* Raza, PetSex, Peso, Fecha */}
           <div>
-            <Label htmlFor="raza">Raza</Label>
-            <Input id="raza" {...register('raza')} placeholder="Labrador, Persa..." />
+            <Label htmlFor="breed">Raza</Label>
+            <Input id="breed" {...register('breed')} placeholder="Labrador, Persa..." />
           </div>
 
           <div>
             <Label>PetSex <span className="text-destructive">*</span></Label>
             <div className="flex gap-3 mt-2">
-              {(['macho', 'hembra'] as const).map((s) => (
+              {(['male', 'female'] as const).map((s) => (
                 <button
                   key={s}
                   type="button"
-                  onClick={() => setValue('sexo', s, { shouldValidate: true })}
+                  onClick={() => setValue('sex', s, { shouldValidate: true })}
                   className={cn(
                     "flex-1 py-3 rounded-2xl border-2 text-sm font-medium transition-all",
-                    sexoActual === s 
-                      ? "border-primary bg-primary/5 text-primary" 
+                    sexActual === s
+                      ? "border-primary bg-primary/5 text-primary"
                       : "border-border hover:border-primary/40"
                   )}
                 >
-                  {s === 'macho' ? '♂ Macho' : '♀ Hembra'}
+                  {s === 'male' ? '♂ Macho' : '♀ Hembra'}
                 </button>
               ))}
             </div>
@@ -116,26 +116,26 @@ export function PacienteForm({
           <div>
             <Label>Fecha de Nacimiento</Label>
             <DatePicker
-              value={watch('fechaNacimiento')}
-              onChange={(v) => setValue('fechaNacimiento', v, { shouldValidate: true })}
+              value={watch('birthDate')}
+              onChange={(v) => setValue('birthDate', v, { shouldValidate: true })}
               placeholder="DD/MM/AAAA"
               toDate={new Date()}
               fromDate={new Date(1990, 0, 1)}
-              hasError={!!errors.fechaNacimiento}
+              hasError={!!errors.birthDate}
             />
-            {errors.fechaNacimiento && (
-              <p className="text-sm text-destructive mt-1">{errors.fechaNacimiento.message}</p>
+            {errors.birthDate && (
+              <p className="text-sm text-destructive mt-1">{errors.birthDate.message}</p>
             )}
           </div>
 
           <div>
-            <Label htmlFor="peso">Peso (kg)</Label>
+            <Label htmlFor="weight">Peso (kg)</Label>
             <Input
-              id="peso"
+              id="weight"
               type="number"
               step="0.1"
               min="0"
-              {...register('peso')}
+              {...register('weight')}
               placeholder="4.5"
             />
           </div>
@@ -150,26 +150,26 @@ export function PacienteForm({
       {/* Datos del Dueño */}
       <section className="space-y-6">
         <h3 className="text-lg font-semibold">Datos del Dueño</h3>
-        
+
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <Label htmlFor="dueno.nombre">Nombre completo <span className="text-destructive">*</span></Label>
-            <Input id="dueno.nombre" {...register('dueno.nombre')} placeholder="Nombre del dueño" />
+            <Label htmlFor="owner.name">Nombre completo <span className="text-destructive">*</span></Label>
+            <Input id="owner.name" {...register('owner.name')} placeholder="Nombre del dueño" />
           </div>
 
           <div>
-            <Label htmlFor="dueno.telefono">Teléfono / WhatsApp <span className="text-destructive">*</span></Label>
-            <Input id="dueno.telefono" type="tel" {...register('dueno.telefono')} placeholder="8888-1234" />
+            <Label htmlFor="owner.phone">Teléfono / WhatsApp <span className="text-destructive">*</span></Label>
+            <Input id="owner.phone" type="tel" {...register('owner.phone')} placeholder="8888-1234" />
           </div>
 
           <div>
-            <Label htmlFor="dueno.email">Correo electrónico</Label>
-            <Input id="dueno.email" type="email" {...register('dueno.email')} placeholder="ejemplo@email.com" />
+            <Label htmlFor="owner.email">Correo electrónico</Label>
+            <Input id="owner.email" type="email" {...register('owner.email')} placeholder="ejemplo@email.com" />
           </div>
 
           <div className="sm:col-span-2">
-            <Label htmlFor="dueno.direccion">Dirección</Label>
-            <Input id="dueno.direccion" {...register('dueno.direccion')} placeholder="Barrio, casa, referencia..." />
+            <Label htmlFor="owner.address">Dirección</Label>
+            <Input id="owner.address" {...register('owner.address')} placeholder="Barrio, casa, referencia..." />
           </div>
         </div>
       </section>

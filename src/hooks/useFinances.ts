@@ -7,217 +7,212 @@ import type { InvoiceStatus } from '@/types/invoice';
 import type { PagoFormData } from '@/lib/validations/finances.schema';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HOOKS DE LECTURA
+// READ HOOKS
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Lista de payments filtrados por rango de fechas.
- * Por defecto retorna los del mes actual.
+ * Payments filtered by date range. Defaults to the current month.
+ * Also includes historical pending payments from before the range start.
  */
-export function usePayments(fechaInicio?: string, fechaFin?: string) {
-  const hoy   = new Date();
-  const desde = fechaInicio ?? `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-01`;
-  const hasta = fechaFin    ?? new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().slice(0, 10);
+export function usePayments(dateFrom?: string, dateTo?: string) {
+  const today = new Date();
+  const from  = dateFrom ?? `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
+  const to    = dateTo   ?? new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
 
-  const resultado = useLiveQuery(async () => {
-    const clinicaId = await getClinicaId();
-    // Pagos del rango de fechas (mes actual por defecto)
-    const pagosMes = await db.payments
-      .where('fecha')
-      .between(desde, hasta, true, true)
-      .filter((p) => !p.deletedAt && p.clinicaId === clinicaId)
+  const result = useLiveQuery(async () => {
+    const clinicId = await getClinicaId();
+
+    const monthPayments = await db.payments
+      .where('date')
+      .between(from, to, true, true)
+      .filter((p) => !p.deletedAt && p.clinicId === clinicId)
       .toArray();
 
-    // Cuentas por cobrar de meses anteriores (pendientes históricos)
-    const pendientesHistoricos = await db.payments
-      .where('clinicaId')
-      .equals(clinicaId)
-      .filter((p) => !p.deletedAt && p.estado === 'pendiente' && p.fecha < desde)
+    // Historical pending payments (outstanding accounts receivable)
+    const historicPending = await db.payments
+      .where('clinicId')
+      .equals(clinicId)
+      .filter((p) => !p.deletedAt && p.status === 'pending' && p.date < from)
       .toArray();
 
-    // Combinar sin duplicados (los pendientes del mes ya están en pagosMes)
-    const idsEnMes = new Set(pagosMes.map((p) => p.id));
-    const todos = [...pagosMes, ...pendientesHistoricos.filter((p) => !idsEnMes.has(p.id))];
-    todos.sort((a, b) => b.fecha.localeCompare(a.fecha));
+    const inMonthIds = new Set(monthPayments.map((p) => p.id));
+    const all = [...monthPayments, ...historicPending.filter((p) => !inMonthIds.has(p.id))];
+    all.sort((a, b) => b.date.localeCompare(a.date));
 
-    // Join con patients
-    const pacienteIds  = [...new Set(todos.map((p) => p.pacienteId))];
-    const patients    = await db.patients.bulkGet(pacienteIds);
-    const pacientesMap = new Map(patients.filter(Boolean).map((p) => [p!.id, p!]));
+    const patientIds = [...new Set(all.map((p) => p.patientId))];
+    const patients   = await db.patients.bulkGet(patientIds);
+    const patientMap = new Map(patients.filter(Boolean).map((p) => [p!.id, p!]));
 
-    return todos.map((p) => ({
+    return all.map((p) => ({
       ...p,
-      nombrePaciente:  pacientesMap.get(p.pacienteId)?.nombre ?? 'Patient',
-      especiePaciente: pacientesMap.get(p.pacienteId)?.especie,
+      patientName:    patientMap.get(p.patientId)?.name ?? 'Patient',
+      patientSpecies: patientMap.get(p.patientId)?.species,
     }));
-  }, [desde, hasta]);
+  }, [from, to]);
 
   return {
-    payments:    resultado ?? [],
-    loading: resultado === undefined,
+    payments: result ?? [],
+    loading:  result === undefined,
   };
 }
 
 /**
- * KPIs financieros completos: ingresos, egresos y balance neto del mes.
- * Egresos se leen directamente de pagosGastos y pagosColaboradores (Opción A —
- * no se duplican en la tabla payments, cada módulo es dueño de sus datos).
+ * Full financial KPIs: income, expenses, net balance for the current month.
+ * Expenses come from expensePayments and collaboratorPayments directly.
  */
 export function useFinancialSummary() {
-  const hoy  = new Date();
-  const hoyStr    = hoy.toISOString().slice(0, 10);
-  const mesStr    = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-01`;
-  const mesFinStr = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().slice(0, 10);
+  const today = new Date();
+  const todayStr   = today.toISOString().slice(0, 10);
+  const monthStr   = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
+  const monthEndStr = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
 
-  const diaSemana    = hoy.getDay() === 0 ? 6 : hoy.getDay() - 1;
-  const inicioSemana = new Date(hoy);
-  inicioSemana.setDate(hoy.getDate() - diaSemana);
-  const semanaStr = inicioSemana.toISOString().slice(0, 10);
+  const weekDay   = today.getDay() === 0 ? 6 : today.getDay() - 1;
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - weekDay);
+  const weekStr = weekStart.toISOString().slice(0, 10);
 
-  const resultado = useLiveQuery(async () => {
-    const clinicaId = await getClinicaId();
+  const result = useLiveQuery(async () => {
+    const clinicId = await getClinicaId();
 
-    // ── Ingresos (payments de patients/consultations) ──────────────────────────────
-    const pagosMes = await db.payments
-      .where('fecha')
-      .between(mesStr, mesFinStr, true, true)
-      .filter((p) => !p.deletedAt && p.clinicaId === clinicaId && p.estado === 'pagado')
+    // ── Income (paid payments) ────────────────────────────────────────────────
+    const monthPayments = await db.payments
+      .where('date')
+      .between(monthStr, monthEndStr, true, true)
+      .filter((p) => !p.deletedAt && p.clinicId === clinicId && p.status === 'paid')
       .toArray();
 
-    const totalHoy    = pagosMes.filter((p) => p.fecha === hoyStr).reduce((s, p) => s + p.monto, 0);
-    const totalSemana = pagosMes.filter((p) => p.fecha >= semanaStr).reduce((s, p) => s + p.monto, 0);
-    const totalMes    = pagosMes.reduce((s, p) => s + p.monto, 0);
+    const totalToday  = monthPayments.filter((p) => p.date === todayStr).reduce((s, p) => s + p.amount, 0);
+    const totalWeek   = monthPayments.filter((p) => p.date >= weekStr).reduce((s, p) => s + p.amount, 0);
+    const totalMonth  = monthPayments.reduce((s, p) => s + p.amount, 0);
 
-    const pendientes = await db.payments
-      .where('clinicaId').equals(clinicaId)
-      .filter((p) => !p.deletedAt && p.estado === 'pendiente')
+    const pendingCount = await db.payments
+      .where('clinicId').equals(clinicId)
+      .filter((p) => !p.deletedAt && p.status === 'pending')
       .count();
 
-    const porTipo = pagosMes.reduce<Record<string, number>>((acc, p) => {
-      acc[p.tipo] = (acc[p.tipo] ?? 0) + p.monto;
+    const byType = monthPayments.reduce<Record<string, number>>((acc, p) => {
+      acc[p.type] = (acc[p.type] ?? 0) + p.amount;
       return acc;
     }, {});
 
-    const porMetodo = pagosMes.reduce<Record<string, number>>((acc, p) => {
-      acc[p.metodoPago] = (acc[p.metodoPago] ?? 0) + p.monto;
+    const byMethod = monthPayments.reduce<Record<string, number>>((acc, p) => {
+      acc[p.paymentMethod] = (acc[p.paymentMethod] ?? 0) + p.amount;
       return acc;
     }, {});
 
-    // ── Egresos: gastos fijos pagados este mes ───────────────────────────────
-    const gastosDelMes = await db.expensePayments
-      .where('fechaPago')
-      .between(mesStr, mesFinStr, true, true)
-      .filter((g) => g.clinicaId === clinicaId && !g.deletedAt)
+    // ── Expenses: fixed expenses paid this month ───────────────────────────────
+    const expensePaymentsMonth = await db.expensePayments
+      .where('paymentDate')
+      .between(monthStr, monthEndStr, true, true)
+      .filter((g) => g.clinicId === clinicId && !g.deletedAt)
       .toArray();
-    const totalGastos = gastosDelMes.reduce((s, g) => s + g.monto, 0);
+    const totalExpenses = expensePaymentsMonth.reduce((s, g) => s + g.amount, 0);
 
-    // ── Egresos: colaboradores pagados este mes ──────────────────────────────
-    const colabDelMes = await db.collaboratorPayments
-      .where('fechaPago')
-      .between(mesStr, mesFinStr, true, true)
-      .filter((c) => c.clinicaId === clinicaId && !c.deletedAt)
+    // ── Expenses: collaborators paid this month ────────────────────────────────
+    const collaboratorPaymentsMonth = await db.collaboratorPayments
+      .where('paymentDate')
+      .between(monthStr, monthEndStr, true, true)
+      .filter((c) => c.clinicId === clinicId && !c.deletedAt)
       .toArray();
-    const totalColaboradores = colabDelMes.reduce((s, c) => s + c.monto, 0);
+    const totalCollaborators = collaboratorPaymentsMonth.reduce((s, c) => s + c.amount, 0);
 
-    const totalEgresos  = totalGastos + totalColaboradores;
-    const balanceNeto   = totalMes - totalEgresos;
+    const totalOutgoing = totalExpenses + totalCollaborators;
+    const netBalance    = totalMonth - totalOutgoing;
 
     return {
-      totalHoy, totalSemana, totalMes, pendientes,
-      porTipo, porMetodo, cantidadMes: pagosMes.length,
-      totalGastos, totalColaboradores, totalEgresos, balanceNeto,
+      totalToday, totalWeek, totalMonth, pendingCount,
+      byType, byMethod, countMonth: monthPayments.length,
+      totalExpenses, totalCollaborators, totalOutgoing, netBalance,
     };
-  }, [hoyStr, mesStr, semanaStr]);
+  }, [todayStr, monthStr, weekStr]);
 
   return {
-    summary:  resultado,
-    loading: resultado === undefined,
+    summary: result,
+    loading: result === undefined,
   };
 }
 
-/**
- * Pagos de un paciente específico.
- */
-export function usePatientPayments(pacienteId: string) {
-  const resultado = useLiveQuery(async () => {
+/** Payments for a specific patient */
+export function usePatientPayments(patientId: string) {
+  const result = useLiveQuery(async () => {
     return db.payments
-      .where('pacienteId').equals(pacienteId)
+      .where('patientId').equals(patientId)
       .filter((p) => !p.deletedAt)
       .reverse()
-      .sortBy('fecha');
-  }, [pacienteId]);
+      .sortBy('date');
+  }, [patientId]);
 
   return {
-    payments:    resultado ?? [],
-    loading: resultado === undefined,
+    payments: result ?? [],
+    loading:  result === undefined,
   };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MUTACIONES
+// MUTATIONS
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function createPayment(datos: PagoFormData): Promise<string> {
-  const ahora  = Date.now();
-  const pagoId = crypto.randomUUID();
-  const clinicaId = await getClinicaId();
+export async function createPayment(data: PagoFormData): Promise<string> {
+  const now      = Date.now();
+  const paymentId = crypto.randomUUID();
+  const clinicId = await getClinicaId();
 
-  const nuevo: PaymentLocal = {
-    id:         pagoId,
-    pacienteId: datos.pacienteId,
-    clinicaId:  clinicaId,
-    fecha:      datos.fecha,
-    concepto:   datos.concepto,
-    tipo:       datos.tipo,
-    monto:      datos.monto as number,
-    metodoPago: datos.metodoPago,
-    estado:     datos.estado ?? 'pagado',
-    notas:      datos.notas || undefined,
-    creadoEn:   ahora,
-    syncStatus: 'pending',
-    updatedAt:  ahora,
+  const newPayment: PaymentLocal = {
+    id:            paymentId,
+    patientId:     data.patientId,
+    clinicId:      clinicId,
+    date:          data.date,
+    concept:       data.concept,
+    type:          data.type,
+    amount:        data.amount as number,
+    paymentMethod: data.paymentMethod,
+    status:        data.status ?? 'paid',
+    notes:         data.notes || undefined,
+    createdAt:     now,
+    syncStatus:    'pending',
+    updatedAt:     now,
   };
 
-  await db.payments.add(nuevo);
-  await encolarSync({ coleccion: 'payments', documentoId: pagoId, operacion: 'create', datos: nuevo, intentos: 0, creadoEn: ahora });
-  return pagoId;
+  await db.payments.add(newPayment);
+  await encolarSync({ collection: 'payments', documentId: paymentId, operation: 'create', data: newPayment, attempts: 0, createdAt: now });
+  return paymentId;
 }
 
-export async function updatePaymentStatus(id: string, estado: PaymentStatus): Promise<void> {
-  const ahora = Date.now();
+export async function updatePaymentStatus(id: string, status: PaymentStatus): Promise<void> {
+  const now = Date.now();
 
   await db.transaction('rw', [db.payments, db.consultations, db.invoices, db.syncQueue], async () => {
-    await db.payments.update(id, { estado, updatedAt: ahora, syncStatus: 'pending' });
+    await db.payments.update(id, { status, updatedAt: now, syncStatus: 'pending' });
 
-    // Sincronizar la factura vinculada: pago → consulta → factura
-    const pago = await db.payments.get(id);
-    if (pago?.consultaId) {
-      const consulta = await db.consultations.get(pago.consultaId);
-      if (consulta?.facturaId) {
-        const estadoFactura: InvoiceStatus =
-          estado === 'pagado'    ? 'pagada'   :
-          estado === 'cancelado' ? 'cancelada' : 'pendiente';
+    // Sync the linked invoice: payment → consultation → invoice
+    const payment = await db.payments.get(id);
+    if (payment?.consultationId) {
+      const consultation = await db.consultations.get(payment.consultationId);
+      if (consultation?.invoiceId) {
+        const invoiceStatus: InvoiceStatus =
+          status === 'paid'      ? 'paid'      :
+          status === 'cancelled' ? 'cancelled' : 'pending';
 
-        const factura = await db.invoices.get(consulta.facturaId);
-        const montoFinal = estadoFactura === 'pagada' ? (factura?.total ?? 0) : (factura?.montoPagado ?? 0);
-        await db.invoices.update(consulta.facturaId, {
-          estado:      estadoFactura,
-          montoPagado: montoFinal,
-          updatedAt:   ahora,
-          syncStatus:  'pending',
+        const invoice   = await db.invoices.get(consultation.invoiceId);
+        const finalAmt  = invoiceStatus === 'paid' ? (invoice?.total ?? 0) : (invoice?.amountPaid ?? 0);
+        await db.invoices.update(consultation.invoiceId, {
+          status:     invoiceStatus,
+          amountPaid: finalAmt,
+          updatedAt:  now,
+          syncStatus: 'pending',
         });
-        await encolarSync({ coleccion: 'invoices', documentoId: consulta.facturaId, operacion: 'update', datos: { id: consulta.facturaId, estado: estadoFactura, montoPagado: montoFinal, updatedAt: ahora }, intentos: 0, creadoEn: ahora });
+        await encolarSync({ collection: 'invoices', documentId: consultation.invoiceId, operation: 'update', data: { id: consultation.invoiceId, status: invoiceStatus, amountPaid: finalAmt, updatedAt: now }, attempts: 0, createdAt: now });
       }
     }
 
-    await encolarSync({ coleccion: 'payments', documentoId: id, operacion: 'update', datos: { id, estado, updatedAt: ahora }, intentos: 0, creadoEn: ahora });
+    await encolarSync({ collection: 'payments', documentId: id, operation: 'update', data: { id, status, updatedAt: now }, attempts: 0, createdAt: now });
   });
 }
 
 export async function deletePayment(id: string): Promise<void> {
-  const ahora = Date.now();
-  await db.payments.update(id, { deletedAt: ahora, syncStatus: 'pending', updatedAt: ahora });
-  await encolarSync({ coleccion: 'payments', documentoId: id, operacion: 'delete', datos: { id, deletedAt: ahora }, intentos: 0, creadoEn: ahora });
+  const now = Date.now();
+  await db.payments.update(id, { deletedAt: now, syncStatus: 'pending', updatedAt: now });
+  await encolarSync({ collection: 'payments', documentId: id, operation: 'delete', data: { id, deletedAt: now }, attempts: 0, createdAt: now });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -12,29 +12,29 @@ import { cn } from '@/lib/utils';
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-function NuevaConsultaContent() {
+function NewConsultationContent() {
   const router       = useRouter();
   const searchParams = useSearchParams();
 
-  const citaIdParam      = searchParams.get('citaId') ?? undefined;
-  const pacienteIdParam  = searchParams.get('pacienteId') ?? undefined;
+  const appointmentIdParam = searchParams.get('appointmentId') ?? searchParams.get('citaId') ?? undefined;
+  const patientIdParam     = searchParams.get('patientId') ?? searchParams.get('pacienteId') ?? undefined;
 
-  const [pacienteId, setPacienteId] = useState(pacienteIdParam ?? '');
-  const [tipo, setTipo]             = useState<ConsultationType>('consulta_general');
-  const [motivo, setMotivo]         = useState('');
-  const [loading, setCargando]     = useState(false);
-  const [error, setError]           = useState('');
+  const [patientId, setPatientId] = useState(patientIdParam ?? '');
+  const [type, setType]           = useState<ConsultationType>('general_consultation');
+  const [reason, setReason]       = useState('');
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState('');
 
   async function handleIniciar() {
-    if (!pacienteId) { setError('Selecciona un paciente'); return; }
-    setCargando(true);
+    if (!patientId) { setError('Selecciona un paciente'); return; }
+    setLoading(true);
     setError('');
     try {
-      const id = await startConsultation({ pacienteId, citaId: citaIdParam, tipo, motivo: motivo || undefined });
+      const id = await startConsultation({ patientId, appointmentId: appointmentIdParam, type, reason: reason || undefined });
       router.push(`/consultations/${id}`);
     } catch (e) {
       setError((e as Error).message ?? 'Error al iniciar la consulta');
-      setCargando(false);
+      setLoading(false);
     }
   }
 
@@ -49,7 +49,7 @@ function NuevaConsultaContent() {
         <div>
           <h1 className="text-xl font-bold">Nueva consulta</h1>
           <p className="text-sm text-muted-foreground">
-            {citaIdParam ? 'Desde cita agendada' : 'Walk-in / Sin cita previa'}
+            {appointmentIdParam ? 'Desde cita agendada' : 'Walk-in / Sin cita previa'}
           </p>
         </div>
       </div>
@@ -60,10 +60,10 @@ function NuevaConsultaContent() {
         <div className="space-y-1.5">
           <label className="text-sm font-medium">Patient *</label>
           <PacienteSelector
-            value={pacienteId || undefined}
-            onChange={setPacienteId}
+            value={patientId || undefined}
+            onChange={setPatientId}
           />
-          {error && !pacienteId && <p className="text-xs text-destructive">{error}</p>}
+          {error && !patientId && <p className="text-xs text-destructive">{error}</p>}
         </div>
 
         {/* Tipo */}
@@ -74,10 +74,10 @@ function NuevaConsultaContent() {
               <button
                 key={key}
                 type="button"
-                onClick={() => setTipo(key as ConsultationType)}
+                onClick={() => setType(key as ConsultationType)}
                 className={cn(
                   'flex flex-col items-center gap-1 rounded-xl border p-2.5 text-xs transition-colors',
-                  tipo === key
+                  type === key
                     ? 'border-primary bg-primary/10 text-primary font-medium'
                     : 'border-border hover:border-primary/40 text-muted-foreground'
                 )}
@@ -93,19 +93,19 @@ function NuevaConsultaContent() {
         <div className="space-y-1.5">
           <label className="text-sm font-medium">Motivo inicial <span className="text-muted-foreground font-normal">(opcional)</span></label>
           <textarea
-            value={motivo}
-            onChange={(e) => setMotivo(e.target.value)}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
             rows={2}
             placeholder="Ej: Revisión de rutina, vómitos desde ayer..."
             className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
           />
         </div>
 
-        {error && pacienteId && <p className="text-xs text-destructive">{error}</p>}
+        {error && patientId && <p className="text-xs text-destructive">{error}</p>}
 
         <Button
           onClick={handleIniciar}
-          disabled={loading || !pacienteId}
+          disabled={loading || !patientId}
           className="w-full h-11 text-base gap-2"
         >
           {loading
@@ -122,7 +122,7 @@ function NuevaConsultaContent() {
 export default function NewConsultationPage() {
   return (
     <Suspense>
-      <NuevaConsultaContent />
+      <NewConsultationContent />
     </Suspense>
   );
 }

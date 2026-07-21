@@ -1,35 +1,35 @@
 import { z } from 'zod';
 
 export const pagoSchema = z.object({
-  pacienteId: z.string().min(1, 'Selecciona un paciente'),
+  patientId: z.string().min(1, 'Selecciona un paciente'),
 
-  fecha: z.string().min(1, 'La fecha es requerida'),
+  date: z.string().min(1, 'La fecha es requerida'),
 
-  concepto: z
+  concept: z
     .string()
     .min(2, 'El concepto debe tener al menos 2 caracteres')
     .max(200),
 
-  tipo: z.enum(
-    ['consulta', 'vacunacion', 'cirugia', 'producto', 'estetica', 'otro'],
+  type: z.enum(
+    ['consultation', 'vaccination', 'surgery', 'product', 'grooming', 'other'],
     { error: 'Selecciona el tipo de ingreso' }
   ),
 
-  monto: z.preprocess(
+  amount: z.preprocess(
     (val) => (val === '' || val == null ? undefined : Number(val)),
     z.number({ error: 'Ingresa un monto válido' })
       .positive('El monto debe ser mayor a 0')
       .max(99999, 'Monto demasiado alto')
   ),
 
-  metodoPago: z.enum(
-    ['efectivo', 'tarjeta', 'transferencia', 'cheque', 'otro'],
+  paymentMethod: z.enum(
+    ['cash', 'card', 'transfer', 'check', 'other'],
     { error: 'Selecciona el método de pago' }
   ),
 
-  estado: z.enum(['pendiente', 'pagado', 'cancelado', 'reembolsado']).default('pagado'),
+  status: z.enum(['pending', 'paid', 'cancelled', 'refunded']).default('paid'),
 
-  notas: z.string().max(300).optional(),
+  notes: z.string().max(300).optional(),
 });
 
 export type PagoFormData = z.infer<typeof pagoSchema>;

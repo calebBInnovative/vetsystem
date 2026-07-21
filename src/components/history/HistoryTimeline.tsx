@@ -49,7 +49,7 @@ export function HistorialTimeline({ pacienteId, nombrePaciente }: HistorialTimel
 
   // Agrupar consultations por año
   const porAño = consultations.reduce<Record<string, typeof consultations>>((acc, c) => {
-    const año = format(new Date(c.fecha), 'yyyy');
+    const año = format(new Date(c.date), 'yyyy');
     if (!acc[año]) acc[año] = [];
     acc[año].push(c);
     return acc;

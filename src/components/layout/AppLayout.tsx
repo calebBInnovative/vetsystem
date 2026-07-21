@@ -31,20 +31,20 @@ import { useDemoMode } from '@/hooks/useDemoMode';
 import {
   Menu, X, Home, Users, Calendar, Package,
   BarChart3, Settings, Search, DollarSign, Stethoscope, Receipt,
-  ClipboardList, ShoppingBag, Shield, Database, LogOut, ChevronDown,
+  ClipboardList, ShoppingBag, Tag, Shield, Database, LogOut, ChevronDown,
   FlaskConical, PlayCircle, UserCircle, Loader2, CheckCircle2, Phone,
   Wallet, Bell,
 } from 'lucide-react';
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from '@/components/ui/popover';
-import { useAlertasGastos, useFixedExpenses } from '@/hooks/useExpenses';
+import { useExpenseAlerts, useFixedExpenses } from '@/hooks/useExpenses';
 import {
   alertLevel,
   daysUntilDue,
   EXPENSE_CATEGORIES,
 } from '@/types/expense';
-import { useAlertasColaboradores, useCollaborators } from '@/hooks/useCollaborators';
+import { useCollaboratorAlerts, useCollaborators } from '@/hooks/useCollaborators';
 import { daysUntilCollaboratorPayment } from '@/types/collaborator';
 
 // nav-id is used by TourGuide to spotlight each item
@@ -60,6 +60,7 @@ const menuItems: {
   { icon: Users,         label: 'Pacientes',     href: '/patients',     disponible: true,  modulo: 'patients', navId: 'nav-patients'  },
   { icon: Calendar,      label: 'Agenda',        href: '/schedule',        disponible: true,  modulo: 'schedule',    navId: 'nav-schedule'     },
   { icon: ShoppingBag,   label: 'Ventas',        href: '/sales',        disponible: true,  modulo: 'sales'                            },
+  { icon: Tag,           label: 'Promociones',   href: '/promotions',   disponible: true,  modulo: 'promotions'                       },
   { icon: Package,       label: 'Inventario',    href: '/inventory',    disponible: true,  modulo: 'inventory',navId: 'nav-inventory' },
   { icon: Stethoscope,   label: 'Consultas',     href: '/consultations',     disponible: true,  modulo: 'consultations', navId: 'nav-consultations'  },
   { icon: DollarSign,    label: 'Finanzas',      href: '/finances',      disponible: true,  modulo: 'finances',  navId: 'nav-finances'   },
@@ -73,35 +74,35 @@ const menuItems: {
 // ── Bell notification ─────────────────────────────────────────────────────────
 
 function BellNotification() {
-  const alertasGastos = useAlertasGastos();
-  const alertasColab  = useAlertasColaboradores();
-  const { gastos }    = useFixedExpenses();
-  const { colaboradores } = useCollaborators();
+  const alertsExpenses = useExpenseAlerts();
+  const alertsCollab  = useCollaboratorAlerts();
+  const { expenses }    = useFixedExpenses();
+  const { collaborators } = useCollaborators();
 
-  const totalAlertas = alertasGastos.total + alertasColab.total;
+  const totalAlertas = alertsExpenses.total + alertsCollab.total;
 
   const en30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
   const en14 = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
 
-  const gastosAlerta = gastos.filter(
-    (g) => g.activo && g.nextDueDate <= en30,
+  const upcomingExpenses = expenses.filter(
+    (g) => g.active && g.nextDueDate <= en30,
   );
-  const colabsAlerta = colaboradores.filter(
-    (c) => c.activo && c.nextPaymentDate <= en14,
+  const upcomingCollaborators = collaborators.filter(
+    (c) => c.active && c.nextPaymentDate <= en14,
   );
 
-  const nivelClases: Record<string, string> = {
-    vencido: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400',
-    urgente: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400',
-    proximo: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400',
+  const levelClasses: Record<string, string> = {
+    overdue: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400',
+    urgent: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400',
+    upcoming: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400',
     normal:  'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400',
   };
 
   function colabBadgeClass(nextPaymentDate: string): string {
     const dias = daysUntilCollaboratorPayment(nextPaymentDate);
-    if (dias < 0 || dias <= 3) return nivelClases.vencido;
-    if (dias <= 7) return nivelClases.proximo;
-    return nivelClases.normal;
+    if (dias < 0 || dias <= 3) return levelClasses.overdue;
+    if (dias <= 7) return levelClasses.upcoming;
+    return levelClasses.ok;
   }
 
   function colabBadgeText(nextPaymentDate: string): string {
@@ -135,41 +136,41 @@ function BellNotification() {
           </div>
         ) : (
           <ul className="divide-y divide-border max-h-72 overflow-y-auto">
-            {gastosAlerta.length > 0 && (
+            {upcomingExpenses.length > 0 && (
               <>
                 <li className="px-4 py-1.5 bg-muted/40">
                   <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Gastos</p>
                 </li>
-                {gastosAlerta.map((g) => {
+                {upcomingExpenses.map((g) => {
                   const nivel = alertLevel(g.nextDueDate);
                   const dias  = daysUntilDue(g.nextDueDate);
                   return (
                     <li key={g.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{g.nombre}</p>
+                        <p className="text-sm font-medium truncate">{g.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {EXPENSE_CATEGORIES[g.categoria]} · {g.nextDueDate}
+                          {EXPENSE_CATEGORIES[g.category]} · {g.nextDueDate}
                         </p>
                       </div>
-                      <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${nivelClases[nivel]}`}>
-                        {nivel === 'vencido' ? 'Vencido' : `${dias}d`}
+                      <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${levelClasses[nivel]}`}>
+                        {nivel === 'overdue' ? 'Vencido' : `${dias}d`}
                       </span>
                     </li>
                   );
                 })}
               </>
             )}
-            {colabsAlerta.length > 0 && (
+            {upcomingCollaborators.length > 0 && (
               <>
                 <li className="px-4 py-1.5 bg-muted/40">
                   <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Colaboradores</p>
                 </li>
-                {colabsAlerta.map((c) => (
+                {upcomingCollaborators.map((c) => (
                   <li key={c.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{c.nombre}</p>
+                      <p className="text-sm font-medium truncate">{c.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {c.rol || 'Collaborator'} · {c.nextPaymentDate}
+                        {c.role || 'Collaborator'} · {c.nextPaymentDate}
                       </p>
                     </div>
                     <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${colabBadgeClass(c.nextPaymentDate)}`}>
@@ -210,7 +211,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const router   = useRouter();
   const { session, license, refreshFromDexie } = useAuth();
   const { isDemo, startTour } = useDemoMode();
-  const soloLectura = !puedeEscribir(license.modo);
+  const soloLectura = !puedeEscribir(license.mode);
   const esMaster    = session?.role === 'master';
   const esAdmin     = session?.role === 'admin' || esMaster;
 
@@ -242,7 +243,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         name:        perfilNombre.trim() || session.userName,
         role:        session.role,
         permissions: session.permissions,
-        telefono:    perfilTel.trim() || undefined,
+        phone:    perfilTel.trim() || undefined,
       });
       // Update Dexie session
       const local = await db.session.get('singleton');
@@ -284,8 +285,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => { setNavigating(false); }, [pathname]);
 
   useEffect(() => {
-    syncService.iniciar();
-    return () => syncService.detener();
+    syncService.start();
+    return () => syncService.stop();
   }, []);
 
   const cerrarSidebar = () => setSidebarOpen(false);

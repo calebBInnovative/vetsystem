@@ -25,10 +25,10 @@ function fmtFecha(iso: string) {
 export function FacturaViewer({ factura, acciones = false }: FacturaViewerProps) {
   const { session } = useAuth();
 
-  const estadoInfo = INVOICE_STATUSES[factura.estado];
-  const metodoInfo = INVOICE_PAYMENT_METHODS[factura.metodoPago];
-  const saldoPend  = factura.estado === 'parcialmente_pagada'
-    ? factura.total - factura.montoPagado
+  const estadoInfo = INVOICE_STATUSES[factura.status];
+  const metodoInfo = INVOICE_PAYMENT_METHODS[factura.paymentMethod];
+  const saldoPend  = factura.status === 'partially_paid'
+    ? factura.total - factura.amountPaid
     : 0;
 
   return (
@@ -42,8 +42,8 @@ export function FacturaViewer({ factura, acciones = false }: FacturaViewerProps)
             <p className="text-xs text-muted-foreground mt-0.5">Clínica Veterinaria · Nicaragua</p>
           </div>
           <div className="text-right">
-            <p className="font-mono font-bold text-lg tracking-wide">{factura.numero}</p>
-            <p className="text-xs text-muted-foreground">{fmtFecha(factura.fecha)}</p>
+            <p className="font-mono font-bold text-lg tracking-wide">{factura.number}</p>
+            <p className="text-xs text-muted-foreground">{fmtFecha(factura.date)}</p>
           </div>
         </div>
         <div className="mt-4 flex items-center gap-2">
@@ -51,7 +51,7 @@ export function FacturaViewer({ factura, acciones = false }: FacturaViewerProps)
             <span className={cn('w-1.5 h-1.5 rounded-full', estadoInfo.punto)} />
             {estadoInfo.label}
           </span>
-          {factura.estado !== 'pendiente' && (
+          {factura.status !== 'pending' && (
             <span className="text-xs text-muted-foreground">
               {metodoInfo.emoji} {metodoInfo.label}
             </span>
@@ -60,25 +60,25 @@ export function FacturaViewer({ factura, acciones = false }: FacturaViewerProps)
       </div>
 
       {/* Patient / dueño */}
-      {(factura.nombrePaciente || factura.nombreDueno || !factura.ventaId) && (
+      {(factura.patientName || factura.ownerName || !factura.saleId) && (
         <div className="px-6 py-4 border-b border-border grid grid-cols-2 gap-4 text-sm">
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-1">
-              {factura.ventaId ? 'Cliente' : 'Patient'}
+              {factura.saleId ? 'Cliente' : 'Patient'}
             </p>
-            <p className="font-semibold">{factura.nombrePaciente ?? (factura.ventaId ? 'Cliente general' : '—')}</p>
-            {factura.razaPaciente && (
-              <p className="text-xs text-muted-foreground capitalize">{factura.especiePaciente} · {factura.razaPaciente}</p>
+            <p className="font-semibold">{factura.patientName ?? (factura.saleId ? 'Cliente general' : '—')}</p>
+            {factura.patientBreed && (
+              <p className="text-xs text-muted-foreground capitalize">{factura.patientSpecies} · {factura.patientBreed}</p>
             )}
-            {!factura.razaPaciente && factura.especiePaciente && (
-              <p className="text-xs text-muted-foreground capitalize">{factura.especiePaciente}</p>
+            {!factura.patientBreed && factura.patientSpecies && (
+              <p className="text-xs text-muted-foreground capitalize">{factura.patientSpecies}</p>
             )}
           </div>
-          {(factura.nombreDueno || !factura.ventaId) && (
+          {(factura.ownerName || !factura.saleId) && (
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-1">Dueño</p>
-              <p className="font-semibold">{factura.nombreDueno ?? '—'}</p>
-              {factura.telefonoDueno && <p className="text-xs text-muted-foreground">{factura.telefonoDueno}</p>}
+              <p className="font-semibold">{factura.ownerName ?? '—'}</p>
+              {factura.ownerPhone && <p className="text-xs text-muted-foreground">{factura.ownerPhone}</p>}
             </div>
           )}
         </div>
@@ -106,11 +106,11 @@ export function FacturaViewer({ factura, acciones = false }: FacturaViewerProps)
               factura.items.map((item) => (
                 <tr key={item.id}>
                   <td className="py-2.5">
-                    <p className="font-medium">{item.descripcion}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{item.tipo}</p>
+                    <p className="font-medium">{item.description}</p>
+                    <p className="text-xs text-muted-foreground capitalize">{item.type}</p>
                   </td>
-                  <td className="py-2.5 text-center text-muted-foreground">{item.cantidad}</td>
-                  <td className="py-2.5 text-right text-muted-foreground">{fmt(item.precioUnitario)}</td>
+                  <td className="py-2.5 text-center text-muted-foreground">{item.quantity}</td>
+                  <td className="py-2.5 text-right text-muted-foreground">{fmt(item.unitPrice)}</td>
                   <td className="py-2.5 text-right font-medium">{fmt(item.subtotal)}</td>
                 </tr>
               ))
@@ -124,19 +124,19 @@ export function FacturaViewer({ factura, acciones = false }: FacturaViewerProps)
         <div className="flex justify-between text-sm text-muted-foreground">
           <span>Subtotal</span><span>{fmt(factura.subtotal)}</span>
         </div>
-        {factura.descuento > 0 && (
+        {factura.discount > 0 && (
           <div className="flex justify-between text-sm text-muted-foreground">
             <span>Descuento</span>
-            <span className="text-green-600">− {fmt(factura.descuento)}</span>
+            <span className="text-green-600">− {fmt(factura.discount)}</span>
           </div>
         )}
         <div className="flex justify-between font-bold text-lg pt-2 border-t border-border">
           <span>Total</span><span>{fmt(factura.total)}</span>
         </div>
-        {factura.estado === 'parcialmente_pagada' && (
+        {factura.status === 'partially_paid' && (
           <>
             <div className="flex justify-between text-sm text-blue-600 dark:text-blue-400">
-              <span>Pagado</span><span>{fmt(factura.montoPagado)}</span>
+              <span>Pagado</span><span>{fmt(factura.amountPaid)}</span>
             </div>
             <div className="flex justify-between text-sm font-semibold text-amber-600 dark:text-amber-400">
               <span>Saldo pendiente</span><span>{fmt(saldoPend)}</span>
@@ -146,13 +146,13 @@ export function FacturaViewer({ factura, acciones = false }: FacturaViewerProps)
       </div>
 
       {/* Notas + botón imprimir */}
-      {(factura.notas || acciones) && (
+      {(factura.notes || acciones) && (
         <div className="px-6 py-4 flex items-start justify-between gap-4">
           <div className="flex-1">
-            {factura.notas && (
+            {factura.notes && (
               <>
                 <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-1">Notas</p>
-                <p className="text-sm whitespace-pre-wrap">{factura.notas}</p>
+                <p className="text-sm whitespace-pre-wrap">{factura.notes}</p>
               </>
             )}
           </div>

@@ -1,4 +1,4 @@
-import { db, getClinicaId } from '@/lib/db/database';
+import { db } from '@/lib/db/database';
 import type { PatientLocal, OwnerLocal } from '@/types/patient';
 import type { ConsultationLocal, ConsultationItem } from '@/types/consultation';
 import type { AppointmentLocal } from '@/types/appointment';
@@ -9,655 +9,734 @@ import type { ServiceLocal } from '@/types/service';
 import type { SaleLocal, SaleItem } from '@/types/sale';
 import type { FixedExpense, ExpensePayment } from '@/types/expense';
 import type { Collaborator, CollaboratorPayment } from '@/types/collaborator';
+import type { PromotionLocal, PromotionItem } from '@/types/promotion';
+import { applyDiscount } from '@/types/promotion';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function uuid() { return crypto.randomUUID(); }
 function ts()   { return Date.now(); }
 
-function tsHace(dias: number): number {
-  return Date.now() - dias * 86_400_000;
+function tsAgo(days: number): number {
+  return Date.now() - days * 86_400_000;
 }
 
-function fechaStr(diasOffset = 0): string {
+function dateStr(offsetDays = 0): string {
   const d = new Date();
-  d.setDate(d.getDate() + diasOffset);
+  d.setDate(d.getDate() + offsetDays);
   return d.toISOString().slice(0, 10);
 }
 
-function fechaStrDesdTs(ts: number): string {
-  return new Date(ts).toISOString().slice(0, 10);
+function dateStrFromTs(timestamp: number): string {
+  return new Date(timestamp).toISOString().slice(0, 10);
 }
 
 function rand<T>(arr: readonly T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
 function randInt(min: number, max: number) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 
-// ─── Datos base ───────────────────────────────────────────────────────────────
+// ─── Base data ────────────────────────────────────────────────────────────────
 
-const DUENOS_DATA = [
-  { nombre: 'Carlos Martínez',    telefono: '8612-3401', email: 'carlos.m@gmail.com',   direccion: 'Colonia Centroamérica, Managua' },
-  { nombre: 'Ana Sofía Ríos',     telefono: '8732-1190', email: 'anasofia.r@gmail.com', direccion: 'Reparto Schick, Managua' },
-  { nombre: 'José Luis Herrera',  telefono: '8500-4412', email: 'joseluis.h@yahoo.com', direccion: 'Altamira D\'Este, Managua' },
-  { nombre: 'María Elena Solís',  telefono: '8901-2234', email: 'maria.s@hotmail.com',  direccion: 'Linda Vista, Managua' },
-  { nombre: 'Roberto Castillo',   telefono: '8345-6678', email: undefined,              direccion: 'Bolonia, Managua' },
-  { nombre: 'Yessenia Aguirre',   telefono: '8223-9901', email: 'yessenia.a@gmail.com', direccion: 'Los Robles, Managua' },
-  { nombre: 'Diego Obando',       telefono: '8766-3312', email: undefined,              direccion: 'Bello Horizonte, Managua' },
-  { nombre: 'Karla Mendoza',      telefono: '8456-7890', email: 'karla.m@gmail.com',    direccion: 'Villa Fontana, Managua' },
+const OWNERS_DATA = [
+  { name: 'Carlos Martínez',    phone: '8612-3401', email: 'carlos.m@gmail.com',   address: 'Colonia Centroamérica, Managua' },
+  { name: 'Ana Sofía Ríos',     phone: '8732-1190', email: 'anasofia.r@gmail.com', address: 'Reparto Schick, Managua' },
+  { name: 'José Luis Herrera',  phone: '8500-4412', email: 'joseluis.h@yahoo.com', address: "Altamira D'Este, Managua" },
+  { name: 'María Elena Solís',  phone: '8901-2234', email: 'maria.s@hotmail.com',  address: 'Linda Vista, Managua' },
+  { name: 'Roberto Castillo',   phone: '8345-6678', email: undefined,              address: 'Bolonia, Managua' },
+  { name: 'Yessenia Aguirre',   phone: '8223-9901', email: 'yessenia.a@gmail.com', address: 'Los Robles, Managua' },
+  { name: 'Diego Obando',       phone: '8766-3312', email: undefined,              address: 'Bello Horizonte, Managua' },
+  { name: 'Karla Mendoza',      phone: '8456-7890', email: 'karla.m@gmail.com',    address: 'Villa Fontana, Managua' },
 ] as const;
 
-const PACIENTES_DATA = [
-  { nombre: 'Rocky',    especie: 'perro' as const, raza: 'Labrador Retriever',  sexo: 'macho'  as const, color: 'Amarillo',      peso: 28,   duenoIdx: 0 },
-  { nombre: 'Luna',     especie: 'perro' as const, raza: 'Pastor Alemán',       sexo: 'hembra' as const, color: 'Negro y café',  peso: 22,   duenoIdx: 0 },
-  { nombre: 'Michi',    especie: 'gato'  as const, raza: 'Doméstico',           sexo: 'hembra' as const, color: 'Atigrado',      peso: 3.5,  duenoIdx: 1 },
-  { nombre: 'Thor',     especie: 'perro' as const, raza: 'Rottweiler',          sexo: 'macho'  as const, color: 'Negro y café',  peso: 42,   duenoIdx: 2 },
-  { nombre: 'Canela',   especie: 'perro' as const, raza: 'Cocker Spaniel',      sexo: 'hembra' as const, color: 'Café',          peso: 9,    duenoIdx: 3 },
-  { nombre: 'Whiskers', especie: 'gato'  as const, raza: 'Siamés',             sexo: 'macho'  as const, color: 'Crema y café',  peso: 4.2,  duenoIdx: 3 },
-  { nombre: 'Max',      especie: 'perro' as const, raza: 'Bulldog Francés',     sexo: 'macho'  as const, color: 'Atigrado',      peso: 11,   duenoIdx: 4 },
-  { nombre: 'Nala',     especie: 'perro' as const, raza: 'Labrador Retriever',  sexo: 'hembra' as const, color: 'Negro',         peso: 25,   duenoIdx: 5 },
-  { nombre: 'Simba',    especie: 'gato'  as const, raza: 'Persa',              sexo: 'macho'  as const, color: 'Blanco',        peso: 5,    duenoIdx: 5 },
-  { nombre: 'Buddy',    especie: 'perro' as const, raza: 'Golden Retriever',   sexo: 'macho'  as const, color: 'Dorado',        peso: 30,   duenoIdx: 6 },
-  { nombre: 'Pistacho', especie: 'ave'   as const, raza: 'Periquito',          sexo: 'macho'  as const, color: 'Verde y azul',  peso: 0.04, duenoIdx: 7 },
-  { nombre: 'Kira',     especie: 'perro' as const, raza: 'Husky Siberiano',    sexo: 'hembra' as const, color: 'Gris y blanco', peso: 20,   duenoIdx: 7 },
+const PATIENTS_DATA = [
+  { name: 'Rocky',    species: 'dog'  as const, breed: 'Labrador Retriever',  sex: 'male'   as const, color: 'Amarillo',      weight: 28,   ownerIdx: 0 },
+  { name: 'Luna',     species: 'dog'  as const, breed: 'Pastor Alemán',       sex: 'female' as const, color: 'Negro y café',  weight: 22,   ownerIdx: 0 },
+  { name: 'Michi',    species: 'cat'  as const, breed: 'Doméstico',           sex: 'female' as const, color: 'Atigrado',      weight: 3.5,  ownerIdx: 1 },
+  { name: 'Thor',     species: 'dog'  as const, breed: 'Rottweiler',          sex: 'male'   as const, color: 'Negro y café',  weight: 42,   ownerIdx: 2 },
+  { name: 'Canela',   species: 'dog'  as const, breed: 'Cocker Spaniel',      sex: 'female' as const, color: 'Café',          weight: 9,    ownerIdx: 3 },
+  { name: 'Whiskers', species: 'cat'  as const, breed: 'Siamés',              sex: 'male'   as const, color: 'Crema y café',  weight: 4.2,  ownerIdx: 3 },
+  { name: 'Max',      species: 'dog'  as const, breed: 'Bulldog Francés',     sex: 'male'   as const, color: 'Atigrado',      weight: 11,   ownerIdx: 4 },
+  { name: 'Nala',     species: 'dog'  as const, breed: 'Labrador Retriever',  sex: 'female' as const, color: 'Negro',         weight: 25,   ownerIdx: 5 },
+  { name: 'Simba',    species: 'cat'  as const, breed: 'Persa',               sex: 'male'   as const, color: 'Blanco',        weight: 5,    ownerIdx: 5 },
+  { name: 'Buddy',    species: 'dog'  as const, breed: 'Golden Retriever',    sex: 'male'   as const, color: 'Dorado',        weight: 30,   ownerIdx: 6 },
+  { name: 'Pistacho', species: 'bird' as const, breed: 'Periquito',           sex: 'male'   as const, color: 'Verde y azul',  weight: 0.04, ownerIdx: 7 },
+  { name: 'Kira',     species: 'dog'  as const, breed: 'Husky Siberiano',     sex: 'female' as const, color: 'Gris y blanco', weight: 20,   ownerIdx: 7 },
 ];
 
-const VACUNAS = ['Antirrábica', 'Parvovirus + Distemper', 'Bordetella', 'Triple felina', 'Leucemia felina', 'Leptospirosis'] as const;
+const VACCINES = ['Antirrábica', 'Parvovirus + Distemper', 'Bordetella', 'Triple felina', 'Leucemia felina', 'Leptospirosis'] as const;
 
-const PRODUCTOS_DATA = [
-  { nombre: 'Amoxicilina 500mg',         categoria: 'medicamento'     as const, stock: 45,  min: 10, unidad: 'tableta' as const, pv: 15,   pc: 8   },
-  { nombre: 'Ivermectina 1%',            categoria: 'antiparasitario' as const, stock: 20,  min: 5,  unidad: 'frasco'  as const, pv: 180,  pc: 95  },
-  { nombre: 'Meloxicam 1.5mg/mL',        categoria: 'medicamento'     as const, stock: 12,  min: 5,  unidad: 'frasco'  as const, pv: 250,  pc: 140 },
-  { nombre: 'Vacuna Antirrábica',        categoria: 'vacuna'          as const, stock: 30,  min: 10, unidad: 'ampolla' as const, pv: 120,  pc: 60  },
-  { nombre: 'Vacuna DHPP',               categoria: 'vacuna'          as const, stock: 25,  min: 10, unidad: 'ampolla' as const, pv: 150,  pc: 80  },
-  { nombre: 'Shampoo Medicado Perros',   categoria: 'higiene'         as const, stock: 8,   min: 5,  unidad: 'frasco'  as const, pv: 220,  pc: 110 },
-  { nombre: 'Royal Canin Mini Adult 3kg',categoria: 'alimento'        as const, stock: 15,  min: 5,  unidad: 'kg'      as const, pv: 450,  pc: 320 },
-  { nombre: 'Whiskas Gatos 1kg',         categoria: 'alimento'        as const, stock: 20,  min: 5,  unidad: 'kg'      as const, pv: 280,  pc: 180 },
-  { nombre: 'Dexametasona 4mg/mL',       categoria: 'medicamento'     as const, stock: 3,   min: 5,  unidad: 'frasco'  as const, pv: 320,  pc: 200 },
-  { nombre: 'Collar Antipulgas Seresto', categoria: 'accesorio'       as const, stock: 10,  min: 3,  unidad: 'unidad'  as const, pv: 650,  pc: 400 },
-  { nombre: 'Jeringa 3mL',              categoria: 'cirugia'         as const, stock: 200, min: 50, unidad: 'unidad'  as const, pv: 8,    pc: 3   },
-  { nombre: 'Guantes de látex (caja)',   categoria: 'cirugia'         as const, stock: 4,   min: 5,  unidad: 'caja'    as const, pv: 180,  pc: 100 },
-  { nombre: 'Suero Ringer Lactato',      categoria: 'medicamento'     as const, stock: 18,  min: 6,  unidad: 'frasco'  as const, pv: 95,   pc: 55  },
-  { nombre: 'Frontline Spray',           categoria: 'antiparasitario' as const, stock: 7,   min: 5,  unidad: 'frasco'  as const, pv: 480,  pc: 280 },
-  { nombre: 'Kit de sutura',             categoria: 'cirugia'         as const, stock: 12,  min: 4,  unidad: 'unidad'  as const, pv: 120,  pc: 65  },
-  { nombre: 'Enrofloxacino 50mg/mL',     categoria: 'medicamento'     as const, stock: 9,   min: 5,  unidad: 'frasco'  as const, pv: 210,  pc: 120 },
-  { nombre: 'Papel térmico impresora',   categoria: 'otro'            as const, stock: 2,   min: 3,  unidad: 'unidad'  as const, pv: 80,   pc: 50  },
-  { nombre: 'Arena para gatos 5kg',      categoria: 'higiene'         as const, stock: 11,  min: 4,  unidad: 'kg'      as const, pv: 160,  pc: 90  },
+const PRODUCTS_DATA = [
+  { name: 'Amoxicilina 500mg',         category: 'medication'    as const, stock: 45,  min: 10, unit: 'tablet'  as const, salePrice: 15,  costPrice: 8   },
+  { name: 'Ivermectina 1%',            category: 'antiparasitic' as const, stock: 20,  min: 5,  unit: 'bottle'  as const, salePrice: 180, costPrice: 95  },
+  { name: 'Meloxicam 1.5mg/mL',        category: 'medication'    as const, stock: 12,  min: 5,  unit: 'bottle'  as const, salePrice: 250, costPrice: 140 },
+  { name: 'Vacuna Antirrábica',        category: 'vaccine'       as const, stock: 30,  min: 10, unit: 'ampoule' as const, salePrice: 120, costPrice: 60  },
+  { name: 'Vacuna DHPP',               category: 'vaccine'       as const, stock: 25,  min: 10, unit: 'ampoule' as const, salePrice: 150, costPrice: 80  },
+  { name: 'Shampoo Medicado Perros',   category: 'hygiene'       as const, stock: 8,   min: 5,  unit: 'bottle'  as const, salePrice: 220, costPrice: 110 },
+  { name: 'Royal Canin Mini Adult 3kg',category: 'food'          as const, stock: 15,  min: 5,  unit: 'kg'      as const, salePrice: 450, costPrice: 320 },
+  { name: 'Whiskas Gatos 1kg',         category: 'food'          as const, stock: 20,  min: 5,  unit: 'kg'      as const, salePrice: 280, costPrice: 180 },
+  { name: 'Dexametasona 4mg/mL',       category: 'medication'    as const, stock: 3,   min: 5,  unit: 'bottle'  as const, salePrice: 320, costPrice: 200 },
+  { name: 'Collar Antipulgas Seresto', category: 'accessory'     as const, stock: 10,  min: 3,  unit: 'unit'    as const, salePrice: 650, costPrice: 400 },
+  { name: 'Jeringa 3mL',              category: 'surgery'       as const, stock: 200, min: 50, unit: 'unit'    as const, salePrice: 8,   costPrice: 3   },
+  { name: 'Guantes de látex (caja)',   category: 'surgery'       as const, stock: 4,   min: 5,  unit: 'box'     as const, salePrice: 180, costPrice: 100 },
+  { name: 'Suero Ringer Lactato',      category: 'medication'    as const, stock: 18,  min: 6,  unit: 'bottle'  as const, salePrice: 95,  costPrice: 55  },
+  { name: 'Frontline Spray',           category: 'antiparasitic' as const, stock: 7,   min: 5,  unit: 'bottle'  as const, salePrice: 480, costPrice: 280 },
+  { name: 'Kit de sutura',             category: 'surgery'       as const, stock: 12,  min: 4,  unit: 'unit'    as const, salePrice: 120, costPrice: 65  },
+  { name: 'Enrofloxacino 50mg/mL',     category: 'medication'    as const, stock: 9,   min: 5,  unit: 'bottle'  as const, salePrice: 210, costPrice: 120 },
+  { name: 'Papel térmico impresora',   category: 'other'         as const, stock: 2,   min: 3,  unit: 'unit'    as const, salePrice: 80,  costPrice: 50  },
+  { name: 'Arena para gatos 5kg',      category: 'hygiene'       as const, stock: 11,  min: 4,  unit: 'kg'      as const, salePrice: 160, costPrice: 90  },
 ];
 
-// Items por tipo de consulta: [servicio principal + posibles products]
-const ITEMS_POR_TIPO: Record<string, { descripcion: string; precio: number; esServicio: boolean; prodNombre?: string }[]> = {
-  consulta_general: [
-    { descripcion: 'Consultation General',          precio: 400,  esServicio: true },
-    { descripcion: 'Amoxicilina 500mg',         precio: 15,   esServicio: false, prodNombre: 'Amoxicilina 500mg' },
+// Items per consultation type: [primary service + possible products]
+const ITEMS_BY_TYPE: Record<string, { description: string; price: number; isService: boolean; prodName?: string }[]> = {
+  general_consultation: [
+    { description: 'Consultation General',      price: 400,  isService: true },
+    { description: 'Amoxicilina 500mg',         price: 15,   isService: false, prodName: 'Amoxicilina 500mg' },
   ],
-  control: [
-    { descripcion: 'Control Médico',            precio: 300,  esServicio: true },
+  checkup: [
+    { description: 'Control Médico',            price: 300,  isService: true },
   ],
-  vacunacion: [
-    { descripcion: 'Aplicación de Vacuna',      precio: 80,   esServicio: true },
-    { descripcion: 'Vacuna Antirrábica',        precio: 120,  esServicio: false, prodNombre: 'Vacuna Antirrábica' },
+  vaccination: [
+    { description: 'Aplicación de Vacuna',      price: 80,   isService: true },
+    { description: 'Vacuna Antirrábica',        price: 120,  isService: false, prodName: 'Vacuna Antirrábica' },
   ],
-  desparasitacion: [
-    { descripcion: 'Desparasitación Interna',   precio: 150,  esServicio: true },
-    { descripcion: 'Ivermectina 1%',            precio: 180,  esServicio: false, prodNombre: 'Ivermectina 1%' },
+  deworming: [
+    { description: 'Desparasitación Interna',   price: 150,  isService: true },
+    { description: 'Ivermectina 1%',            price: 180,  isService: false, prodName: 'Ivermectina 1%' },
   ],
-  cirugia: [
-    { descripcion: 'Procedimiento Quirúrgico',  precio: 1800, esServicio: true },
-    { descripcion: 'Kit de sutura',             precio: 120,  esServicio: false, prodNombre: 'Kit de sutura' },
-    { descripcion: 'Suero Ringer Lactato',      precio: 95,   esServicio: false, prodNombre: 'Suero Ringer Lactato' },
+  surgery: [
+    { description: 'Procedimiento Quirúrgico',  price: 1800, isService: true },
+    { description: 'Kit de sutura',             price: 120,  isService: false, prodName: 'Kit de sutura' },
+    { description: 'Suero Ringer Lactato',      price: 95,   isService: false, prodName: 'Suero Ringer Lactato' },
   ],
-  emergencia: [
-    { descripcion: 'Atención de Emergencia',    precio: 700,  esServicio: true },
-    { descripcion: 'Meloxicam 1.5mg/mL',        precio: 250,  esServicio: false, prodNombre: 'Meloxicam 1.5mg/mL' },
+  emergency: [
+    { description: 'Atención de Emergencia',    price: 700,  isService: true },
+    { description: 'Meloxicam 1.5mg/mL',        price: 250,  isService: false, prodName: 'Meloxicam 1.5mg/mL' },
   ],
-  estetica: [
-    { descripcion: 'Baño y Corte',              precio: 350,  esServicio: true },
+  grooming: [
+    { description: 'Baño y Corte',              price: 350,  isService: true },
   ],
-  otro: [
-    { descripcion: 'Atención Veterinaria',      precio: 250,  esServicio: true },
+  other: [
+    { description: 'Atención Veterinaria',      price: 250,  isService: true },
   ],
 };
 
-const SERVICIOS_DEFAULT: Omit<ServiceLocal, 'id' | 'clinicaId' | 'creadoEn' | 'syncStatus' | 'updatedAt'>[] = [
-  { nombre: 'Consultation General',        categoria: 'consulta',        precio: 400,  activo: true },
-  { nombre: 'Control Médico',          categoria: 'consulta',        precio: 300,  activo: true },
-  { nombre: 'Atención de Emergencia',  categoria: 'emergencia',      precio: 700,  activo: true },
-  { nombre: 'Aplicación de Vacuna',    categoria: 'vacunacion',      precio: 80,   activo: true },
-  { nombre: 'Desparasitación Interna', categoria: 'desparasitacion', precio: 150,  activo: true },
-  { nombre: 'Desparasitación Externa', categoria: 'desparasitacion', precio: 120,  activo: true },
-  { nombre: 'Castración Canino',       categoria: 'cirugia',         precio: 2000, activo: true },
-  { nombre: 'Esterilización Canino',   categoria: 'cirugia',         precio: 2500, activo: true },
-  { nombre: 'Castración Felino',       categoria: 'cirugia',         precio: 1500, activo: true },
-  { nombre: 'Esterilización Felino',   categoria: 'cirugia',         precio: 1800, activo: true },
-  { nombre: 'Limpieza Dental',         categoria: 'cirugia',         precio: 600,  activo: true },
-  { nombre: 'Baño y Corte',            categoria: 'estetica',        precio: 350,  activo: true },
-  { nombre: 'Corte de Uñas',           categoria: 'estetica',        precio: 100,  activo: true },
-  { nombre: 'Limpieza de Oídos',       categoria: 'estetica',        precio: 120,  activo: true },
-  { nombre: 'Examen de Laboratorio',   categoria: 'laboratorio',     precio: 250,  activo: true },
-  { nombre: 'Radiografía Simple',      categoria: 'laboratorio',     precio: 400,  activo: true },
-  { nombre: 'Hospitalización (día)',   categoria: 'otro',            precio: 500,  activo: true },
+const DEFAULT_SERVICES: Omit<ServiceLocal, 'id' | 'clinicId' | 'createdAt' | 'syncStatus' | 'updatedAt'>[] = [
+  { name: 'Consultation General',        category: 'consultation', price: 400,  active: true },
+  { name: 'Control Médico',             category: 'consultation', price: 300,  active: true },
+  { name: 'Atención de Emergencia',     category: 'emergency',    price: 700,  active: true },
+  { name: 'Aplicación de Vacuna',       category: 'vaccination',  price: 80,   active: true },
+  { name: 'Desparasitación Interna',    category: 'deworming',    price: 150,  active: true },
+  { name: 'Desparasitación Externa',    category: 'deworming',    price: 120,  active: true },
+  { name: 'Castración Canino',          category: 'surgery',      price: 2000, active: true },
+  { name: 'Esterilización Canino',      category: 'surgery',      price: 2500, active: true },
+  { name: 'Castración Felino',          category: 'surgery',      price: 1500, active: true },
+  { name: 'Esterilización Felino',      category: 'surgery',      price: 1800, active: true },
+  { name: 'Limpieza Dental',            category: 'surgery',      price: 600,  active: true },
+  { name: 'Baño y Corte',              category: 'grooming',     price: 350,  active: true },
+  { name: 'Corte de Uñas',             category: 'grooming',     price: 100,  active: true },
+  { name: 'Limpieza de Oídos',         category: 'grooming',     price: 120,  active: true },
+  { name: 'Examen de Laboratorio',     category: 'laboratory',   price: 250,  active: true },
+  { name: 'Radiografía Simple',        category: 'laboratory',   price: 400,  active: true },
+  { name: 'Hospitalización (día)',     category: 'other',        price: 500,  active: true },
 ];
 
-const TIPOS_CONSULTA_SEED  = ['consulta_general', 'vacunacion', 'cirugia', 'control', 'desparasitacion', 'emergencia'] as const;
-const TIPOS_CITA_SEED      = ['consulta', 'vacunacion', 'control', 'desparasitacion', 'cirugia', 'estetica'] as const;
-const ESTADOS_PASADOS_SEED = ['completada', 'no_asistio', 'cancelada'] as const;
-const TIPOS_PAGO_SEED      = ['consulta', 'vacunacion', 'cirugia', 'producto', 'estetica', 'otro'] as const;
-const METODOS_SEED         = ['efectivo', 'tarjeta', 'transferencia'] as const;
-const ESTADOS_PAGO_SEED    = ['pagado', 'pagado', 'pagado', 'pendiente'] as const;
-const METODOS_FACTURA_SEED = ['efectivo', 'tarjeta', 'transferencia', 'mixto'] as const;
+const CONSULTATION_TYPES_SEED  = ['general_consultation', 'vaccination', 'surgery', 'checkup', 'deworming', 'emergency'] as const;
+const APPOINTMENT_TYPES_SEED   = ['consultation', 'vaccination', 'checkup', 'deworming', 'surgery', 'grooming'] as const;
+const PAST_STATUSES_SEED       = ['completed', 'no_show', 'cancelled'] as const;
+const PAYMENT_TYPES_SEED       = ['consultation', 'vaccination', 'surgery', 'product', 'grooming', 'other'] as const;
+const PAYMENT_METHODS_SEED     = ['cash', 'card', 'transfer'] as const;
+const PAYMENT_STATUSES_SEED    = ['paid', 'paid', 'paid', 'pending'] as const;
+const INVOICE_METHODS_SEED     = ['cash', 'card', 'transfer', 'mixed'] as const;
 
-const MOTIVOS_CONSULTA = [
+const VISIT_REASONS = [
   'Revisión de rutina', 'Vacunación anual', 'Vómitos y diarrea', 'Herida en la pata',
   'Control post-operatorio', 'Desparasitación interna', 'Revisión dental',
   'Revisión de piel', 'Pérdida de apetito', 'Revisión ocular',
 ] as const;
 
-const CONCEPTOS_POR_TIPO: Record<string, string[]> = {
-  consulta:   ['Consultation general', 'Consultation de urgencia', 'Revisión dermatológica', 'Revisión dental'],
-  vacunacion: ['Vacuna antirrábica', 'Vacuna DHPP', 'Vacuna triple felina', 'Vacuna bordetella'],
-  cirugia:    ['Castración', 'Esterilización', 'Extracción dental', 'Limpieza dental profunda'],
-  producto:   ['Alimento Royal Canin', 'Ivermectina', 'Shampoo medicado', 'Collar antipulgas'],
-  estetica:   ['Baño y corte', 'Corte de uñas', 'Limpieza de oídos'],
-  otro:       ['Examen de laboratorio', 'Radiografía', 'Service varios'],
+const CONCEPTS_BY_TYPE: Record<string, string[]> = {
+  consultation: ['Consultation general', 'Consultation de urgencia', 'Revisión dermatológica', 'Revisión dental'],
+  vaccination:  ['Vacuna antirrábica', 'Vacuna DHPP', 'Vacuna triple felina', 'Vacuna bordetella'],
+  surgery:      ['Castración', 'Esterilización', 'Extracción dental', 'Limpieza dental profunda'],
+  product:      ['Alimento Royal Canin', 'Ivermectina', 'Shampoo medicado', 'Collar antipulgas'],
+  grooming:     ['Baño y corte', 'Corte de uñas', 'Limpieza de oídos'],
+  other:        ['Examen de laboratorio', 'Radiografía', 'Service varios'],
 };
 
-const MONTOS_POR_TIPO: Record<string, number[]> = {
-  consulta:   [350, 400, 450, 500],
-  vacunacion: [150, 180, 200, 220],
-  cirugia:    [1200, 1500, 2000, 2500, 3000],
-  producto:   [100, 150, 200, 280, 320],
-  estetica:   [300, 350, 400],
-  otro:       [100, 150, 200],
+const AMOUNTS_BY_TYPE: Record<string, number[]> = {
+  consultation: [350, 400, 450, 500],
+  vaccination:  [150, 180, 200, 220],
+  surgery:      [1200, 1500, 2000, 2500, 3000],
+  product:      [100, 150, 200, 280, 320],
+  grooming:     [300, 350, 400],
+  other:        [100, 150, 200],
 };
 
-// ─── Función principal ────────────────────────────────────────────────────────
+// ─── Main function ────────────────────────────────────────────────────────────
 
-export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record<string, number> }> {
-  const CLINICA_ID = await getClinicaId();
-  const ahora = ts();
+export async function sembrarDatos(clinicId: string): Promise<{ mensaje: string; conteos: Record<string, number> }> {
+  const now      = ts();
 
-  // Dueños
-  const duenos: OwnerLocal[] = DUENOS_DATA.map((d) => ({
+  // Owners
+  const owners: OwnerLocal[] = OWNERS_DATA.map((d) => ({
     id:         uuid(),
-    nombre:     d.nombre,
-    telefono:   d.telefono,
+    name:       d.name,
+    phone:      d.phone,
     email:      d.email,
-    direccion:  d.direccion,
-    clinicaId:  CLINICA_ID,
+    address:    d.address,
+    clinicId,
     syncStatus: 'pending' as const,
-    updatedAt:  ahora,
-    creadoEn:   ahora,
+    updatedAt:  now,
+    createdAt:  now,
   }));
 
-  // Pacientes
-  const patients: PatientLocal[] = PACIENTES_DATA.map((p) => ({
-    id:              uuid(),
-    nombre:          p.nombre,
-    especie:         p.especie,
-    raza:            p.raza,
-    sexo:            p.sexo,
-    color:           p.color,
-    peso:            p.peso,
-    duenoId:         duenos[p.duenoIdx].id,
-    clinicaId:       CLINICA_ID,
-    activo:          true,
-    fechaNacimiento: fechaStr(-randInt(365, 365 * 8)),
-    syncStatus:      'pending' as const,
-    updatedAt:       ahora,
-    creadoEn:        ahora,
+  // Patients
+  const patients: PatientLocal[] = PATIENTS_DATA.map((p) => ({
+    id:         uuid(),
+    name:       p.name,
+    species:    p.species,
+    breed:      p.breed,
+    sex:        p.sex,
+    color:      p.color,
+    weight:     p.weight,
+    ownerId:    owners[p.ownerIdx].id,
+    clinicId,
+    active:     true,
+    birthDate:  dateStr(-randInt(365, 365 * 8)),
+    syncStatus: 'pending' as const,
+    updatedAt:  now,
+    createdAt:  now,
   }));
 
-  // Servicios del catálogo
-  const services: ServiceLocal[] = SERVICIOS_DEFAULT.map((s) => ({
+  // Service catalog
+  const services: ServiceLocal[] = DEFAULT_SERVICES.map((s) => ({
     ...s,
     id:         uuid(),
-    clinicaId:  CLINICA_ID,
-    creadoEn:   ahora,
+    clinicId,
+    createdAt:  now,
     syncStatus: 'pending' as const,
-    updatedAt:  ahora,
+    updatedAt:  now,
   }));
 
-  // Productos
+  // Products
   const products: ProductLocal[] = [];
   const movements: StockMovementLocal[] = [];
-  const productosPorNombre = new Map<string, ProductLocal>();
+  const productsByName = new Map<string, ProductLocal>();
 
-  for (const p of PRODUCTOS_DATA) {
+  for (const p of PRODUCTS_DATA) {
     const prodId = uuid();
     const prod: ProductLocal = {
-      id:          prodId,
-      nombre:      p.nombre,
-      categoria:   p.categoria,
-      stockActual: p.stock,
-      stockMinimo: p.min,
-      unidad:      p.unidad,
-      precioVenta: p.pv,
-      precioCosto: p.pc,
-      activo:      true,
-      clinicaId:   CLINICA_ID,
-      syncStatus:  'pending' as const,
-      updatedAt:   ahora,
-      creadoEn:    ahora,
+      id:           prodId,
+      name:         p.name,
+      category:     p.category,
+      currentStock: p.stock,
+      minimumStock: p.min,
+      unit:         p.unit,
+      salePrice:    p.salePrice,
+      costPrice:    p.costPrice,
+      active:       true,
+      clinicId,
+      syncStatus:   'pending' as const,
+      updatedAt:    now,
+      createdAt:    now,
     };
     products.push(prod);
-    productosPorNombre.set(p.nombre, prod);
+    productsByName.set(p.name, prod);
 
     if (p.stock > 0) {
       movements.push({
-        id:           uuid(),
-        productoId:   prodId,
-        clinicaId:    CLINICA_ID,
-        tipo:         'entrada',
-        cantidad:     p.stock,
-        stockAntes:   0,
-        stockDespues: p.stock,
-        motivo:       'Stock inicial — Seed',
-        syncStatus:   'pending' as const,
-        updatedAt:    ahora,
-        creadoEn:     ahora,
+        id:          uuid(),
+        productId:   prodId,
+        clinicId,
+        type:        'entry',
+        quantity:    p.stock,
+        stockBefore: 0,
+        stockAfter:  p.stock,
+        reason:      'Initial stock — Seed',
+        syncStatus:  'pending' as const,
+        updatedAt:   now,
+        createdAt:   now,
       });
     }
   }
 
-  // Consultas con items reales
+  // Consultations with real items
   const consultations: ConsultationLocal[] = [];
 
-  for (const pac of patients) {
+  for (const patient of patients) {
     const n = randInt(2, 4);
     for (let i = 0; i < n; i++) {
-      const diasAtras  = randInt(7, 180);
-      const tipo       = rand(TIPOS_CONSULTA_SEED);
-      const plantillas = ITEMS_POR_TIPO[tipo] ?? ITEMS_POR_TIPO['otro'];
+      const daysAgo  = randInt(7, 180);
+      const type     = rand(CONSULTATION_TYPES_SEED);
+      const templates = ITEMS_BY_TYPE[type] ?? ITEMS_BY_TYPE['other'];
 
-      // Construir items: siempre el servicio principal, a veces el producto extra
-      const itemsRaw = plantillas.filter((_, idx) => idx === 0 || Math.random() > 0.4);
-      const items: ConsultationItem[] = itemsRaw.map((tmpl) => {
-        const cantidad = tmpl.esServicio ? 1 : randInt(1, 3);
-        const prod     = tmpl.prodNombre ? productosPorNombre.get(tmpl.prodNombre) : undefined;
+      const rawItems = templates.filter((_, idx) => idx === 0 || Math.random() > 0.4);
+      const items: ConsultationItem[] = rawItems.map((tmpl) => {
+        const qty  = tmpl.isService ? 1 : randInt(1, 3);
+        const prod = tmpl.prodName ? productsByName.get(tmpl.prodName) : undefined;
         return {
-          id:             uuid(),
-          productoId:     prod?.id,
-          descripcion:    tmpl.descripcion,
-          cantidad,
-          precioUnitario: tmpl.precio,
-          subtotal:       tmpl.precio * cantidad,
-          esServicio:     tmpl.esServicio,
+          id:          uuid(),
+          productId:   prod?.id,
+          description: tmpl.description,
+          quantity:    qty,
+          unitPrice:   tmpl.price,
+          subtotal:    tmpl.price * qty,
+          isService:   tmpl.isService,
         };
       });
 
-      const subtotal  = items.reduce((s, it) => s + it.subtotal, 0);
-      const descuento = Math.random() > 0.85 ? rand([50, 100, 150] as const) : 0;
-      const total     = Math.max(0, subtotal - descuento);
-      const consultaId = uuid();
+      const subtotal   = items.reduce((s, it) => s + it.subtotal, 0);
+      const discount   = Math.random() > 0.85 ? rand([50, 100, 150] as const) : 0;
+      const total      = Math.max(0, subtotal - discount);
+      const consultId  = uuid();
 
       consultations.push({
-        id:            consultaId,
-        pacienteId:    pac.id,
-        duenoId:       pac.duenoId,
-        clinicaId:     CLINICA_ID,
-        fecha:         tsHace(diasAtras),
-        tipo,
-        estado:        'completada' as const,
-        motivo:        rand(MOTIVOS_CONSULTA),
-        diagnostico:   tipo === 'vacunacion'
-          ? `Vacuna ${rand(VACUNAS)} aplicada sin incidentes.`
+        id:           consultId,
+        patientId:    patient.id,
+        ownerId:      patient.ownerId,
+        clinicId,
+        date:         tsAgo(daysAgo),
+        type,
+        status:       'completed',
+        reason:       rand(VISIT_REASONS),
+        diagnosis:    type === 'vaccination'
+          ? `Vacuna ${rand(VACCINES)} aplicada sin incidentes.`
           : 'Examen físico general dentro de parámetros normales. Se recomienda seguimiento.',
-        tratamiento:   tipo === 'vacunacion'
+        treatment:    type === 'vaccination'
           ? 'Vacuna aplicada vía subcutánea. Próxima dosis en 12 meses.'
           : 'Medicación indicada por 7 días. Control en 2 semanas.',
-        peso:          pac.peso,
-        temperatura:   parseFloat((38 + Math.random() * 1.2).toFixed(1)),
-        veterinario:   'Dra. Patricia Vega',
+        weight:       patient.weight,
+        temperature:  parseFloat((38 + Math.random() * 1.2).toFixed(1)),
+        veterinarian: 'Dra. Patricia Vega',
         items,
         subtotal,
-        descuento,
+        discount,
         total,
-        syncStatus:    'pending' as const,
-        updatedAt:     ahora,
-        creadoEn:      ahora,
+        syncStatus:   'pending' as const,
+        updatedAt:    now,
+        createdAt:    now,
       });
     }
   }
 
-  // Citas
+  // Appointments
   const appointments: AppointmentLocal[] = [];
 
   for (let i = 0; i < 8; i++) {
-    const pac = rand(patients);
+    const patient = rand(patients);
     appointments.push({
       id:              uuid(),
-      pacienteId:      pac.id,
-      duenoId:         pac.duenoId,
-      clinicaId:       CLINICA_ID,
-      fecha:           fechaStr(-randInt(1, 14)),
-      horaInicio:      `${String(randInt(8, 16)).padStart(2, '0')}:00`,
-      duracionMinutos: rand([30, 45, 60] as const),
-      tipo:            rand(TIPOS_CITA_SEED),
-      estado:          rand(ESTADOS_PASADOS_SEED),
-      motivo:          rand(MOTIVOS_CONSULTA),
-      veterinario:     'Dra. Patricia Vega',
+      patientId:       patient.id,
+      ownerId:         patient.ownerId,
+      clinicId,
+      date:            dateStr(-randInt(1, 14)),
+      startTime:       `${String(randInt(8, 16)).padStart(2, '0')}:00`,
+      durationMinutes: rand([30, 45, 60] as const),
+      type:            rand(APPOINTMENT_TYPES_SEED),
+      status:          rand(PAST_STATUSES_SEED),
+      reason:          rand(VISIT_REASONS),
+      veterinarian:    'Dra. Patricia Vega',
       syncStatus:      'pending' as const,
-      updatedAt:       ahora,
-      creadoEn:        ahora,
+      updatedAt:       now,
+      createdAt:       now,
     });
   }
 
-  const horasHoy = [8, 9, 10, 11, 14, 15] as const;
-  const pacsCitasHoy = [...patients].sort(() => Math.random() - 0.5).slice(0, 5);
-  pacsCitasHoy.forEach((pac, i) => {
+  const todayHours = [8, 9, 10, 11, 14, 15] as const;
+  const todayPatients = [...patients].sort(() => Math.random() - 0.5).slice(0, 5);
+  todayPatients.forEach((patient, i) => {
     appointments.push({
       id:              uuid(),
-      pacienteId:      pac.id,
-      duenoId:         pac.duenoId,
-      clinicaId:       CLINICA_ID,
-      fecha:           fechaStr(0),
-      horaInicio:      `${String(horasHoy[i] ?? 9).padStart(2, '0')}:00`,
-      duracionMinutos: rand([30, 45, 60] as const),
-      tipo:            rand(TIPOS_CITA_SEED),
-      estado:          i === 0 ? 'en_curso' : 'confirmada',
-      motivo:          rand(MOTIVOS_CONSULTA),
-      veterinario:     'Dra. Patricia Vega',
+      patientId:       patient.id,
+      ownerId:         patient.ownerId,
+      clinicId,
+      date:            dateStr(0),
+      startTime:       `${String(todayHours[i] ?? 9).padStart(2, '0')}:00`,
+      durationMinutes: rand([30, 45, 60] as const),
+      type:            rand(APPOINTMENT_TYPES_SEED),
+      status:          i === 0 ? 'in_progress' : 'confirmed',
+      reason:          rand(VISIT_REASONS),
+      veterinarian:    'Dra. Patricia Vega',
       syncStatus:      'pending' as const,
-      updatedAt:       ahora,
-      creadoEn:        ahora,
+      updatedAt:       now,
+      createdAt:       now,
     });
   });
 
   for (let i = 0; i < 6; i++) {
-    const pac = rand(patients);
+    const patient = rand(patients);
     appointments.push({
       id:              uuid(),
-      pacienteId:      pac.id,
-      duenoId:         pac.duenoId,
-      clinicaId:       CLINICA_ID,
-      fecha:           fechaStr(randInt(1, 7)),
-      horaInicio:      `${String(randInt(8, 16)).padStart(2, '0')}:00`,
-      duracionMinutos: rand([30, 45, 60] as const),
-      tipo:            rand(TIPOS_CITA_SEED),
-      estado:          'pendiente',
-      motivo:          rand(MOTIVOS_CONSULTA),
-      veterinario:     'Dra. Patricia Vega',
+      patientId:       patient.id,
+      ownerId:         patient.ownerId,
+      clinicId,
+      date:            dateStr(randInt(1, 7)),
+      startTime:       `${String(randInt(8, 16)).padStart(2, '0')}:00`,
+      durationMinutes: rand([30, 45, 60] as const),
+      type:            rand(APPOINTMENT_TYPES_SEED),
+      status:          'pending',
+      reason:          rand(VISIT_REASONS),
+      veterinarian:    'Dra. Patricia Vega',
       syncStatus:      'pending' as const,
-      updatedAt:       ahora,
-      creadoEn:        ahora,
+      updatedAt:       now,
+      createdAt:       now,
     });
   }
 
-  // Facturas + payments vinculados, generados desde las consultations
-  const invoices:  InvoiceLocal[] = [];
-  const payments:     PaymentLocal[]    = [];
-  let   numFactura = 1;
-  const year       = new Date().getFullYear();
+  // Invoices + linked payments generated from consultations
+  const invoices: InvoiceLocal[]  = [];
+  const payments: PaymentLocal[]  = [];
+  let invoiceNum = 1;
+  const year = new Date().getFullYear();
 
-  // Distribución de estados: 65% pagada, 20% pendiente, 15% parcialmente_pagada
-  const ESTADO_FACTURA_DIST = [
-    ...Array(13).fill('pagada'),
-    ...Array(4).fill('pendiente'),
-    ...Array(3).fill('parcialmente_pagada'),
+  // Distribution: 65% paid, 20% pending, 15% partially_paid
+  const INVOICE_STATUS_DIST = [
+    ...Array(13).fill('paid'),
+    ...Array(4).fill('pending'),
+    ...Array(3).fill('partially_paid'),
   ] as const;
 
-  for (const consulta of consultations) {
-    if (consulta.total <= 0) continue;
+  for (const consultation of consultations) {
+    if (consultation.total <= 0) continue;
 
-    const facturaId = uuid();
-    const numero    = `FAC-${year}-${String(numFactura++).padStart(4, '0')}`;
-    const fecha     = fechaStrDesdTs(consulta.fecha);
-    const estado    = rand(ESTADO_FACTURA_DIST);
-    const metodo    = rand(METODOS_FACTURA_SEED);
+    const invoiceId  = uuid();
+    const number     = `FAC-${year}-${String(invoiceNum++).padStart(4, '0')}`;
+    const date       = dateStrFromTs(consultation.date);
+    const status     = rand(INVOICE_STATUS_DIST);
+    const pmMethod   = rand(INVOICE_METHODS_SEED);
 
-    const montoPagado =
-      estado === 'pagada'              ? consulta.total :
-      estado === 'parcialmente_pagada' ? Math.round(consulta.total * (0.3 + Math.random() * 0.4)) :
+    const amountPaid =
+      status === 'paid'            ? consultation.total :
+      status === 'partially_paid'  ? Math.round(consultation.total * (0.3 + Math.random() * 0.4)) :
       0;
 
-    // Items de factura mapeados desde items de consulta
-    const facturaItems: InvoiceItem[] = consulta.items.map((ci) => ({
-      id:             ci.id,
-      descripcion:    ci.descripcion,
-      cantidad:       ci.cantidad,
-      precioUnitario: ci.precioUnitario,
-      subtotal:       ci.subtotal,
-      tipo:           ci.esServicio ? 'servicio' : 'producto',
-      productoId:     ci.productoId,
+    const invoiceItems: InvoiceItem[] = consultation.items.map((ci) => ({
+      id:          ci.id,
+      description: ci.description,
+      quantity:    ci.quantity,
+      unitPrice:   ci.unitPrice,
+      subtotal:    ci.subtotal,
+      type:        ci.isService ? 'service' : 'product',
+      productId:   ci.productId,
     }));
 
-    const factura: InvoiceLocal = {
-      id:          facturaId,
-      numero,
-      consultaId:  consulta.id,
-      pacienteId:  consulta.pacienteId,
-      duenoId:     consulta.duenoId,
-      clinicaId:   CLINICA_ID,
-      fecha,
-      items:       facturaItems,
-      subtotal:    consulta.subtotal,
-      descuento:   consulta.descuento,
-      total:       consulta.total,
-      metodoPago:  metodo,
-      estado,
-      montoPagado,
-      syncStatus:  'pending' as const,
-      updatedAt:   ahora,
-      creadoEn:    ahora,
+    const invoice: InvoiceLocal = {
+      id:             invoiceId,
+      number,
+      consultationId: consultation.id,
+      patientId:      consultation.patientId,
+      ownerId:        consultation.ownerId,
+      clinicId,
+      date,
+      items:          invoiceItems,
+      subtotal:       consultation.subtotal,
+      discount:       consultation.discount,
+      total:          consultation.total,
+      paymentMethod:  pmMethod,
+      status,
+      amountPaid,
+      syncStatus:     'pending' as const,
+      updatedAt:      now,
+      createdAt:      now,
     };
 
-    // Payment vinculado
-    const pagoId  = uuid();
-    const metodoPagoPago = metodo === 'mixto' ? 'otro' : metodo;
-    const estadoPago     = estado === 'pagada' ? 'pagado' : 'pendiente';
+    const paymentId     = uuid();
+    const paymentMethod = pmMethod === 'mixed' ? ('other' as const) : pmMethod;
+    const paymentStatus = status === 'paid' ? 'paid' : 'pending';
 
-    const pago: PaymentLocal = {
-      id:         pagoId,
-      pacienteId: consulta.pacienteId,
-      clinicaId:  CLINICA_ID,
-      consultaId: consulta.id,
-      fecha,
-      concepto:   `${numero} — ${consulta.motivo?.slice(0, 100) ?? ''}`,
-      tipo:       tipoIngresoDesde(consulta.tipo),
-      monto:      estado === 'pagada' ? consulta.total : montoPagado || consulta.total,
-      metodoPago: metodoPagoPago,
-      estado:     estadoPago,
-      syncStatus: 'pending' as const,
-      updatedAt:  ahora,
-      creadoEn:   ahora,
+    const payment: PaymentLocal = {
+      id:             paymentId,
+      patientId:      consultation.patientId,
+      clinicId,
+      consultationId: consultation.id,
+      date,
+      concept:        `${number} — ${consultation.reason?.slice(0, 100) ?? ''}`,
+      type:           paymentTypeFromConsultation(consultation.type),
+      amount:         status === 'paid' ? consultation.total : amountPaid || consultation.total,
+      paymentMethod,
+      status:         paymentStatus,
+      syncStatus:     'pending' as const,
+      updatedAt:      now,
+      createdAt:      now,
     };
 
-    factura.pagoId = pagoId;
-    invoices.push(factura);
-    payments.push(pago);
+    invoice.paymentId   = paymentId;
+    consultation.invoiceId = invoiceId;
+    consultation.paymentId = paymentId;
 
-    // Actualizar la consulta con facturaId y pagoId
-    consulta.facturaId = facturaId;
-    consulta.pagoId    = pagoId;
+    invoices.push(invoice);
+    payments.push(payment);
   }
 
-  // Pagos standalone adicionales para el módulo Finanzas (sin factura)
-  const diasEnMes = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+  // Extra standalone payments for the finance module (no invoice)
+  const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
   for (let i = 0; i < 15; i++) {
-    const pac  = rand(patients);
-    const tipo = rand(TIPOS_PAGO_SEED);
+    const patient = rand(patients);
+    const type    = rand(PAYMENT_TYPES_SEED);
     payments.push({
-      id:         uuid(),
-      pacienteId: pac.id,
-      clinicaId:  CLINICA_ID,
-      fecha:      fechaStr(-randInt(0, Math.min(diasEnMes - 1, 27))),
-      concepto:   rand(CONCEPTOS_POR_TIPO[tipo]),
-      tipo,
-      monto:      rand(MONTOS_POR_TIPO[tipo]),
-      metodoPago: rand(METODOS_SEED),
-      estado:     rand(ESTADOS_PAGO_SEED),
-      syncStatus: 'pending' as const,
-      updatedAt:  ahora,
-      creadoEn:   ahora,
+      id:            uuid(),
+      patientId:     patient.id,
+      clinicId,
+      date:          dateStr(-randInt(0, Math.min(daysInMonth - 1, 27))),
+      concept:       rand(CONCEPTS_BY_TYPE[type]),
+      type,
+      amount:        rand(AMOUNTS_BY_TYPE[type]),
+      paymentMethod: rand(PAYMENT_METHODS_SEED),
+      status:        rand(PAYMENT_STATUSES_SEED),
+      syncStatus:    'pending' as const,
+      updatedAt:     now,
+      createdAt:     now,
     });
   }
 
-  // ── Ventas (POS) ─────────────────────────────────────────────────────────────
-  const salesRaw: { prods: { idx: number; qty: number }[]; diasAtras: number; metodo: SaleLocal['metodoPago']; pacIdx?: number }[] = [
-    { prods: [{ idx: 1, qty: 1 }, { idx: 4, qty: 2 }], diasAtras: 1,  metodo: 'efectivo',     pacIdx: 1 },
-    { prods: [{ idx: 0, qty: 2 }, { idx: 7, qty: 1 }], diasAtras: 3,  metodo: 'tarjeta'                 },
-    { prods: [{ idx: 2, qty: 3 }],                      diasAtras: 5,  metodo: 'efectivo',     pacIdx: 4 },
-    { prods: [{ idx: 9, qty: 1 }, { idx: 3, qty: 2 }], diasAtras: 8,  metodo: 'transferencia'           },
-    { prods: [{ idx: 5, qty: 1 }],                      diasAtras: 11, metodo: 'efectivo',     pacIdx: 0 },
-    { prods: [{ idx: 6, qty: 4 }, { idx: 4, qty: 1 }], diasAtras: 14, metodo: 'tarjeta'                 },
-    { prods: [{ idx: 8, qty: 2 }, { idx: 2, qty: 1 }], diasAtras: 18, metodo: 'efectivo',     pacIdx: 3 },
-    { prods: [{ idx: 1, qty: 1 }, { idx: 9, qty: 2 }], diasAtras: 22, metodo: 'transferencia'           },
-    { prods: [{ idx: 0, qty: 3 }],                      diasAtras: 26, metodo: 'efectivo',     pacIdx: 7 },
-    { prods: [{ idx: 3, qty: 1 }, { idx: 7, qty: 2 }], diasAtras: 29, metodo: 'tarjeta'                 },
+  // ── Sales (POS) ───────────────────────────────────────────────────────────────
+  const salesRaw: { prods: { idx: number; qty: number }[]; daysAgo: number; method: SaleLocal['paymentMethod']; patientIdx?: number }[] = [
+    { prods: [{ idx: 1, qty: 1 }, { idx: 4, qty: 2 }], daysAgo: 1,  method: 'cash',     patientIdx: 1 },
+    { prods: [{ idx: 0, qty: 2 }, { idx: 7, qty: 1 }], daysAgo: 3,  method: 'card'                  },
+    { prods: [{ idx: 2, qty: 3 }],                      daysAgo: 5,  method: 'cash',     patientIdx: 4 },
+    { prods: [{ idx: 9, qty: 1 }, { idx: 3, qty: 2 }], daysAgo: 8,  method: 'transfer'              },
+    { prods: [{ idx: 5, qty: 1 }],                      daysAgo: 11, method: 'cash',     patientIdx: 0 },
+    { prods: [{ idx: 6, qty: 4 }, { idx: 4, qty: 1 }], daysAgo: 14, method: 'card'                  },
+    { prods: [{ idx: 8, qty: 2 }, { idx: 2, qty: 1 }], daysAgo: 18, method: 'cash',     patientIdx: 3 },
+    { prods: [{ idx: 1, qty: 1 }, { idx: 9, qty: 2 }], daysAgo: 22, method: 'transfer'              },
+    { prods: [{ idx: 0, qty: 3 }],                      daysAgo: 26, method: 'cash',     patientIdx: 7 },
+    { prods: [{ idx: 3, qty: 1 }, { idx: 7, qty: 2 }], daysAgo: 29, method: 'card'                  },
   ];
 
-  const sales: SaleLocal[]         = [];
+  const sales: SaleLocal[]          = [];
   const salePayments: PaymentLocal[] = [];
 
   for (const sr of salesRaw) {
     const items: SaleItem[] = sr.prods.map(p => ({
-      id:             uuid(),
-      productoId:     products[p.idx].id,
-      descripcion:    products[p.idx].nombre,
-      cantidad:       p.qty,
-      precioUnitario: products[p.idx].precioVenta ?? 0,
-      subtotal:       (products[p.idx].precioVenta ?? 0) * p.qty,
+      id:          uuid(),
+      productId:   products[p.idx].id,
+      description: products[p.idx].name,
+      quantity:    p.qty,
+      unitPrice:   products[p.idx].salePrice ?? 0,
+      subtotal:    (products[p.idx].salePrice ?? 0) * p.qty,
     }));
-    const subtotal  = items.reduce((s, i) => s + i.subtotal, 0);
-    const saleId    = uuid();
-    const pagoId    = uuid();
-    const fechaVenta = fechaStr(-sr.diasAtras);
+    const subtotal   = items.reduce((s, i) => s + i.subtotal, 0);
+    const saleId     = uuid();
+    const paymentId  = uuid();
+    const saleDate   = dateStr(-sr.daysAgo);
+    const payMethod  = sr.method === 'mixed' ? ('other' as const) : sr.method;
 
     sales.push({
-      id:         saleId,
-      clinicaId:  CLINICA_ID,
-      fecha:      fechaVenta,
+      id:            saleId,
+      clinicId,
+      date:          saleDate,
       items,
       subtotal,
-      descuento:  0,
-      total:      subtotal,
-      metodoPago: sr.metodo,
-      estado:     'completada',
-      pacienteId: sr.pacIdx !== undefined ? patients[sr.pacIdx].id : undefined,
-      pagoId,
-      creadoEn:   ahora,
-      syncStatus: 'pending' as const,
-      updatedAt:  ahora,
+      discount:      0,
+      total:         subtotal,
+      paymentMethod: sr.method,
+      status:        'completed',
+      patientId:     sr.patientIdx !== undefined ? patients[sr.patientIdx].id : undefined,
+      paymentId,
+      createdAt:     now,
+      syncStatus:    'pending' as const,
+      updatedAt:     now,
     });
 
     salePayments.push({
-      id:         pagoId,
-      clinicaId:  CLINICA_ID,
-      pacienteId: sr.pacIdx !== undefined ? patients[sr.pacIdx].id : '',
-      fecha:      fechaVenta,
-      concepto:   `Venta mostrador — ${items.map(i => i.descripcion).join(', ')}`,
-      tipo:       'producto',
-      monto:      subtotal,
-      metodoPago: sr.metodo,
-      estado:     'pagado',
-      syncStatus: 'pending' as const,
-      updatedAt:  ahora,
-      creadoEn:   ahora,
+      id:            paymentId,
+      clinicId,
+      patientId:     sr.patientIdx !== undefined ? patients[sr.patientIdx].id : '',
+      date:          saleDate,
+      concept:       `Venta mostrador — ${items.map(i => i.description).join(', ')}`,
+      type:          'product',
+      amount:        subtotal,
+      paymentMethod: payMethod,
+      status:        'paid',
+      syncStatus:    'pending' as const,
+      updatedAt:     now,
+      createdAt:     now,
     });
   }
 
-  // ── Gastos fijos ─────────────────────────────────────────────────────────────
-  const hoyStr = fechaStr(0);
+  // ── Fixed expenses ────────────────────────────────────────────────────────────
+  const todayStr = dateStr(0);
 
-  function nextDue(diaPago: number): string {
+  function nextDue(paymentDay: number): string {
     const d = new Date();
-    d.setDate(diaPago);
-    if (d.toISOString().slice(0, 10) < hoyStr) d.setMonth(d.getMonth() + 1);
-    const ultimo = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-    d.setDate(Math.min(diaPago, ultimo));
+    d.setDate(paymentDay);
+    if (d.toISOString().slice(0, 10) < todayStr) d.setMonth(d.getMonth() + 1);
+    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    d.setDate(Math.min(paymentDay, lastDay));
     return d.toISOString().slice(0, 10);
   }
 
-  const fixedExpensesData: { nombre: string; monto: number; categoria: FixedExpense['categoria']; frecuencia: FixedExpense['frecuencia']; diaPago: number }[] = [
-    { nombre: 'Renta del local',       monto: 12000, categoria: 'renta',         frecuencia: 'mensual',    diaPago: 5  },
-    { nombre: 'Electricidad',          monto: 2200,  categoria: 'services',     frecuencia: 'mensual',    diaPago: 10 },
-    { nombre: 'Internet + teléfono',   monto: 850,   categoria: 'services',     frecuencia: 'mensual',    diaPago: 15 },
-    { nombre: 'Seguro del local',      monto: 1800,  categoria: 'seguros',       frecuencia: 'mensual',    diaPago: 20 },
-    { nombre: 'Mantenimiento equipos', monto: 3500,  categoria: 'mantenimiento', frecuencia: 'trimestral', diaPago: 1  },
+  const expensesData: { name: string; amount: number; category: FixedExpense['category']; frequency: FixedExpense['frequency']; paymentDay: number }[] = [
+    { name: 'Renta del local',       amount: 12000, category: 'rent',        frequency: 'monthly',   paymentDay: 5  },
+    { name: 'Electricidad',          amount: 2200,  category: 'services',    frequency: 'monthly',   paymentDay: 10 },
+    { name: 'Internet + teléfono',   amount: 850,   category: 'services',    frequency: 'monthly',   paymentDay: 15 },
+    { name: 'Seguro del local',      amount: 1800,  category: 'insurance',   frequency: 'monthly',   paymentDay: 20 },
+    { name: 'Mantenimiento equipos', amount: 3500,  category: 'maintenance', frequency: 'quarterly', paymentDay: 1  },
   ];
 
-  const fixedExpenses: FixedExpense[] = fixedExpensesData.map(e => ({
+  const fixedExpenses: FixedExpense[] = expensesData.map(e => ({
     id:          uuid(),
-    clinicaId:   CLINICA_ID,
-    nombre:      e.nombre,
-    monto:       e.monto,
-    categoria:   e.categoria,
-    frecuencia:  e.frecuencia,
-    diaPago:     e.diaPago,
-    nextDueDate: nextDue(e.diaPago),
-    activo:      true,
+    clinicId,
+    name:        e.name,
+    amount:      e.amount,
+    category:    e.category,
+    frequency:   e.frequency,
+    paymentDay:  e.paymentDay,
+    nextDueDate: nextDue(e.paymentDay),
+    active:      true,
     syncStatus:  'pending' as const,
-    createdAt:   ahora,
-    updatedAt:   ahora,
+    createdAt:   now,
+    updatedAt:   now,
   }));
 
   const expensePayments: ExpensePayment[] = [];
-  for (const ge of fixedExpenses) {
-    if (ge.frecuencia !== 'mensual') continue;
+  for (const expense of fixedExpenses) {
+    if (expense.frequency !== 'monthly') continue;
     for (let m = 1; m <= 2; m++) {
       const d = new Date();
       d.setMonth(d.getMonth() - m);
-      d.setDate(ge.diaPago);
+      d.setDate(expense.paymentDay);
       expensePayments.push({
-        id:          uuid(),
-        clinicaId:   CLINICA_ID,
-        gastoFijoId: ge.id,
-        monto:       ge.monto,
-        fechaPago:   d.toISOString().slice(0, 10),
-        syncStatus:  'pending' as const,
-        createdAt:   ahora,
-        updatedAt:   ahora,
+        id:             uuid(),
+        clinicId,
+        fixedExpenseId: expense.id,
+        amount:         expense.amount,
+        paymentDate:    d.toISOString().slice(0, 10),
+        syncStatus:     'pending' as const,
+        createdAt:      now,
+        updatedAt:      now,
       });
     }
   }
 
-  // ── Colaboradores ─────────────────────────────────────────────────────────────
-  const colabsData: { nombre: string; rol: string; tipo: Collaborator['tipo']; salario: number; frecuencia: Collaborator['frecuenciaPago']; daysUntilNext: number }[] = [
-    { nombre: 'Dra. Valeria Núñez', rol: 'Veterinaria',   tipo: 'empleado',  salario: 18000, frecuencia: 'mensual',   daysUntilNext: 12 },
-    { nombre: 'Mario Espinoza',     rol: 'Recepcionista', tipo: 'empleado',  salario: 9000,  frecuencia: 'quincenal', daysUntilNext: 5  },
-    { nombre: 'Lucía Fonseca',      rol: 'Groomer',       tipo: 'freelance', salario: 4500,  frecuencia: 'quincenal', daysUntilNext: 2  },
+  // ── Collaborators ─────────────────────────────────────────────────────────────
+  const collabsData: { name: string; role: string; type: Collaborator['type']; salary: number; frequency: Collaborator['paymentFrequency']; daysUntilNext: number }[] = [
+    { name: 'Dra. Valeria Núñez', role: 'Veterinaria',   type: 'employee',  salary: 18000, frequency: 'monthly',  daysUntilNext: 12 },
+    { name: 'Mario Espinoza',     role: 'Recepcionista', type: 'employee',  salary: 9000,  frequency: 'biweekly', daysUntilNext: 5  },
+    { name: 'Lucía Fonseca',      role: 'Groomer',       type: 'freelance', salary: 4500,  frequency: 'biweekly', daysUntilNext: 2  },
   ];
 
-  const collaborators: Collaborator[] = colabsData.map(col => ({
-    id:              uuid(),
-    clinicaId:       CLINICA_ID,
-    nombre:          col.nombre,
-    rol:             col.rol,
-    tipo:            col.tipo,
-    salario:         col.salario,
-    frecuenciaPago:  col.frecuencia,
-    nextPaymentDate: fechaStr(col.daysUntilNext),
-    activo:          true,
-    syncStatus:      'pending' as const,
-    createdAt:       ahora,
-    updatedAt:       ahora,
+  const collaborators: Collaborator[] = collabsData.map(col => ({
+    id:               uuid(),
+    clinicId,
+    name:             col.name,
+    role:             col.role,
+    type:             col.type,
+    salary:           col.salary,
+    paymentFrequency: col.frequency,
+    nextPaymentDate:  dateStr(col.daysUntilNext),
+    active:           true,
+    syncStatus:       'pending' as const,
+    createdAt:        now,
+    updatedAt:        now,
   }));
 
   const collaboratorPayments: CollaboratorPayment[] = collaborators.map((col, i) => {
-    const freq      = colabsData[i].frecuencia;
-    const diasAtras = freq === 'mensual' ? 30 : 15;
+    const freq     = collabsData[i].frequency;
+    const daysAgo  = freq === 'monthly' ? 30 : 15;
     return {
-      id:            uuid(),
-      clinicaId:     CLINICA_ID,
-      colaboradorId: col.id,
-      monto:         col.salario,
-      periodo:       freq === 'mensual' ? 'Junio 2026' : 'Quincena 1 — Jul 2026',
-      fechaPago:     fechaStr(-diasAtras),
-      syncStatus:    'pending' as const,
-      createdAt:     ahora,
-      updatedAt:     ahora,
+      id:             uuid(),
+      clinicId,
+      collaboratorId: col.id,
+      amount:         col.salary,
+      period:         freq === 'monthly' ? 'Junio 2026' : 'Quincena 1 — Jul 2026',
+      paymentDate:    dateStr(-daysAgo),
+      syncStatus:     'pending' as const,
+      createdAt:      now,
+      updatedAt:      now,
     };
   });
 
-  // ── Escribir todo en Dexie ────────────────────────────────────────────────
+  // ── Promotions ────────────────────────────────────────────────────────────────
+  // Reference real product/service IDs generated above (by PRODUCTS_DATA index).
+  // products[1] = Ivermectina 1% (180), products[3] = Vacuna Antirrábica (120)
+  // products[4] = Vacuna DHPP (150),    products[5] = Shampoo Medicado (220)
+  // services[3] = Aplicación de Vacuna (80), services[5] = Desparasitación Externa (120)
+  // services[11] = Baño y Corte (350)
+
+  function makePromoItems(defs: {
+    type: 'product' | 'service';
+    ref: ProductLocal | ServiceLocal;
+    qty: number;
+    discountType: PromotionItem['discountType'];
+    discountValue: number;
+  }[]): PromotionItem[] {
+    return defs.map((d) => {
+      const originalPrice = d.type === 'product'
+        ? (d.ref as ProductLocal).salePrice ?? 0
+        : (d.ref as ServiceLocal).price;
+      const finalUnitPrice = applyDiscount(originalPrice, d.discountType, d.discountValue);
+      return {
+        id:             uuid(),
+        type:           d.type,
+        refId:          d.ref.id,
+        name:           d.ref.name,
+        unit:           d.type === 'product' ? (d.ref as ProductLocal).unit : undefined,
+        quantity:       d.qty,
+        originalPrice,
+        discountType:   d.discountType,
+        discountValue:  d.discountValue,
+        finalUnitPrice,
+      };
+    });
+  }
+
+  const promoDefsRaw: { name: string; description: string; defs: Parameters<typeof makePromoItems>[0] }[] = [
+    {
+      name:        'Paquete Antiparasitario',
+      description: 'Ivermectina + desparasitación externa gratis',
+      defs: [
+        { type: 'product', ref: products[1], qty: 1, discountType: 'none',  discountValue: 0 },
+        { type: 'service', ref: services[5], qty: 1, discountType: 'free',  discountValue: 0 },
+      ],
+    },
+    {
+      name:        'Pack Vacunación Completa',
+      description: 'Antirrábica + DHPP con 10% descuento + aplicación incluida',
+      defs: [
+        { type: 'product', ref: products[3], qty: 1, discountType: 'percentage', discountValue: 10 },
+        { type: 'product', ref: products[4], qty: 1, discountType: 'percentage', discountValue: 10 },
+        { type: 'service', ref: services[3], qty: 1, discountType: 'none',       discountValue: 0  },
+      ],
+    },
+    {
+      name:        'Grooming Especial',
+      description: 'Shampoo medicado + baño y corte con C$50 de descuento',
+      defs: [
+        { type: 'product', ref: products[5], qty: 1, discountType: 'fixed',      discountValue: 50  },
+        { type: 'service', ref: services[11], qty: 1, discountType: 'none',      discountValue: 0   },
+      ],
+    },
+  ];
+
+  const promotions: PromotionLocal[] = promoDefsRaw.map(({ name, description, defs }) => {
+    const items         = makePromoItems(defs);
+    const originalTotal = items.reduce((s, i) => s + i.originalPrice * i.quantity, 0);
+    const total         = items.reduce((s, i) => s + i.finalUnitPrice * i.quantity, 0);
+    return {
+      id:           uuid(),
+      clinicId,
+      name,
+      description,
+      active:       true,
+      items,
+      originalTotal,
+      total,
+      createdAt:    now,
+      syncStatus:   'pending' as const,
+      updatedAt:    now,
+    };
+  });
+
+  // ── Write everything to Dexie ─────────────────────────────────────────────────
   await db.transaction('rw',
     [
       db.owners, db.patients, db.consultations, db.appointments,
       db.products, db.movements, db.payments, db.invoices, db.services,
       db.sales, db.fixedExpenses, db.expensePayments,
-      db.collaborators, db.collaboratorPayments,
+      db.collaborators, db.collaboratorPayments, db.promotions,
     ],
     async () => {
-      await db.owners.bulkAdd(duenos);
+      await db.owners.bulkAdd(owners);
       await db.patients.bulkAdd(patients);
       await db.consultations.bulkAdd(consultations);
       await db.appointments.bulkAdd(appointments);
@@ -671,13 +750,14 @@ export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record
       await db.expensePayments.bulkAdd(expensePayments);
       await db.collaborators.bulkAdd(collaborators);
       await db.collaboratorPayments.bulkAdd(collaboratorPayments);
+      await db.promotions.bulkAdd(promotions);
     }
   );
 
   return {
     mensaje: '¡Datos sembrados correctamente!',
     conteos: {
-      dueños:               duenos.length,
+      owners:               owners.length,
       patients:             patients.length,
       consultations:        consultations.length,
       appointments:         appointments.length,
@@ -691,6 +771,7 @@ export async function sembrarDatos(): Promise<{ mensaje: string; conteos: Record
       expensePayments:      expensePayments.length,
       collaborators:        collaborators.length,
       collaboratorPayments: collaboratorPayments.length,
+      promotions:           promotions.length,
     },
   };
 }
@@ -701,7 +782,7 @@ export async function limpiarDatos(): Promise<void> {
       db.owners, db.patients, db.consultations, db.appointments,
       db.products, db.movements, db.payments, db.invoices, db.services,
       db.sales, db.fixedExpenses, db.expensePayments,
-      db.collaborators, db.collaboratorPayments, db.syncQueue,
+      db.collaborators, db.collaboratorPayments, db.promotions, db.syncQueue,
     ],
     async () => {
       await Promise.all([
@@ -719,24 +800,25 @@ export async function limpiarDatos(): Promise<void> {
         db.expensePayments.clear(),
         db.collaborators.clear(),
         db.collaboratorPayments.clear(),
+        db.promotions.clear(),
         db.syncQueue.clear(),
       ]);
     }
   );
 }
 
-// ─── Helpers privados ─────────────────────────────────────────────────────────
+// ─── Private helpers ──────────────────────────────────────────────────────────
 
-function tipoIngresoDesde(tipoConsulta: string): PaymentLocal['tipo'] {
-  const map: Record<string, PaymentLocal['tipo']> = {
-    consulta_general: 'consulta',
-    control:          'consulta',
-    vacunacion:       'vacunacion',
-    cirugia:          'cirugia',
-    emergencia:       'consulta',
-    desparasitacion:  'otro',
-    estetica:         'estetica',
-    otro:             'otro',
+function paymentTypeFromConsultation(consultationType: string): PaymentLocal['type'] {
+  const map: Record<string, PaymentLocal['type']> = {
+    general_consultation: 'consultation',
+    checkup:              'consultation',
+    vaccination:          'vaccination',
+    surgery:              'surgery',
+    emergency:            'consultation',
+    deworming:            'other',
+    grooming:             'grooming',
+    other:                'other',
   };
-  return map[tipoConsulta] ?? 'otro';
+  return map[consultationType] ?? 'other';
 }

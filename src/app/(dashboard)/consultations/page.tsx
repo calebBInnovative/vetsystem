@@ -10,28 +10,28 @@ import type { ConsultationStatus } from '@/types/consultation';
 import { cn } from '@/lib/utils';
 
 const FILTROS: { label: string; valor: ConsultationStatus | 'todas' }[] = [
-  { label: 'Todas',       valor: 'todas'      },
-  { label: 'En proceso',  valor: 'en_proceso' },
-  { label: 'Completadas', valor: 'completada' },
-  { label: 'Canceladas',  valor: 'cancelada'  },
+  { label: 'Todas',       valor: 'todas'       },
+  { label: 'En proceso',  valor: 'in_progress' },
+  { label: 'Completadas', valor: 'completed'   },
+  { label: 'Canceladas',  valor: 'cancelled'   },
 ];
 
 export default function ConsultationsPage() {
-  const [filtro, setFiltro]       = useState<ConsultationStatus | 'todas'>('todas');
-  const [busqueda, setBusqueda]   = useState('');
+  const [filtro, setFiltro]           = useState<ConsultationStatus | 'todas'>('todas');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const enProceso = useConsultasEnProceso();
   const { consultations, loading } = useConsultations(
-    filtro !== 'todas' ? { estado: filtro } : undefined
+    filtro !== 'todas' ? { status: filtro } : undefined
   );
 
   const consultasFiltradas = consultations.filter((c) => {
-    if (!busqueda) return true;
-    const q = busqueda.toLowerCase();
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
     return (
-      c.nombrePaciente?.toLowerCase().includes(q) ||
-      c.motivo.toLowerCase().includes(q) ||
-      c.nombreDueno?.toLowerCase().includes(q)
+      c.patientName?.toLowerCase().includes(q) ||
+      c.reason?.toLowerCase().includes(q) ||
+      c.ownerName?.toLowerCase().includes(q)
     );
   });
 
@@ -63,11 +63,11 @@ export default function ConsultationsPage() {
               className="flex items-center gap-3 bg-white/60 dark:bg-white/5 rounded-xl p-3 hover:bg-white/80 transition-colors"
             >
               <span className="text-lg">
-                {c.especiePaciente === 'perro' ? '🐕' : c.especiePaciente === 'gato' ? '🐈' : '🐾'}
+                {c.patientSpecies === 'dog' ? '🐕' : c.patientSpecies === 'cat' ? '🐈' : '🐾'}
               </span>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium">{c.nombrePaciente}</p>
-                <p className="text-xs text-muted-foreground truncate">{c.motivo || 'Sin motivo registrado'}</p>
+                <p className="text-sm font-medium">{c.patientName}</p>
+                <p className="text-xs text-muted-foreground truncate">{c.reason || 'Sin motivo registrado'}</p>
               </div>
               <span className="text-xs text-amber-600 dark:text-amber-400 font-medium shrink-0">Ver →</span>
             </Link>
@@ -80,8 +80,8 @@ export default function ConsultationsPage() {
         <div className="relative flex-1">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Buscar por paciente, motivo..."
             className="w-full rounded-xl border border-input bg-background pl-9 pr-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
@@ -115,9 +115,9 @@ export default function ConsultationsPage() {
         <div className="text-center py-16 text-muted-foreground">
           <p className="text-lg font-medium">Sin consultations</p>
           <p className="text-sm mt-1">
-            {busqueda || filtro !== 'todas' ? 'No hay resultados para los filtros aplicados' : 'Registra la primera consulta'}
+            {searchQuery || filtro !== 'todas' ? 'No hay resultados para los filtros aplicados' : 'Registra la primera consulta'}
           </p>
-          {!busqueda && filtro === 'todas' && (
+          {!searchQuery && filtro === 'todas' && (
             <Link href="/consultations/new">
               <Button size="sm" className="mt-4 gap-1.5"><Plus size={14} /> Nueva consulta</Button>
             </Link>

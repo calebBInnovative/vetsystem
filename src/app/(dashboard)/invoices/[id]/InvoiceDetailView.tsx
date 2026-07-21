@@ -13,8 +13,8 @@ export function InvoiceDetailView({ params }: { params: Promise<{ id: string }> 
   const { id }    = use(params);
   const router    = useRouter();
   const { factura, loading } = useInvoice(id);
-  const [accion, setAccion]   = useState<'cobrar' | null>(null);
-  const [metodo, setMetodo]   = useState<InvoicePaymentMethod>('efectivo');
+  const [accion, setAccion]       = useState<'cobrar' | null>(null);
+  const [method, setMethod]       = useState<InvoicePaymentMethod>('cash');
   const [procesando, setProcesando] = useState(false);
 
   if (loading) {
@@ -39,7 +39,7 @@ export function InvoiceDetailView({ params }: { params: Promise<{ id: string }> 
   async function handleMarcarPagada() {
     setProcesando(true);
     try {
-      await markInvoicePaid(id, metodo);
+      await markInvoicePaid(id, method);
       setAccion(null);
     } finally {
       setProcesando(false);
@@ -53,7 +53,7 @@ export function InvoiceDetailView({ params }: { params: Promise<{ id: string }> 
   }
 
   const puedeMarcarPagada =
-    factura.estado === 'pendiente' || factura.estado === 'parcialmente_pagada';
+    factura.status === 'pending' || factura.status === 'partially_paid';
 
   return (
     <div className="max-w-2xl mx-auto space-y-5 print:max-w-none print:space-y-0">
@@ -64,12 +64,12 @@ export function InvoiceDetailView({ params }: { params: Promise<{ id: string }> 
         </Button>
 
         <div className="flex gap-2">
-          {factura.consultaId && (
-            <Button variant="outline" size="sm" onClick={() => router.push(`/consultations/${factura.consultaId}`)}>
+          {factura.consultationId && (
+            <Button variant="outline" size="sm" onClick={() => router.push(`/consultations/${factura.consultationId}`)}>
               Ver consulta
             </Button>
           )}
-          {factura.ventaId && (
+          {factura.saleId && (
             <Button variant="outline" size="sm" onClick={() => router.push('/sales')}>
               Ver ventas
             </Button>
@@ -79,7 +79,7 @@ export function InvoiceDetailView({ params }: { params: Promise<{ id: string }> 
               Registrar cobro
             </Button>
           )}
-          {factura.estado !== 'cancelada' && (
+          {factura.status !== 'cancelled' && (
             <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={handleCancelar}>
               Cancelar
             </Button>
@@ -101,10 +101,10 @@ export function InvoiceDetailView({ params }: { params: Promise<{ id: string }> 
                   <button
                     key={key}
                     type="button"
-                    onClick={() => setMetodo(key)}
+                    onClick={() => setMethod(key)}
                     className={cn(
                       'flex flex-col items-center gap-1 rounded-xl border p-2.5 text-xs transition-colors',
-                      metodo === key
+                      method === key
                         ? 'border-primary bg-primary/10 text-primary font-medium'
                         : 'border-border bg-background hover:border-primary/40 text-muted-foreground'
                     )}

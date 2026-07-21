@@ -107,7 +107,7 @@ export default function RegisterPage() {
         password,
         name:       nombre.trim(),
         clinicName: clinicName.trim(),
-        telefono:   telefono.trim(),
+        phone:      telefono.trim(),
       });
       router.replace('/dashboard');
     } catch (err: unknown) {

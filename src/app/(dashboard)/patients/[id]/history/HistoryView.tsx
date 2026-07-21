@@ -25,7 +25,7 @@ export function HistoryView({ params }: { params: Promise<{ id: string }> }) {
             <h1 className="text-2xl font-bold">Historial Clínico</h1>
             {paciente && (
               <p className="text-sm text-muted-foreground mt-0.5">
-                {paciente.nombre}
+                {paciente.name}
               </p>
             )}
           </div>
@@ -42,7 +42,7 @@ export function HistoryView({ params }: { params: Promise<{ id: string }> }) {
 
       <HistorialTimeline
         pacienteId={id}
-        nombrePaciente={paciente?.nombre}
+        nombrePaciente={paciente?.name}
       />
 
     </div>

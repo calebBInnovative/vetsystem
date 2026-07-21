@@ -32,18 +32,18 @@ export function ConsultaForm({
   } = useForm<ConsultaFormData>({
     resolver: zodResolver(consultaSchema),
     defaultValues: {
-      tipo: 'consulta_general',
-      fecha: new Date().toISOString().slice(0, 16),
-      medicamentos: [],
+      type: 'general_consultation',
+      date: new Date().toISOString().slice(0, 16),
+      medications: [],
       ...defaultValues,
     },
   });
 
-  const tipoActual = watch('tipo');
+  const tipoActual = watch('type');
 
   const { fields, append, remove } = useFieldArray({
     control,
-    name: 'medicamentos',
+    name: 'medications',
   });
 
   return (
@@ -58,7 +58,7 @@ export function ConsultaForm({
               <button
                 key={valor}
                 type="button"
-                onClick={() => setValue('tipo', valor, { shouldValidate: true })}
+                onClick={() => setValue('type', valor, { shouldValidate: true })}
                 className={cn(
                   'flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all text-left',
                   tipoActual === valor
@@ -72,7 +72,7 @@ export function ConsultaForm({
             )
           )}
         </div>
-        {errors.tipo && <Err>{errors.tipo.message}</Err>}
+        {errors.type && <Err>{errors.type.message}</Err>}
       </section>
 
       {/* ── Datos básicos ────────────────────────────────── */}
@@ -86,18 +86,18 @@ export function ConsultaForm({
               Fecha y hora <span className="text-destructive">*</span>
             </label>
             <DateTimePicker
-              value={watch('fecha')}
-              onChange={(v) => setValue('fecha', v, { shouldValidate: true })}
-              hasError={!!errors.fecha}
+              value={watch('date')}
+              onChange={(v) => setValue('date', v, { shouldValidate: true })}
+              hasError={!!errors.date}
             />
-            {errors.fecha && <Err>{errors.fecha.message}</Err>}
+            {errors.date && <Err>{errors.date.message}</Err>}
           </div>
 
           {/* Veterinario */}
           <div>
             <label className={labelClass}>Veterinario</label>
             <input
-              {...register('veterinario')}
+              {...register('veterinarian')}
               placeholder="Nombre del veterinario"
               className={field(false)}
             />
@@ -109,19 +109,19 @@ export function ConsultaForm({
               Motivo de consulta <span className="text-destructive">*</span>
             </label>
             <input
-              {...register('motivo')}
+              {...register('reason')}
               placeholder="¿Por qué trae a la mascota hoy?"
-              className={field(!!errors.motivo)}
+              className={field(!!errors.reason)}
               autoFocus
             />
-            {errors.motivo && <Err>{errors.motivo.message}</Err>}
+            {errors.reason && <Err>{errors.reason.message}</Err>}
           </div>
 
           {/* Síntomas */}
           <div className="sm:col-span-2">
             <label className={labelClass}>Síntomas observados</label>
             <textarea
-              {...register('sintomas')}
+              {...register('symptoms')}
               rows={2}
               placeholder="Signos clínicos, comportamiento, tiempo de evolución..."
               className={cn(field(false), 'resize-none')}
@@ -132,29 +132,29 @@ export function ConsultaForm({
           <div>
             <label className={labelClass}>Temperatura (°C)</label>
             <input
-              {...register('temperatura')}
+              {...register('temperature')}
               type="number"
               step="0.1"
               min="30"
               max="45"
               placeholder="38.5"
-              className={field(!!errors.temperatura)}
+              className={field(!!errors.temperature)}
             />
-            {errors.temperatura && <Err>{errors.temperatura.message}</Err>}
+            {errors.temperature && <Err>{errors.temperature.message}</Err>}
           </div>
 
           {/* Peso en consulta */}
           <div>
             <label className={labelClass}>Peso en consulta (kg)</label>
             <input
-              {...register('pesoConsulta')}
+              {...register('consultationWeight')}
               type="number"
               step="0.1"
               min="0"
               placeholder="4.5"
-              className={field(!!errors.pesoConsulta)}
+              className={field(!!errors.consultationWeight)}
             />
-            {errors.pesoConsulta && <Err>{errors.pesoConsulta.message}</Err>}
+            {errors.consultationWeight && <Err>{errors.consultationWeight.message}</Err>}
           </div>
 
         </div>
@@ -168,7 +168,7 @@ export function ConsultaForm({
           <div>
             <label className={labelClass}>Diagnóstico</label>
             <textarea
-              {...register('diagnostico')}
+              {...register('diagnosis')}
               rows={2}
               placeholder="Diagnóstico presuntivo o definitivo..."
               className={cn(field(false), 'resize-none')}
@@ -178,7 +178,7 @@ export function ConsultaForm({
           <div>
             <label className={labelClass}>Tratamiento indicado</label>
             <textarea
-              {...register('tratamiento')}
+              {...register('treatment')}
               rows={2}
               placeholder="Procedimientos realizados, indicaciones al dueño..."
               className={cn(field(false), 'resize-none')}
@@ -188,7 +188,7 @@ export function ConsultaForm({
           <div>
             <label className={labelClass}>Observaciones adicionales</label>
             <textarea
-              {...register('observaciones')}
+              {...register('observations')}
               rows={2}
               placeholder="Notas del veterinario, seguimiento recomendado..."
               className={cn(field(false), 'resize-none')}
@@ -206,7 +206,7 @@ export function ConsultaForm({
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => append({ nombre: '', dosis: '', frecuencia: '', duracion: '', notas: '' })}
+            onClick={() => append({ name: '', dosage: '', frequency: '', duration: '', notes: '' })}
             className="gap-1.5 text-xs"
           >
             <Plus size={13} />
@@ -216,7 +216,7 @@ export function ConsultaForm({
 
         {fields.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4 border-2 border-dashed border-border rounded-xl">
-            Sin medicamentos recetados
+            Sin medications recetados
           </p>
         ) : (
           <div className="space-y-3">
@@ -243,45 +243,45 @@ export function ConsultaForm({
                   <div className="sm:col-span-2">
                     <label className={labelClass}>Nombre del medicamento *</label>
                     <input
-                      {...register(`medicamentos.${index}.nombre`)}
+                      {...register(`medications.${index}.name`)}
                       placeholder="Ej: Amoxicilina"
-                      className={field(!!errors.medicamentos?.[index]?.nombre)}
+                      className={field(!!errors.medications?.[index]?.name)}
                     />
-                    {errors.medicamentos?.[index]?.nombre && (
-                      <Err>{errors.medicamentos[index]?.nombre?.message}</Err>
+                    {errors.medications?.[index]?.name && (
+                      <Err>{errors.medications[index]?.name?.message}</Err>
                     )}
                   </div>
                   <div>
                     <label className={labelClass}>Dosis *</label>
                     <input
-                      {...register(`medicamentos.${index}.dosis`)}
+                      {...register(`medications.${index}.dosage`)}
                       placeholder="Ej: 250mg"
-                      className={field(!!errors.medicamentos?.[index]?.dosis)}
+                      className={field(!!errors.medications?.[index]?.dosage)}
                     />
-                    {errors.medicamentos?.[index]?.dosis && (
-                      <Err>{errors.medicamentos[index]?.dosis?.message}</Err>
+                    {errors.medications?.[index]?.dosage && (
+                      <Err>{errors.medications[index]?.dosage?.message}</Err>
                     )}
                   </div>
                   <div>
                     <label className={labelClass}>Frecuencia *</label>
                     <input
-                      {...register(`medicamentos.${index}.frecuencia`)}
+                      {...register(`medications.${index}.frequency`)}
                       placeholder="Ej: Cada 12 horas"
-                      className={field(!!errors.medicamentos?.[index]?.frecuencia)}
+                      className={field(!!errors.medications?.[index]?.frequency)}
                     />
                   </div>
                   <div>
                     <label className={labelClass}>Duración *</label>
                     <input
-                      {...register(`medicamentos.${index}.duracion`)}
+                      {...register(`medications.${index}.duration`)}
                       placeholder="Ej: 7 días"
-                      className={field(!!errors.medicamentos?.[index]?.duracion)}
+                      className={field(!!errors.medications?.[index]?.duration)}
                     />
                   </div>
                   <div>
                     <label className={labelClass}>Notas</label>
                     <input
-                      {...register(`medicamentos.${index}.notas`)}
+                      {...register(`medications.${index}.notes`)}
                       placeholder="Con o sin comida, etc."
                       className={field(false)}
                     />
@@ -299,8 +299,8 @@ export function ConsultaForm({
         <div className="max-w-xs">
           <label className={labelClass}>Próxima cita recomendada</label>
           <DatePicker
-            value={watch('proximaCita')}
-            onChange={(v) => setValue('proximaCita', v, { shouldValidate: true })}
+            value={watch('nextAppointment')}
+            onChange={(v) => setValue('nextAppointment', v, { shouldValidate: true })}
             placeholder="Selecciona la fecha"
             fromDate={new Date()}
             toDate={new Date(new Date().getFullYear() + 2, 11, 31)}

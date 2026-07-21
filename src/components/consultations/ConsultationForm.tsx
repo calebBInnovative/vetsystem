@@ -29,10 +29,10 @@ function formatMonto(n: number) {
 }
 
 const TABS = [
-  { id: 'examen',     label: 'Examen',     icon: Activity  },
-  { id: 'clinico',    label: 'Clínico',    icon: FileText  },
-  { id: 'products',  label: 'Productos y services',  icon: Package   },
-  { id: 'cobro',      label: 'Cobro',      icon: Receipt   },
+  { id: 'examen',   label: 'Examen',                icon: Activity },
+  { id: 'clinico',  label: 'Clínico',               icon: FileText },
+  { id: 'products', label: 'Productos y services',  icon: Package  },
+  { id: 'cobro',    label: 'Cobro',                 icon: Receipt  },
 ] as const;
 
 type TabId = typeof TABS[number]['id'];
@@ -41,30 +41,30 @@ type TabId = typeof TABS[number]['id'];
 
 interface ConsultaFormProps {
   consultaId: string;
-  consulta: ConsultationWithPatient;
+  consultation: ConsultationWithPatient;
   onFinalizada: () => void;
   onCancelada: () => void;
 }
 
-export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }: ConsultaFormProps) {
+export function ConsultaForm({ consultaId, consultation, onFinalizada, onCancelada }: ConsultaFormProps) {
   const [tab, setTab]               = useState<TabId>('examen');
   const [guardando,   setGuardando]   = useState(false);
   const [finalizando, setFinalizando] = useState(false);
   const [guardadoOk,  setGuardadoOk]  = useState(false);
 
   // ── Product search state ────────────────────────────────────────────────
-  const [busqueda,           setBusqueda]           = useState('');
+  const [searchQuery,        setSearchQuery]        = useState('');
   const [busquedaServicio,   setBusquedaServicio]   = useState('');
   const [serviciosFocused,   setServiciosFocused]   = useState(false);
   const [servicioDesc,       setServicioDesc]       = useState('');
   const [servicioPrecio,     setServicioPrecio]     = useState('');
 
-  // Mapa tipo consulta → categoría de servicio preferida
+  // Map consultation type → preferred service category
   const TIPO_A_CATEGORIA: Record<string, string> = {
-    consulta_general: 'consulta',   control:         'consulta',
-    vacunacion:       'vacunacion', cirugia:         'cirugia',
-    emergencia:       'emergencia', desparasitacion: 'desparasitacion',
-    estetica:         'estetica',   otro:            'otro',
+    general_consultation: 'consultation', checkup:   'consultation',
+    vaccination:          'vaccination',  surgery:   'surgery',
+    emergency:            'emergency',    deworming: 'deworming',
+    grooming:             'grooming',     other:     'other',
   };
 
   const {
@@ -76,86 +76,86 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
   } = useForm<ConsultaFormData>({
     resolver: zodResolver(consultaSchema),
     defaultValues: {
-      pacienteId:            consulta.pacienteId,
-      citaId:                consulta.citaId,
-      tipo:                  consulta.tipo,
-      motivo:                consulta.motivo,
-      peso:                  consulta.peso,
-      temperatura:           consulta.temperatura,
-      frecuenciaCardiaca:    consulta.frecuenciaCardiaca,
-      frecuenciaRespiratoria:consulta.frecuenciaRespiratoria,
-      anamnesis:             consulta.anamnesis,
-      examenFisico:          consulta.examenFisico,
-      diagnostico:           consulta.diagnostico,
-      tratamiento:           consulta.tratamiento,
-      observaciones:         consulta.observaciones,
-      proximaVisita:         consulta.proximaVisita,
-      veterinario:           consulta.veterinario ?? 'Dra. Patricia Vega',
-      items:                 consulta.items ?? ([] as ConsultaItemData[]),
-      descuento:             consulta.descuento ?? 0,
+      patientId:       consultation.patientId,
+      appointmentId:   consultation.appointmentId,
+      type:            consultation.type,
+      reason:          consultation.reason,
+      weight:          consultation.weight,
+      temperature:     consultation.temperature,
+      heartRate:       consultation.heartRate,
+      respiratoryRate: consultation.respiratoryRate,
+      anamnesis:       consultation.anamnesis,
+      physicalExam:    consultation.physicalExam,
+      diagnosis:       consultation.diagnosis,
+      treatment:       consultation.treatment,
+      observations:    consultation.observations,
+      nextVisit:       consultation.nextVisit,
+      veterinarian:    consultation.veterinarian ?? 'Dra. Patricia Vega',
+      items:           consultation.items ?? ([] as ConsultaItemData[]),
+      discount:        consultation.discount ?? 0,
     },
   });
 
-  // Búsqueda de products en tiempo real
+  // Real-time product search via Dexie
   const productosResultado = useLiveQuery(async () => {
-    if (!busqueda.trim()) return [];
-    const q = busqueda.toLowerCase();
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase();
     return db.products
-      .where('clinicaId').equals(process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets')
-      .filter((p) => p.activo && !p.deletedAt && p.nombre.toLowerCase().includes(q))
+      .where('clinicId').equals(process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets')
+      .filter((p) => p.active && !p.deletedAt && p.name.toLowerCase().includes(q))
       .limit(6)
       .toArray();
-  }, [busqueda]);
+  }, [searchQuery]);
 
   // ── Items helpers ───────────────────────────────────────────────────────
   const items    = watch('items') ?? [];
-  const descuento = Number(watch('descuento') ?? 0);
-  const subtotal  = items.reduce((s, i) => s + i.subtotal, 0);
-  const total     = Math.max(0, subtotal - descuento);
+  const discount = Number(watch('discount') ?? 0);
+  const subtotal = items.reduce((s, i) => s + i.subtotal, 0);
+  const total    = Math.max(0, subtotal - discount);
 
   function agregarProducto(prod: ProductLocal) {
-    const existente = items.findIndex((i) => i.productoId === prod.id);
+    const existente = items.findIndex((i) => i.productId === prod.id);
     if (existente >= 0) {
       const next = [...items];
       next[existente] = {
         ...next[existente],
-        cantidad:  next[existente].cantidad + 1,
-        subtotal: (next[existente].cantidad + 1) * next[existente].precioUnitario,
+        quantity: next[existente].quantity + 1,
+        subtotal: (next[existente].quantity + 1) * next[existente].unitPrice,
       };
       setValue('items', next);
     } else {
-      const precio = prod.precioVenta ?? 0;
+      const precio = prod.salePrice ?? 0;
       const item: ConsultaItemData = {
-        id:             crypto.randomUUID(),
-        productoId:     prod.id,
-        descripcion:    prod.nombre,
-        cantidad:       1,
-        precioUnitario: precio,
-        subtotal:       precio,
-        esServicio:     false,
+        id:          crypto.randomUUID(),
+        productId:   prod.id,
+        description: prod.name,
+        quantity:    1,
+        unitPrice:   precio,
+        subtotal:    precio,
+        isService:   false,
       };
       setValue('items', [...items, item]);
     }
-    setBusqueda('');
+    setSearchQuery('');
   }
 
   const serviciosCatalogo = useServiciosActivos();
 
   function agregarServicioCatalogo(serv: ServiceLocal) {
     const existente = items.findIndex(
-      (i) => i.esServicio && !i.productoId && i.descripcion === serv.nombre
+      (i) => i.isService && !i.productId && i.description === serv.name
     );
     if (existente >= 0) {
       cambiarCantidad(existente, 1);
     } else {
       const item: ConsultaItemData = {
-        id:             crypto.randomUUID(),
-        productoId:     undefined,
-        descripcion:    serv.nombre,
-        cantidad:       1,
-        precioUnitario: serv.precio,
-        subtotal:       serv.precio,
-        esServicio:     true,
+        id:          crypto.randomUUID(),
+        productId:   undefined,
+        description: serv.name,
+        quantity:    1,
+        unitPrice:   serv.price,
+        subtotal:    serv.price,
+        isService:   true,
       };
       setValue('items', [...items, item]);
     }
@@ -165,13 +165,13 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
     const precio = parseFloat(servicioPrecio) || 0;
     if (!servicioDesc.trim()) return;
     const item: ConsultaItemData = {
-      id:             crypto.randomUUID(),
-      productoId:     undefined,
-      descripcion:    servicioDesc.trim(),
-      cantidad:       1,
-      precioUnitario: precio,
-      subtotal:       precio,
-      esServicio:     true,
+      id:          crypto.randomUUID(),
+      productId:   undefined,
+      description: servicioDesc.trim(),
+      quantity:    1,
+      unitPrice:   precio,
+      subtotal:    precio,
+      isService:   true,
     };
     setValue('items', [...items, item]);
     setServicioDesc('');
@@ -179,9 +179,9 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
   }
 
   function cambiarCantidad(index: number, delta: number) {
-    const next     = [...items];
-    const nueva    = Math.max(1, next[index].cantidad + delta);
-    next[index]    = { ...next[index], cantidad: nueva, subtotal: nueva * next[index].precioUnitario };
+    const next   = [...items];
+    const nueva  = Math.max(1, next[index].quantity + delta);
+    next[index]  = { ...next[index], quantity: nueva, subtotal: nueva * next[index].unitPrice };
     setValue('items', next);
   }
 
@@ -231,11 +231,11 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
       {/* Patient banner */}
       <div className="bg-primary/10 border-b border-border px-4 py-3 flex items-center gap-3 shrink-0">
         <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center text-xl">
-          {consulta.especiePaciente === 'perro' ? '🐕' : consulta.especiePaciente === 'gato' ? '🐈' : '🐾'}
+          {consultation.patientSpecies === 'dog' ? '🐕' : consultation.patientSpecies === 'cat' ? '🐈' : '🐾'}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm">{consulta.nombrePaciente}</p>
-          <p className="text-xs text-muted-foreground">{consulta.nombreDueno} · {new Date(consulta.fecha).toLocaleTimeString('es-NI', { hour: '2-digit', minute: '2-digit' })}</p>
+          <p className="font-semibold text-sm">{consultation.patientName}</p>
+          <p className="text-xs text-muted-foreground">{consultation.ownerName} · {new Date(consultation.date).toLocaleTimeString('es-NI', { hour: '2-digit', minute: '2-digit' })}</p>
         </div>
         <Button type="button" variant="ghost" size="sm" onClick={handleGuardar} disabled={guardando} className="text-xs gap-1">
           {guardando ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
@@ -275,12 +275,12 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
               <label className="text-sm font-medium">Tipo de atención *</label>
               <div className="flex flex-wrap gap-1.5">
                 {(Object.entries(CONSULTATION_TYPES) as [string, { label: string; emoji: string }][]).map(([key, info]) => {
-                  const activo = watch('tipo') === key;
+                  const activo = watch('type') === key;
                   return (
                     <button
                       key={key}
                       type="button"
-                      onClick={() => setValue('tipo', key as ConsultaFormData['tipo'], { shouldValidate: true })}
+                      onClick={() => setValue('type', key as ConsultaFormData['type'], { shouldValidate: true })}
                       className={cn(
                         'flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors',
                         activo
@@ -294,19 +294,19 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
                   );
                 })}
               </div>
-              {errors.tipo && <p className="text-xs text-destructive">{errors.tipo.message}</p>}
+              {errors.type && <p className="text-xs text-destructive">{errors.type.message}</p>}
             </div>
 
             {/* Motivo */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Motivo de la visita <span className="text-muted-foreground font-normal">(opcional)</span></label>
               <textarea
-                {...register('motivo')}
+                {...register('reason')}
                 rows={2}
                 placeholder="Describa el motivo de la visita..."
                 className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
               />
-              {errors.motivo && <p className="text-xs text-destructive">{errors.motivo.message}</p>}
+              {errors.reason && <p className="text-xs text-destructive">{errors.reason.message}</p>}
             </div>
 
             {/* Signos vitales */}
@@ -314,10 +314,10 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
               <label className="text-sm font-medium">Signos vitales</label>
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { field: 'peso'                 as const, label: 'Peso',        unit: 'kg',  placeholder: '4.5' },
-                  { field: 'temperatura'           as const, label: 'Temperatura', unit: '°C',  placeholder: '38.5' },
-                  { field: 'frecuenciaCardiaca'    as const, label: 'F. Cardíaca', unit: 'bpm', placeholder: '80' },
-                  { field: 'frecuenciaRespiratoria'as const, label: 'F. Respir.',  unit: 'rpm', placeholder: '20' },
+                  { field: 'weight'          as const, label: 'Peso',        unit: 'kg',  placeholder: '4.5'  },
+                  { field: 'temperature'     as const, label: 'Temperatura', unit: '°C',  placeholder: '38.5' },
+                  { field: 'heartRate'       as const, label: 'F. Cardíaca', unit: 'bpm', placeholder: '80'   },
+                  { field: 'respiratoryRate' as const, label: 'F. Respir.',  unit: 'rpm', placeholder: '20'   },
                 ].map(({ field, label, unit, placeholder }) => (
                   <div key={field} className="space-y-1">
                     <label className="text-xs text-muted-foreground">{label}</label>
@@ -341,7 +341,7 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Veterinario</label>
               <input
-                {...register('veterinario')}
+                {...register('veterinarian')}
                 placeholder="Nombre del veterinario"
                 className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
@@ -353,17 +353,17 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
         {tab === 'clinico' && (
           <div className="p-4 space-y-4">
             {[
-              { field: 'anamnesis'    as const, label: 'Anamnesis', placeholder: 'Historia del problema, antecedentes del paciente...' },
-              { field: 'examenFisico'as const, label: 'Examen físico', placeholder: 'Hallazgos del examen: piel, mucosas, auscultación...' },
-              { field: 'diagnostico' as const, label: 'Diagnóstico', placeholder: 'Diagnóstico presuntivo o definitivo...' },
-              { field: 'tratamiento' as const, label: 'Tratamiento', placeholder: 'Medicamentos, dosis, indicaciones...' },
-              { field: 'observaciones'as const, label: 'Observaciones', placeholder: 'Notas adicionales...' },
+              { field: 'anamnesis'   as const, label: 'Anamnesis',     placeholder: 'Historia del problema, antecedentes del paciente...' },
+              { field: 'physicalExam'as const, label: 'Examen físico', placeholder: 'Hallazgos del examen: piel, mucosas, auscultación...' },
+              { field: 'diagnosis'   as const, label: 'Diagnóstico',   placeholder: 'Diagnóstico presuntivo o definitivo...' },
+              { field: 'treatment'   as const, label: 'Tratamiento',   placeholder: 'Medicamentos, dosis, indicaciones...' },
+              { field: 'observations'as const, label: 'Observaciones', placeholder: 'Notas adicionales...' },
             ].map(({ field, label, placeholder }) => (
               <div key={field} className="space-y-1.5">
                 <label className="text-sm font-medium">{label}</label>
                 <textarea
                   {...register(field)}
-                  rows={field === 'observaciones' ? 2 : 3}
+                  rows={field === 'observations' ? 2 : 3}
                   placeholder={placeholder}
                   className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
                 />
@@ -373,8 +373,8 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Próxima visita</label>
               <DatePicker
-                value={watch('proximaVisita')}
-                onChange={(v) => setValue('proximaVisita', v, { shouldValidate: true })}
+                value={watch('nextVisit')}
+                onChange={(v) => setValue('nextVisit', v, { shouldValidate: true })}
                 placeholder="DD/MM/AAAA"
                 fromDate={new Date()}
                 toDate={new Date(new Date().getFullYear() + 2, 11, 31)}
@@ -405,16 +405,16 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
               {/* Resultados — solo visibles con focus */}
               {serviciosFocused && (() => {
                 const q                 = busquedaServicio.toLowerCase().trim();
-                const categoriaPreferida = TIPO_A_CATEGORIA[watch('tipo')] ?? 'consulta';
+                const categoriaPreferida = TIPO_A_CATEGORIA[watch('type')] ?? 'consultation';
 
                 const filtrados = (q
-                  ? serviciosCatalogo.filter((s) => s.nombre.toLowerCase().includes(q) || s.categoria.includes(q))
+                  ? serviciosCatalogo.filter((s) => s.name.toLowerCase().includes(q) || s.category.includes(q))
                   : serviciosCatalogo
                 ).sort((a, b) => {
-                  // Servicios del tipo de consulta actual primero
-                  const pa = a.categoria === categoriaPreferida ? 0 : 1;
-                  const pb = b.categoria === categoriaPreferida ? 0 : 1;
-                  return pa - pb || a.nombre.localeCompare(b.nombre);
+                  // Services of current consultation type first
+                  const pa = a.category === categoriaPreferida ? 0 : 1;
+                  const pb = b.category === categoriaPreferida ? 0 : 1;
+                  return pa - pb || a.name.localeCompare(b.name);
                 });
 
                 if (filtrados.length === 0) return (
@@ -428,8 +428,8 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
                     onMouseDown={(e) => e.preventDefault()}
                   >
                     {filtrados.map((serv) => {
-                      const cat      = SERVICE_CATEGORIES[serv.categoria];
-                      const esPreferido = serv.categoria === categoriaPreferida;
+                      const cat         = SERVICE_CATEGORIES[serv.category];
+                      const esPreferido = serv.category === categoriaPreferida;
                       return (
                         <button
                           key={serv.id}
@@ -439,7 +439,7 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
                         >
                           <div className="flex items-center gap-2 min-w-0">
                             <span className="shrink-0">{cat?.emoji}</span>
-                            <span className="text-sm font-medium truncate">{serv.nombre}</span>
+                            <span className="text-sm font-medium truncate">{serv.name}</span>
                             {esPreferido && !q && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary shrink-0">
                                 Sugerido
@@ -447,7 +447,7 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
                             )}
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-sm font-semibold">{formatMonto(serv.precio)}</span>
+                            <span className="text-sm font-semibold">{formatMonto(serv.price)}</span>
                             <Plus size={13} className="text-primary" />
                           </div>
                         </button>
@@ -464,15 +464,15 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
               <div className="relative">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <input
-                  value={busqueda}
-                  onChange={(e) => setBusqueda(e.target.value)}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Buscar en inventario..."
                   className="w-full rounded-xl border border-input bg-background pl-9 pr-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
 
               {/* Resultados */}
-              {busqueda && (
+              {searchQuery && (
                 <div className="rounded-xl border border-border bg-card overflow-hidden">
                   {!productosResultado || productosResultado.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-4">Sin resultados</p>
@@ -485,11 +485,11 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
                         className="w-full flex items-center justify-between gap-2 px-4 py-2.5 hover:bg-muted/40 transition-colors border-b border-border last:border-0 text-left"
                       >
                         <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{prod.nombre}</p>
-                          <p className="text-xs text-muted-foreground">Stock: {prod.stockActual} {prod.unidad}</p>
+                          <p className="text-sm font-medium truncate">{prod.name}</p>
+                          <p className="text-xs text-muted-foreground">Stock: {prod.currentStock} {prod.unit}</p>
                         </div>
                         <div className="text-right shrink-0">
-                          <p className="text-sm font-semibold">{formatMonto(prod.precioVenta ?? 0)}</p>
+                          <p className="text-sm font-semibold">{formatMonto(prod.salePrice ?? 0)}</p>
                           <Plus size={13} className="text-primary ml-auto" />
                         </div>
                       </button>
@@ -531,14 +531,14 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
                   {items.map((item, i) => (
                     <div key={item.id} className="flex items-center gap-3 px-3 py-2.5 border-b border-border last:border-0">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{item.descripcion}</p>
-                        <p className="text-xs text-muted-foreground">{formatMonto(item.precioUnitario)} c/u {item.esServicio && '· Service'}</p>
+                        <p className="text-sm font-medium truncate">{item.description}</p>
+                        <p className="text-xs text-muted-foreground">{formatMonto(item.unitPrice)} c/u {item.isService && '· Service'}</p>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <button type="button" onClick={() => cambiarCantidad(i, -1)} className="w-6 h-6 rounded-lg border border-border flex items-center justify-center hover:bg-muted transition-colors">
                           <Minus size={11} />
                         </button>
-                        <span className="w-6 text-center text-sm font-medium">{item.cantidad}</span>
+                        <span className="w-6 text-center text-sm font-medium">{item.quantity}</span>
                         <button type="button" onClick={() => cambiarCantidad(i, +1)} className="w-6 h-6 rounded-lg border border-border flex items-center justify-center hover:bg-muted transition-colors">
                           <Plus size={11} />
                         </button>
@@ -573,8 +573,8 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
                 {items.map((item) => (
                   <div key={item.id} className="flex items-center justify-between px-4 py-2.5 border-b border-border last:border-0">
                     <div>
-                      <p className="text-sm">{item.descripcion}</p>
-                      <p className="text-xs text-muted-foreground">{item.cantidad} × {formatMonto(item.precioUnitario)}</p>
+                      <p className="text-sm">{item.description}</p>
+                      <p className="text-xs text-muted-foreground">{item.quantity} × {formatMonto(item.unitPrice)}</p>
                     </div>
                     <p className="text-sm font-medium">{formatMonto(item.subtotal)}</p>
                   </div>
@@ -587,8 +587,8 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
               <label className="text-sm font-medium">Descuento</label>
               <DescuentoInput
                 subtotal={subtotal}
-                value={descuento}
-                onChange={(monto) => setValue('descuento', monto, { shouldValidate: true })}
+                value={discount}
+                onChange={(monto) => setValue('discount', monto, { shouldValidate: true })}
               />
             </div>
 
@@ -598,10 +598,10 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
                 <span className="text-muted-foreground">Subtotal</span>
                 <span>{formatMonto(subtotal)}</span>
               </div>
-              {descuento > 0 && (
+              {discount > 0 && (
                 <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
                   <span>Descuento</span>
-                  <span>-{formatMonto(descuento)}</span>
+                  <span>-{formatMonto(discount)}</span>
                 </div>
               )}
               <div className="flex justify-between font-bold text-base pt-2 border-t border-border">
@@ -630,7 +630,7 @@ export function ConsultaForm({ consultaId, consulta, onFinalizada, onCancelada }
               ? <Loader2 size={16} className="animate-spin" />
               : <CheckCircle size={16} />
             }
-            Finalizar consulta
+            Finalizar consultation
           </Button>
         </div>
       </div>

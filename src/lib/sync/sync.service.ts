@@ -39,10 +39,11 @@ const TABLAS_SYNC = [
   { nombre: 'expensePayments',        tabla: () => db.expensePayments        },
   { nombre: 'collaborators',      tabla: () => db.collaborators      },
   { nombre: 'collaboratorPayments', tabla: () => db.collaboratorPayments },
+  { nombre: 'promotions',           tabla: () => db.promotions           },
 ] as const;
 
 export type SyncAllProgress = {
-  coleccion: string;
+  collection: string;
   enviados:  number;
   total:     number;
   errores:   number;
@@ -56,7 +57,7 @@ class SyncService {
 
   // ── Arrancar / detener ────────────────────────────────────────────────────
 
-  iniciar() {
+  start() {
     if (this.timer) return;
 
     // Trigger inmediato: cada ítem nuevo en syncQueue dispara flush
@@ -78,7 +79,7 @@ class SyncService {
     this.pullAll();
   }
 
-  detener() {
+  stop() {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     window.removeEventListener('online', this.onOnline);
@@ -98,17 +99,17 @@ class SyncService {
 
     try {
       const pendientes = await db.syncQueue
-        .where('intentos').below(MAX_INTENTOS)
+        .where('attempts').below(MAX_INTENTOS)
         .limit(BATCH_SIZE)
-        .sortBy('creadoEn');
+        .sortBy('createdAt');
 
       for (const item of pendientes) {
         try {
-          await syncProvider.push(item.coleccion, item.documentoId, item.datos);
+          await syncProvider.push(item.collection, item.documentId, item.data);
           await db.syncQueue.delete(item.id!);
         } catch (err) {
-          console.warn(`[sync] fallo ${item.coleccion}/${item.documentoId}:`, err);
-          await db.syncQueue.update(item.id!, { intentos: item.intentos + 1 });
+          console.warn(`[sync] fallo ${item.collection}/${item.documentId}:`, err);
+          await db.syncQueue.update(item.id!, { attempts: item.attempts + 1 });
         }
       }
     } finally {
@@ -191,7 +192,7 @@ class SyncService {
 
       totalGlobal   += enviados;
       erroresGlobal += errores;
-      const progreso: SyncAllProgress = { coleccion: nombre, enviados, total: docs.length, errores, mensajesError };
+      const progreso: SyncAllProgress = { collection: nombre, enviados, total: docs.length, errores, mensajesError };
       detalles.push(progreso);
       onProgress?.(progreso);
     }
@@ -203,9 +204,9 @@ class SyncService {
 
   async estadoQueue() {
     const pendientes = await db.syncQueue
-      .where('intentos').below(MAX_INTENTOS).count();
+      .where('attempts').below(MAX_INTENTOS).count();
     const conError = await db.syncQueue
-      .where('intentos').aboveOrEqual(MAX_INTENTOS).count();
+      .where('attempts').aboveOrEqual(MAX_INTENTOS).count();
     return { pendientes, conError };
   }
 
@@ -219,3 +220,4 @@ class SyncService {
 }
 
 export const syncService = new SyncService();
+

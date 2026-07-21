@@ -22,7 +22,7 @@ function NuevaCitaContent() {
     try {
       await createAppointment(datos);
       toast.success('Appointment agendada', {
-        description: `Appointment registrada para el ${datos.fecha} a las ${datos.horaInicio}.`,
+        description: `Appointment registrada para el ${datos.date} a las ${datos.startTime}.`,
       });
       router.push(`/agenda`);
     } catch (err) {
@@ -52,7 +52,7 @@ function NuevaCitaContent() {
         <CitaForm
           onSubmit={handleSubmit}
           loading={loading}
-          defaultValues={fechaParam ? { fecha: fechaParam } : undefined}
+          defaultValues={fechaParam ? { date: fechaParam } : undefined}
         />
       </div>
     </div>

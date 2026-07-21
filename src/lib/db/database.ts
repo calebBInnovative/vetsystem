@@ -24,6 +24,7 @@ import type { SaleLocal }    from '@/types/sale';
 import type { SessionLocal }  from '@/types/license';
 import type { FixedExpense, ExpensePayment } from '@/types/expense';
 import type { Collaborator, CollaboratorPayment } from '@/types/collaborator';
+import type { PromotionLocal } from '@/types/promotion';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TIPOS INTERNOS
@@ -35,19 +36,16 @@ import type { Collaborator, CollaboratorPayment } from '@/types/collaborator';
  * El SyncEngine los procesa cuando hay conexión.
  */
 export interface SyncQueueItem {
-  /** Auto-incremental — no necesita UUID */
   id?: number;
-  /** Nombre de la colección en Firestore */
-  coleccion: string;
-  /** ID del documento que se debe sincronizar */
-  documentoId: string;
-  /** Tipo de operación a ejecutar en Firestore */
-  operacion: 'create' | 'update' | 'delete';
-  /** Payload completo a enviar. Para delete, solo necesita { id, deletedAt } */
-  datos: object;
-  /** Número de intentos fallidos. Si llega a 5, se marca como error. */
-  intentos: number;
-  creadoEn: number;
+  /** Firestore collection name */
+  collection: string;
+  documentId: string;
+  operation: 'create' | 'update' | 'delete';
+  /** Full payload. For delete, only { id, deletedAt } needed. */
+  data: object;
+  /** Failed attempt count. If it reaches 5, marked as error. */
+  attempts: number;
+  createdAt: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -90,6 +88,9 @@ class VetSystemDB extends Dexie {
   collaborators!:        EntityTable<Collaborator,        'id'>;
   collaboratorPayments!: EntityTable<CollaboratorPayment, 'id'>;
 
+  // Promotions / bundles module
+  promotions!: EntityTable<PromotionLocal, 'id'>;
+
   // Sync infrastructure
   syncQueue!:     EntityTable<SyncQueueItem,         'id'>;
 
@@ -98,15 +99,6 @@ class VetSystemDB extends Dexie {
 
     /**
      * VERSIÓN 1 — Schema inicial
-     *
-     * Formato de índices Dexie:
-     *   "primaryKey, campo1, campo2, ..."
-     *   Prefijo "&" → único
-     *   Prefijo "*" → multiEntry (arrays)
-     *   Prefijo "++" → auto-increment
-     *
-     * Solo se indexan campos que se usan en .where(), .filter() o .sortBy().
-     * No indexar todo — aumenta el tamaño y reduce el rendimiento.
      */
     this.version(1).stores({
       patients: [
@@ -295,9 +287,13 @@ class VetSystemDB extends Dexie {
     });
 
     this.version(12).stores({
-      // Add 'intentos' index to syncQueue so .where('intentos').below(N) works
       syncQueue: '++id, coleccion, documentoId, creadoEn, intentos',
     });
+
+    // v18: rename syncQueue index fields to match new English SyncQueueItem fields
+    this.version(18).stores({
+      syncQueue: '++id, collection, documentId, createdAt, attempts',
+    }).upgrade(() => {});
 
     // v11 used wrong (English) field names as indexes — Dexie indexes must match
     // the actual property names on the stored objects (still Spanish in TypeScript types).
@@ -335,6 +331,30 @@ class VetSystemDB extends Dexie {
       collaborators:        'id, clinicaId, nextPaymentDate, activo, syncStatus, updatedAt, deletedAt',
       collaboratorPayments: 'id, clinicaId, colaboradorId, fechaPago, syncStatus, updatedAt',
     });
+
+    // v17: rename all Spanish field index names to English to match updated TypeScript types
+    this.version(17).stores({
+      patients:      'id, name, species, ownerId, clinicId, active, syncStatus, updatedAt, deletedAt',
+      owners:        'id, name, phone, clinicId, syncStatus, updatedAt',
+      consultations: 'id, patientId, ownerId, clinicId, date, type, status, appointmentId, syncStatus, updatedAt, deletedAt',
+      appointments:  'id, patientId, ownerId, clinicId, date, status, type, syncStatus, updatedAt, deletedAt',
+      products:      'id, name, category, clinicId, active, currentStock, syncStatus, updatedAt, deletedAt',
+      movements:     'id, productId, clinicId, type, createdAt, syncStatus, updatedAt',
+      payments:      'id, patientId, clinicId, date, type, status, paymentMethod, syncStatus, updatedAt, deletedAt',
+      invoices:      'id, number, consultationId, patientId, ownerId, clinicId, date, status, syncStatus, updatedAt, deletedAt',
+      services:      'id, clinicId, category, active, syncStatus, updatedAt, deletedAt',
+      sales:         'id, clinicId, date, status, patientId, syncStatus, updatedAt, deletedAt',
+      fixedExpenses:        'id, clinicId, nextDueDate, active, syncStatus, updatedAt, deletedAt',
+      expensePayments:      'id, clinicId, fixedExpenseId, paymentDate, syncStatus, updatedAt',
+      collaborators:        'id, clinicId, nextPaymentDate, active, syncStatus, updatedAt, deletedAt',
+      collaboratorPayments: 'id, clinicId, collaboratorId, paymentDate, syncStatus, updatedAt',
+    }).upgrade(() => {
+      // No data migration needed — dev environment, data will be re-seeded
+    });
+
+    this.version(19).stores({
+      promotions: 'id, clinicId, active, validFrom, validUntil, syncStatus, updatedAt, deletedAt',
+    });
   }
 }
 
@@ -346,7 +366,10 @@ class VetSystemDB extends Dexie {
 export const db = new VetSystemDB();
 
 /** Returns the current session's clinicId from Dexie, falling back to env var. */
-export async function getClinicaId(): Promise<string> {
+export async function getClinicId(): Promise<string> {
   const s = await db.session.get('singleton');
   return s?.clinicId ?? process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
 }
+
+/** @deprecated Use getClinicId() */
+export const getClinicaId = getClinicId;
