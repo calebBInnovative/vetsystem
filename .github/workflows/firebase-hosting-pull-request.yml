@@ -14,7 +14,12 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-      - run: npm ci && npm run build
+      - name: Install dependencies
+        run: npm ci
+      - name: Check DB schema version is committed
+        run: node scripts/bump-db-version.mjs --check
+      - name: Build
+        run: npm run build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}

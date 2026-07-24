@@ -5,6 +5,7 @@ import {
   type ReactNode,
 } from 'react';
 import { onAuthChange, getLocalSession, refreshSession, logout, UserNotFoundError, isUserCreationInFlight } from '@/lib/auth/auth.service';
+import { ensureDbReady } from '@/lib/db/database';
 import { calculateLicense } from '@/lib/license/license.service';
 import type { LicenseInfo, SessionLocal } from '@/types/license';
 import type { User } from 'firebase/auth';
@@ -102,6 +103,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // All retries exhausted — leave syncing=true so the UI shows retry screen
     // (not "blocked")
+  }, []);
+
+  // ── Ensure DB is open (and auto-recover if schema is corrupt) ────────────
+  useEffect(() => {
+    ensureDbReady().catch((err) =>
+      console.error('[DB] Could not open database after recovery attempt:', err)
+    );
   }, []);
 
   // ── Firebase Auth listener ────────────────────────────────────────────────

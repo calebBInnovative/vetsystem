@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
+    "prebuild": "node scripts/bump-db-version.mjs",
+    "db:bump": "node scripts/bump-db-version.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

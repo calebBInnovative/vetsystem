@@ -290,11 +290,6 @@ class VetSystemDB extends Dexie {
       syncQueue: '++id, coleccion, documentoId, creadoEn, intentos',
     });
 
-    // v18: rename syncQueue index fields to match new English SyncQueueItem fields
-    this.version(18).stores({
-      syncQueue: '++id, collection, documentId, createdAt, attempts',
-    }).upgrade(() => {});
-
     // v11 used wrong (English) field names as indexes — Dexie indexes must match
     // the actual property names on the stored objects (still Spanish in TypeScript types).
     this.version(13).stores({
@@ -348,13 +343,38 @@ class VetSystemDB extends Dexie {
       expensePayments:      'id, clinicId, fixedExpenseId, paymentDate, syncStatus, updatedAt',
       collaborators:        'id, clinicId, nextPaymentDate, active, syncStatus, updatedAt, deletedAt',
       collaboratorPayments: 'id, clinicId, collaboratorId, paymentDate, syncStatus, updatedAt',
-    }).upgrade(() => {
-      // No data migration needed — dev environment, data will be re-seeded
-    });
+    }).upgrade(() => {});
+
+    // v18: rename syncQueue index fields to English
+    this.version(18).stores({
+      syncQueue: '++id, collection, documentId, createdAt, attempts',
+    }).upgrade(() => {});
 
     this.version(19).stores({
       promotions: 'id, clinicId, active, validFrom, validUntil, syncStatus, updatedAt, deletedAt',
     });
+
+    // v20: full consolidated schema — ensures any browser upgrading from any prior
+    // version gets a clean, consistent set of stores with correct English field names.
+    this.version(22).stores({
+      patients:             'id, name, species, ownerId, clinicId, active, syncStatus, updatedAt, deletedAt',
+      owners:               'id, name, phone, clinicId, syncStatus, updatedAt',
+      consultations:        'id, patientId, ownerId, clinicId, date, type, status, appointmentId, syncStatus, updatedAt, deletedAt',
+      appointments:         'id, patientId, ownerId, clinicId, date, status, type, syncStatus, updatedAt, deletedAt',
+      products:             'id, name, category, clinicId, active, currentStock, syncStatus, updatedAt, deletedAt',
+      movements:            'id, productId, clinicId, type, createdAt, syncStatus, updatedAt',
+      payments:             'id, patientId, clinicId, date, type, status, paymentMethod, syncStatus, updatedAt, deletedAt',
+      invoices:             'id, number, consultationId, patientId, ownerId, clinicId, date, status, syncStatus, updatedAt, deletedAt',
+      services:             'id, clinicId, category, active, syncStatus, updatedAt, deletedAt',
+      sales:                'id, clinicId, date, status, patientId, syncStatus, updatedAt, deletedAt',
+      session:              'id, uid, clinicId',
+      fixedExpenses:        'id, clinicId, nextDueDate, active, syncStatus, updatedAt, deletedAt',
+      expensePayments:      'id, clinicId, fixedExpenseId, paymentDate, syncStatus, updatedAt',
+      collaborators:        'id, clinicId, nextPaymentDate, active, syncStatus, updatedAt, deletedAt',
+      collaboratorPayments: 'id, clinicId, collaboratorId, paymentDate, syncStatus, updatedAt',
+      promotions:           'id, clinicId, active, validFrom, validUntil, syncStatus, updatedAt, deletedAt',
+      syncQueue:            '++id, collection, documentId, createdAt, attempts',
+    }).upgrade(() => {});
   }
 }
 
@@ -364,6 +384,48 @@ class VetSystemDB extends Dexie {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const db = new VetSystemDB();
+
+// If another tab has already upgraded the schema, close this stale connection
+// and reload so the current tab picks up the new version.
+if (typeof window !== 'undefined') {
+  db.on('versionchange', () => {
+    db.close();
+    window.location.reload();
+  });
+}
+
+/**
+ * Opens the database and automatically recovers from schema corruption.
+ * If the open fails (e.g. a prior upgrade left the DB in a broken state),
+ * the entire database is deleted and recreated from scratch.
+ * Data loss is acceptable because Firebase is the source of truth and will
+ * re-sync on the next online connection.
+ *
+ * Call this once at app startup (e.g. in AuthContext) before any DB access.
+ */
+/**
+ * Opens the database and automatically recovers from schema corruption.
+ * If the open fails (e.g. a prior upgrade left the DB in a broken state),
+ * the entire database is deleted and recreated from scratch.
+ * Data loss is acceptable because Firebase is the source of truth and will
+ * re-sync on the next online connection.
+ *
+ * Call this once at app startup (e.g. in AuthContext) before any DB access.
+ */
+export async function ensureDbReady(): Promise<void> {
+  if (db.isOpen()) return;
+  try {
+    await db.open();
+  } catch (err) {
+    console.warn('[DB] Failed to open — resetting database:', err);
+    try {
+      await Dexie.delete('vetsystem-db');
+    } catch (deleteErr) {
+      console.error('[DB] Could not delete corrupt database:', deleteErr);
+    }
+    await db.open();
+  }
+}
 
 /** Returns the current session's clinicId from Dexie, falling back to env var. */
 export async function getClinicId(): Promise<string> {

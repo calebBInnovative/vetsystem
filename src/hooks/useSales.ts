@@ -105,7 +105,7 @@ export async function createSale(input: CreateSaleInput): Promise<string> {
 
       // 2 — Generate invoice
       const invoiceId     = crypto.randomUUID();
-      const invoiceNumber = await generateInvoiceNumber();
+      const invoiceNumber = await generateInvoiceNumber(clinicId);
       const invoiceItems: InvoiceItem[] = input.items.map((i) => ({
         id:          i.id,
         description: i.description,
@@ -189,10 +189,9 @@ function buildSummary(invoiceNumber: string, items: SaleItem[]): string {
   return `${invoiceNumber} — ${summary}${overflow}`.slice(0, 200);
 }
 
-async function generateInvoiceNumber(): Promise<string> {
-  const year     = new Date().getFullYear();
-  const clinicId = await getClinicaId();
-  const count    = await db.invoices.where('clinicId').equals(clinicId).count();
+async function generateInvoiceNumber(clinicId: string): Promise<string> {
+  const year  = new Date().getFullYear();
+  const count = await db.invoices.where('clinicId').equals(clinicId).count();
   return `FAC-${year}-${String(count + 1).padStart(4, '0')}`;
 }
 
