@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { use } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { ConsultaForm } from '@/components/history/ConsultationForm';
 import { createHistoryEntry } from '@/hooks/useHistory';
 import { usePatient } from '@/hooks/usePatients';
@@ -12,8 +11,8 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
-export function NewConsultationView({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export function NewConsultationView() {
+  const { id } = useParams<{ id: string }>();
   const router  = useRouter();
   const { paciente } = usePatient(id);
   const [loading, setCargando] = useState(false);

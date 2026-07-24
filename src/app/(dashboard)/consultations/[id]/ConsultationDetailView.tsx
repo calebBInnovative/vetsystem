@@ -1,7 +1,7 @@
 'use client';
 
-import { use, useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import { useConsultation, cancelConsultation } from '@/hooks/useConsultations';
 import { ConsultaForm } from '@/components/consultations/ConsultationForm';
 import { FacturaModal } from '@/components/invoices/InvoiceModal';
@@ -10,8 +10,8 @@ import { ArrowLeft } from 'lucide-react';
 import { CONSULTATION_TYPES, CONSULTATION_STATUSES } from '@/types/consultation';
 import { cn } from '@/lib/utils';
 
-export function ConsultationDetailView({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export function ConsultationDetailView() {
+  const { id } = useParams<{ id: string }>();
   const router  = useRouter();
   const { consulta, loading } = useConsultation(id);
   const [mostrarFactura, setMostrarFactura] = useState(false);

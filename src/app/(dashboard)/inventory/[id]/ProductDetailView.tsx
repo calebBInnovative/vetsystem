@@ -1,7 +1,8 @@
 'use client';
 
-import { use, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { useProduct, useProductMovements, adjustStock } from '@/hooks/useInventory';
 import { PRODUCT_CATEGORIES, MEASUREMENT_UNITS } from '@/types/inventory';
 import { ajusteStockSchema, type AjusteStockFormData } from '@/lib/validations/inventory.schema';
@@ -15,8 +16,8 @@ import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-export function ProductDetailView({ params }: { params: Promise<{ id: string }> }) {
-  const { id }                       = use(params);
+export function ProductDetailView() {
+  const { id }                       = useParams<{ id: string }>();
   const { producto, loading }        = useProduct(id);
   const { movements }                = useProductMovements(id);
   const [ajustando, setAjustando]    = useState(false);

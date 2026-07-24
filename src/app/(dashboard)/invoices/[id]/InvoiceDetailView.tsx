@@ -1,7 +1,7 @@
 'use client';
 
-import { use, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import { useInvoice, markInvoicePaid, cancelInvoice } from '@/hooks/useInvoices';
 import { FacturaViewer } from '@/components/invoices/InvoiceViewer';
 import { Button } from '@/components/ui/button';
@@ -9,8 +9,8 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 import { INVOICE_PAYMENT_METHODS, type InvoicePaymentMethod } from '@/types/invoice';
 import { cn } from '@/lib/utils';
 
-export function InvoiceDetailView({ params }: { params: Promise<{ id: string }> }) {
-  const { id }    = use(params);
+export function InvoiceDetailView() {
+  const { id }    = useParams<{ id: string }>();
   const router    = useRouter();
   const { factura, loading } = useInvoice(id);
   const [accion, setAccion]       = useState<'cobrar' | null>(null);
