@@ -12,28 +12,56 @@
     ],
     "rewrites": [
       {
+        "source": "/patients/*/history/new/index.txt",
+        "destination": "/patients/_/history/new/index.txt"
+      },
+      {
         "source": "/patients/*/history/new/**",
         "destination": "/patients/_/history/new/index.html"
+      },
+      {
+        "source": "/patients/*/history/index.txt",
+        "destination": "/patients/_/history/index.txt"
       },
       {
         "source": "/patients/*/history/**",
         "destination": "/patients/_/history/index.html"
       },
       {
+        "source": "/consultations/*/index.txt",
+        "destination": "/consultations/_/index.txt"
+      },
+      {
         "source": "/consultations/**",
         "destination": "/consultations/_/index.html"
+      },
+      {
+        "source": "/inventory/*/index.txt",
+        "destination": "/inventory/_/index.txt"
       },
       {
         "source": "/inventory/**",
         "destination": "/inventory/_/index.html"
       },
       {
+        "source": "/invoices/*/index.txt",
+        "destination": "/invoices/_/index.txt"
+      },
+      {
         "source": "/invoices/**",
         "destination": "/invoices/_/index.html"
       },
       {
+        "source": "/patients/*/index.txt",
+        "destination": "/patients/_/index.txt"
+      },
+      {
         "source": "/patients/**",
         "destination": "/patients/_/index.html"
+      },
+      {
+        "source": "/promotions/*/index.txt",
+        "destination": "/promotions/_/index.txt"
       },
       {
         "source": "/promotions/**",

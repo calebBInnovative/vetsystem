@@ -53,27 +53,48 @@ function collectRoutes(dir, urlPath = '') {
   return routes;
 }
 
-// ── 2. Convert a Next.js route path to a Firebase rewrite entry ───────────────
+// ── 2. Convert a Next.js route path to Firebase rewrite entries ───────────────
+//
+// Each dynamic route needs TWO rules (both sorted deepest-first):
+//   a) TXT rule  — serves the RSC payload (index.txt) for client-side navigation.
+//      Next.js fetches /<route>/<real-id>/index.txt when navigating client-side;
+//      without this rule, the /** HTML rewrite intercepts and serves the wrong
+//      file, causing Next.js to fall back to a hard page reload.
+//   b) HTML rule — serves the pre-rendered page for direct URL access / refresh.
 
-function toRewrite(route) {
+function toRewrites(route) {
   const segments = route.split('/').filter(Boolean);
 
-  // Build the source glob:
+  // Build the source prefix:
   // - Dynamic segments that are NOT last → replaced with * (single-segment wildcard)
-  // - The last dynamic segment → dropped; /** is appended as the catch-all suffix
+  // - The last dynamic segment → dropped (covered by /** or /*/index.txt suffix)
   // - Static segments → kept as-is
-  // e.g. /patients/[id]/history → /patients/*/history/**
-  //      /invoices/[id]         → /invoices/**
+  // e.g. /patients/[id]/history → prefix = /patients/*/history
+  //      /invoices/[id]         → prefix = /invoices
   const sourceSegments = [];
+  let lastIsDynamic = false;
   for (let i = 0; i < segments.length; i++) {
     const isDynamic = /^\[.+\]$/.test(segments[i]);
     const isLast    = i === segments.length - 1;
-    if (isDynamic && isLast) break; // drop last dynamic segment — replaced by /**
+    if (isDynamic && isLast) { lastIsDynamic = true; break; }
     sourceSegments.push(isDynamic ? '*' : segments[i]);
   }
-  const source      = '/' + sourceSegments.join('/') + '/**';
-  const destination = route.replace(/\[([^\]]+)\]/g, '_') + '/index.html';
-  return { source, destination };
+
+  const prefix      = '/' + sourceSegments.join('/');
+  const destBase    = route.replace(/\[([^\]]+)\]/g, '_');
+
+  // TXT: when the last segment was dynamic (e.g. /invoices/[id]), Next.js fetches
+  //      /invoices/<id>/index.txt → we need /invoices/*/index.txt.
+  //      When last segment is static (e.g. /patients/[id]/history), it fetches
+  //      /patients/<id>/history/index.txt → /patients/*/history/index.txt.
+  const txtSource = lastIsDynamic
+    ? `${prefix}/*/index.txt`
+    : `${prefix}/index.txt`;
+
+  return [
+    { source: txtSource,         destination: `${destBase}/index.txt`  },
+    { source: `${prefix}/**`,    destination: `${destBase}/index.html` },
+  ];
 }
 
 // ── 3. Sort: deepest (most segments) first so specific rules win ──────────────
@@ -89,7 +110,7 @@ function byDepthDesc(a, b) {
 const dynamicRoutes = [...new Set(collectRoutes(APP_DIR))].sort(byDepthDesc);
 
 const rewrites = [
-  ...dynamicRoutes.map(toRewrite),
+  ...dynamicRoutes.flatMap(toRewrites),
   { source: '**', destination: '/index.html' },
 ];
 
@@ -125,6 +146,7 @@ writeFileSync(FIREBASE_JSON, JSON.stringify(firebase, null, 2) + '\n', 'utf8');
 
 console.log(`✅  firebase.json rewrites updated (${dynamicRoutes.length} dynamic route(s)):`);
 dynamicRoutes.forEach((r) => {
-  const { source, destination } = toRewrite(r);
-  console.log(`    ${source.padEnd(45)} → ${destination}`);
+  const [txt, html] = toRewrites(r);
+  console.log(`    ${txt.source.padEnd(50)} → ${txt.destination}`);
+  console.log(`    ${html.source.padEnd(50)} → ${html.destination}`);
 });
