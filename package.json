@@ -4,8 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "prebuild": "node scripts/bump-db-version.mjs",
+    "prebuild": "node scripts/bump-db-version.mjs && node scripts/generate-firebase-rewrites.mjs",
     "db:bump": "node scripts/bump-db-version.mjs",
+    "firebase:rewrites": "node scripts/generate-firebase-rewrites.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

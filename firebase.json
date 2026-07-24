@@ -12,6 +12,34 @@
     ],
     "rewrites": [
       {
+        "source": "/patients/*/history/new/**",
+        "destination": "/patients/_/history/new/index.html"
+      },
+      {
+        "source": "/patients/*/history/**",
+        "destination": "/patients/_/history/index.html"
+      },
+      {
+        "source": "/consultations/*/**",
+        "destination": "/consultations/_/index.html"
+      },
+      {
+        "source": "/inventory/*/**",
+        "destination": "/inventory/_/index.html"
+      },
+      {
+        "source": "/invoices/*/**",
+        "destination": "/invoices/_/index.html"
+      },
+      {
+        "source": "/patients/*/**",
+        "destination": "/patients/_/index.html"
+      },
+      {
+        "source": "/promotions/*/**",
+        "destination": "/promotions/_/index.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

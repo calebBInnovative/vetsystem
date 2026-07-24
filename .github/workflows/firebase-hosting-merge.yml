@@ -16,6 +16,8 @@ jobs:
         run: npm ci
       - name: Check DB schema version is committed
         run: node scripts/bump-db-version.mjs --check
+      - name: Check Firebase rewrites are committed
+        run: node scripts/generate-firebase-rewrites.mjs --check
       - name: Build
         run: npm run build
       - uses: FirebaseExtended/action-hosting-deploy@v0
