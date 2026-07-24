@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { useRouteId } from '@/hooks/useRouteId';
 import { useConsultation, cancelConsultation } from '@/hooks/useConsultations';
 import { ConsultaForm } from '@/components/consultations/ConsultationForm';
 import { FacturaModal } from '@/components/invoices/InvoiceModal';
@@ -11,7 +12,7 @@ import { CONSULTATION_TYPES, CONSULTATION_STATUSES } from '@/types/consultation'
 import { cn } from '@/lib/utils';
 
 export function ConsultationDetailView() {
-  const { id } = useParams<{ id: string }>();
+  const id     = useRouteId();
   const router  = useRouter();
   const { consulta, loading } = useConsultation(id);
   const [mostrarFactura, setMostrarFactura] = useState(false);

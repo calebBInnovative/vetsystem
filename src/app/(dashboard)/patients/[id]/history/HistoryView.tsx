@@ -1,14 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useRouteId } from '@/hooks/useRouteId';
 import { usePatient } from '@/hooks/usePatients';
 import { HistorialTimeline } from '@/components/history/HistoryTimeline';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Plus } from 'lucide-react';
 
 export function HistoryView() {
-  const { id } = useParams<{ id: string }>();
+  const id     = useRouteId();
   const { paciente } = usePatient(id);
 
   return (

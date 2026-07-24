@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { useRouteId } from '@/hooks/useRouteId';
 import { ConsultaForm } from '@/components/history/ConsultationForm';
 import { createHistoryEntry } from '@/hooks/useHistory';
 import { usePatient } from '@/hooks/usePatients';
@@ -12,7 +13,7 @@ import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function NewConsultationView() {
-  const { id } = useParams<{ id: string }>();
+  const id     = useRouteId();
   const router  = useRouter();
   const { paciente } = usePatient(id);
   const [loading, setCargando] = useState(false);

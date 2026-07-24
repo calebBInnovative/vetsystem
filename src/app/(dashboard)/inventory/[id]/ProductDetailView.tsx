@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useRouteId } from '@/hooks/useRouteId';
 import { useProduct, useProductMovements, adjustStock } from '@/hooks/useInventory';
 import { PRODUCT_CATEGORIES, MEASUREMENT_UNITS } from '@/types/inventory';
 import { ajusteStockSchema, type AjusteStockFormData } from '@/lib/validations/inventory.schema';
@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 export function ProductDetailView() {
-  const { id }                       = useParams<{ id: string }>();
+  const id                           = useRouteId();
   const { producto, loading }        = useProduct(id);
   const { movements }                = useProductMovements(id);
   const [ajustando, setAjustando]    = useState(false);

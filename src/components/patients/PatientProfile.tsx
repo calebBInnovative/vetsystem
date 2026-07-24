@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useRouteId } from '@/hooks/useRouteId';
 import { usePatient } from '@/hooks/usePatients';
 import { PET_SPECIES } from '@/types/patient';
 import { Phone, Mail, MapPin, Weight, Calendar, Palette, Edit, ArrowLeft, Loader2 } from 'lucide-react';
@@ -14,7 +14,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 export function FichaPaciente() {
-  const { id: pacienteId } = useParams<{ id: string }>();
+  const pacienteId = useRouteId();
   const { paciente, loading } = usePatient(pacienteId);
 
   // Todos los hooks antes de cualquier return condicional

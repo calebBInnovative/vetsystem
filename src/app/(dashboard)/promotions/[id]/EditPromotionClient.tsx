@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { useRouteId } from '@/hooks/useRouteId';
 import { db } from '@/lib/db/database';
 import { deletePromotion, updatePromotion } from '@/hooks/usePromotions';
 import type { PromotionLocal } from '@/types/promotion';
@@ -12,7 +13,7 @@ import { ChevronLeft, Loader2, Trash2 } from 'lucide-react';
 
 export default function EditPromotionClient() {
   const router            = useRouter();
-  const { id }            = useParams<{ id: string }>();
+  const id                = useRouteId();
 
   const [promotion, setPromotion] = useState<PromotionLocal | null>(null);
   const [loading,   setLoading]   = useState(true);
