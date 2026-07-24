@@ -20,23 +20,23 @@
         "destination": "/patients/_/history/index.html"
       },
       {
-        "source": "/consultations/*/**",
+        "source": "/consultations/**",
         "destination": "/consultations/_/index.html"
       },
       {
-        "source": "/inventory/*/**",
+        "source": "/inventory/**",
         "destination": "/inventory/_/index.html"
       },
       {
-        "source": "/invoices/*/**",
+        "source": "/invoices/**",
         "destination": "/invoices/_/index.html"
       },
       {
-        "source": "/patients/*/**",
+        "source": "/patients/**",
         "destination": "/patients/_/index.html"
       },
       {
-        "source": "/promotions/*/**",
+        "source": "/promotions/**",
         "destination": "/promotions/_/index.html"
       },
       {

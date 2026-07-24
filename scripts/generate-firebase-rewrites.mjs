@@ -56,8 +56,22 @@ function collectRoutes(dir, urlPath = '') {
 // ── 2. Convert a Next.js route path to a Firebase rewrite entry ───────────────
 
 function toRewrite(route) {
-  // [param] → * in source glob, _ in destination path
-  const source      = route.replace(/\[([^\]]+)\]/g, '*') + '/**';
+  const segments = route.split('/').filter(Boolean);
+
+  // Build the source glob:
+  // - Dynamic segments that are NOT last → replaced with * (single-segment wildcard)
+  // - The last dynamic segment → dropped; /** is appended as the catch-all suffix
+  // - Static segments → kept as-is
+  // e.g. /patients/[id]/history → /patients/*/history/**
+  //      /invoices/[id]         → /invoices/**
+  const sourceSegments = [];
+  for (let i = 0; i < segments.length; i++) {
+    const isDynamic = /^\[.+\]$/.test(segments[i]);
+    const isLast    = i === segments.length - 1;
+    if (isDynamic && isLast) break; // drop last dynamic segment — replaced by /**
+    sourceSegments.push(isDynamic ? '*' : segments[i]);
+  }
+  const source      = '/' + sourceSegments.join('/') + '/**';
   const destination = route.replace(/\[([^\]]+)\]/g, '_') + '/index.html';
   return { source, destination };
 }
