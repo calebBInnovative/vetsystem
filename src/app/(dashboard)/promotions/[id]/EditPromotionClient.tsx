@@ -21,6 +21,7 @@ export default function EditPromotionClient() {
   const [deleting,  setDeleting]  = useState(false);
 
   useEffect(() => {
+    if (!id) return;
     (async () => {
       setLoading(true);
       try {
@@ -37,7 +38,7 @@ export default function EditPromotionClient() {
   }, [id]);
 
   async function handleSubmit(values: PromotionFormValues) {
-    await updatePromotion(id, values);
+    await updatePromotion(id ?? '', values);
     router.push('/promotions');
   }
 
@@ -45,7 +46,7 @@ export default function EditPromotionClient() {
     if (!confirm('¿Eliminar esta promoción? Esta acción no se puede deshacer.')) return;
     setDeleting(true);
     try {
-      await deletePromotion(id);
+      await deletePromotion(id ?? '');
       router.push('/promotions');
     } finally {
       setDeleting(false);

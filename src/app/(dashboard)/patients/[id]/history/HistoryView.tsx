@@ -9,7 +9,7 @@ import { ArrowLeft, Plus } from 'lucide-react';
 
 export function HistoryView() {
   const id     = useRouteId();
-  const { paciente } = usePatient(id);
+  const { paciente } = usePatient(id ?? '');
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -41,7 +41,7 @@ export function HistoryView() {
       </div>
 
       <HistorialTimeline
-        pacienteId={id}
+        pacienteId={id ?? ''}
         nombrePaciente={paciente?.name}
       />
 

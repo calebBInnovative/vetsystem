@@ -15,19 +15,19 @@ import { toast } from 'sonner';
 export function NewConsultationView() {
   const id     = useRouteId();
   const router  = useRouter();
-  const { paciente } = usePatient(id);
+  const { paciente } = usePatient(id ?? '');
   const [loading, setCargando] = useState(false);
 
   const handleSubmit = async (datos: ConsultaFormData) => {
     setCargando(true);
     try {
-      await createHistoryEntry(id, datos);
+      await createHistoryEntry(id ?? '', datos);
       toast.success('Consultation registrada', {
         description: paciente
           ? `Consultation de ${paciente.name} guardada correctamente.`
           : 'Consultation guardada correctamente.',
       });
-      router.push(`/patients/${id}/history`);
+      router.push(`/patients/${id ?? ''}/history`);
     } catch {
       toast.error('Error al guardar', {
         description: 'No se pudo registrar la consulta. Intenta de nuevo.',

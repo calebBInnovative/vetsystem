@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 export function ConsultationDetailView() {
   const id     = useRouteId();
   const router  = useRouter();
-  const { consulta, loading } = useConsultation(id);
+  const { consulta, loading } = useConsultation(id ?? '');
   const [mostrarFactura, setMostrarFactura] = useState(false);
   const [pendingFactura, setPendingFactura] = useState(false);
 
@@ -28,7 +28,7 @@ export function ConsultationDetailView() {
     }
   }, [pendingFactura, consulta?.status, consulta?.total, router]);
 
-  if (loading) {
+  if (!id || loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />

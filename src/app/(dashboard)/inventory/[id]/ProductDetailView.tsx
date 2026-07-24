@@ -18,8 +18,8 @@ import { cn } from '@/lib/utils';
 
 export function ProductDetailView() {
   const id                           = useRouteId();
-  const { producto, loading }        = useProduct(id);
-  const { movements }                = useProductMovements(id);
+  const { producto, loading }        = useProduct(id ?? '');
+  const { movements }                = useProductMovements(id ?? '');
   const [ajustando, setAjustando]    = useState(false);
   const [tipoAjuste, setTipoAjuste]  = useState<'entry' | 'exit'>('entry');
 
@@ -31,7 +31,7 @@ export function ProductDetailView() {
   const onAjuste = async (datos: AjusteStockFormData) => {
     setAjustando(true);
     try {
-      await adjustStock(id, { ...datos, type: tipoAjuste });
+      await adjustStock(id ?? '', { ...datos, type: tipoAjuste });
       toast.success(tipoAjuste === 'entry' ? 'Stock agregado' : 'Salida registrada');
       reset();
     } catch {
@@ -41,7 +41,7 @@ export function ProductDetailView() {
     }
   };
 
-  if (loading) {
+  if (!id || loading) {
     return <div className="flex items-center justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 

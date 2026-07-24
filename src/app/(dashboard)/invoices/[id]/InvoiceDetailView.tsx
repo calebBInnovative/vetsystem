@@ -13,12 +13,12 @@ import { cn } from '@/lib/utils';
 export function InvoiceDetailView() {
   const id        = useRouteId();
   const router    = useRouter();
-  const { factura, loading } = useInvoice(id);
+  const { factura, loading } = useInvoice(id ?? '');
   const [accion, setAccion]       = useState<'cobrar' | null>(null);
   const [method, setMethod]       = useState<InvoicePaymentMethod>('cash');
   const [procesando, setProcesando] = useState(false);
 
-  if (loading) {
+  if (!id || loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -40,7 +40,7 @@ export function InvoiceDetailView() {
   async function handleMarcarPagada() {
     setProcesando(true);
     try {
-      await markInvoicePaid(id, method);
+      await markInvoicePaid(id ?? '', method);
       setAccion(null);
     } finally {
       setProcesando(false);
@@ -49,7 +49,7 @@ export function InvoiceDetailView() {
 
   async function handleCancelar() {
     if (!confirm('¿Cancelar esta factura?')) return;
-    await cancelInvoice(id);
+    await cancelInvoice(id ?? '');
     router.push('/invoices');
   }
 

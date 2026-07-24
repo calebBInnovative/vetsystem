@@ -15,13 +15,13 @@ import { es } from 'date-fns/locale';
 
 export function FichaPaciente() {
   const pacienteId = useRouteId();
-  const { paciente, loading } = usePatient(pacienteId);
+  const { paciente, loading } = usePatient(pacienteId ?? '');
 
   // Todos los hooks antes de cualquier return condicional
   const [modalConsulta, setModalConsulta] = useState(false);
   const [modalCita,     setModalCita]     = useState(false);
 
-  if (loading) {
+  if (!pacienteId || loading) {
     return (
       <div className="flex items-center justify-center py-24">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
