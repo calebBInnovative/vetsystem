@@ -20,7 +20,8 @@ export type AppModule =
   | 'finances'
   | 'invoices'
   | 'services'
-  | 'promotions';
+  | 'promotions'
+  | 'import';
 
 /** Per-module access flags. `master` and `admin` bypass this entirely. */
 export type Permissions = Record<AppModule, boolean>;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, getClinicaId } from '@/lib/db/database';
@@ -8,8 +8,10 @@ import { createSale } from '@/hooks/useSales';
 import { DescuentoInput } from '@/components/common/DiscountInput';
 import { PRODUCT_CATEGORIES, MEASUREMENT_UNITS, FRACTIONAL_UNITS, type ProductCategory, type MeasurementUnit, type ProductLocal } from '@/types/inventory';
 import { SALE_PAYMENT_METHODS, type SalePaymentMethod, type SaleItem } from '@/types/sale';
+import { SERVICE_CATEGORIES, type ServiceLocal } from '@/types/service';
 import { PacienteSelector } from '@/components/common/PatientSelector';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { type PromotionLocal } from '@/types/promotion';
 import {
@@ -100,6 +102,39 @@ function ProductCard({
   );
 }
 
+// ─── Service card ─────────────────────────────────────────────────────────────
+
+function ServiceCard({
+  service,
+  onAdd,
+}: {
+  service: ServiceLocal;
+  onAdd:   () => void;
+}) {
+  const cat = SERVICE_CATEGORIES[service.category];
+  return (
+    <div className="flex flex-col rounded-xl border border-border p-3 gap-2.5 transition-all">
+      <div className="flex items-center gap-3">
+        <span className="text-2xl shrink-0">{cat.emoji}</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">{service.name}</p>
+          <p className="text-xs text-muted-foreground">{cat.label}</p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-sm font-bold">{fmt(service.price)}</p>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onAdd}
+        className="flex items-center justify-center gap-1 rounded-lg border border-border bg-muted/30 hover:bg-primary/10 hover:border-primary/40 hover:text-primary transition-colors px-2 py-1.5 text-xs font-medium"
+      >
+        <Plus size={11} className="shrink-0" /> Agregar
+      </button>
+    </div>
+  );
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 type View = 'products' | 'carrito';
@@ -108,6 +143,9 @@ type Step = 'cart' | 'cobrar' | 'exito';
 export default function SalesPage() {
   const [searchQuery,  setSearchQuery]  = useState('');
   const [categoria,    setCategoria]    = useState<ProductCategory | undefined>();
+  const [catOpen,      setCatOpen]      = useState(false);
+  const [catSearch,    setCatSearch]    = useState('');
+  const catSearchRef = useRef<HTMLInputElement>(null);
   const [cart,         setCart]         = useState<CartItem[]>([]);
   const [view,         setView]         = useState<View>('products');
   const [step,         setStep]         = useState<Step>('cart');
@@ -118,6 +156,7 @@ export default function SalesPage() {
   const [procesando,   setProcesando]   = useState(false);
   const [invoiceId,    setInvoiceId]    = useState('');
   const [showPromos,   setShowPromos]   = useState(false);
+  const [catalogTab,   setCatalogTab]   = useState<'products' | 'services'>('products');
   const router = useRouter();
 
   const promotions = useLiveQuery(async () => {
@@ -150,6 +189,19 @@ export default function SalesPage() {
     }
     return res.sort((a, b) => a.name.localeCompare(b.name));
   }, [searchQuery, categoria]) ?? [];
+
+  const services = useLiveQuery(async () => {
+    const clinicId = await getClinicaId();
+    const res = await db.services
+      .where('clinicId').equals(clinicId)
+      .filter((s) => !!s.active && !s.deletedAt)
+      .toArray();
+    if (searchQuery.trim()) {
+      const t = searchQuery.toLowerCase();
+      return res.filter((s) => s.name.toLowerCase().includes(t)).sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return res.sort((a, b) => a.name.localeCompare(b.name));
+  }, [searchQuery]) ?? [];
 
   const subtotal   = useMemo(() => cart.reduce((s, i) => s + i.subtotal, 0), [cart]);
   const discountN  = Math.max(0, Number(discount) || 0);
@@ -281,6 +333,30 @@ export default function SalesPage() {
         }
       }
       return next;
+    });
+  }
+
+  function agregarServicio(svc: ServiceLocal) {
+    setCart((prev) => {
+      const idx = prev.findIndex((i) => i.productId === svc.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        const item = next[idx];
+        const newQty = item.quantity + 1;
+        next[idx] = { ...item, quantity: newQty, subtotal: newQty * item.unitPrice };
+        return next;
+      }
+      return [...prev, {
+        productId:      svc.id,
+        description:    svc.name,
+        unitPrice:      svc.price,
+        quantity:       1,
+        unit:           'unit' as MeasurementUnit,
+        subtotal:       svc.price,
+        availableStock: 9999,
+        itemType:       'service',
+        serviceId:      svc.id,
+      }];
     });
   }
 
@@ -562,14 +638,39 @@ export default function SalesPage() {
           'flex-1 flex flex-col overflow-hidden',
           view === 'carrito' ? 'hidden lg:flex' : 'flex'
         )}>
-          {/* Búsqueda + filtro */}
+          {/* Búsqueda + tabs + filtro */}
           <div className="px-4 pt-4 pb-3 space-y-3 shrink-0">
+            {/* Tab: Productos / Servicios */}
+            <div className="flex rounded-xl border border-border overflow-hidden text-xs font-medium">
+              <button
+                type="button"
+                onClick={() => { setCatalogTab('products'); setSearchQuery(''); }}
+                className={cn(
+                  'flex-1 py-1.5 transition-colors',
+                  catalogTab === 'products' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted/50'
+                )}
+              >
+                Productos
+              </button>
+              <button
+                type="button"
+                onClick={() => { setCatalogTab('services'); setSearchQuery(''); setCategoria(undefined); }}
+                className={cn(
+                  'flex-1 py-1.5 transition-colors',
+                  catalogTab === 'services' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted/50'
+                )}
+              >
+                Servicios
+              </button>
+            </div>
+
+            {/* Búsqueda */}
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar producto…"
+                placeholder={catalogTab === 'services' ? 'Buscar servicio…' : 'Buscar producto…'}
                 className="w-full pl-9 pr-8 py-2 rounded-xl border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
               {searchQuery && (
@@ -580,30 +681,70 @@ export default function SalesPage() {
               )}
             </div>
 
-            {/* Categorías */}
-            <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
-              <button
-                onClick={() => setCategoria(undefined)}
-                className={cn(
-                  'shrink-0 px-3 py-1 rounded-xl text-xs font-medium border transition-colors',
-                  !categoria ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:border-primary/40'
-                )}
-              >
-                Todos
-              </button>
-              {(Object.entries(PRODUCT_CATEGORIES) as [ProductCategory, { label: string; emoji: string }][]).map(([cat, info]) => (
-                <button
-                  key={cat}
-                  onClick={() => setCategoria(cat === categoria ? undefined : cat)}
-                  className={cn(
-                    'shrink-0 flex items-center gap-1 px-3 py-1 rounded-xl text-xs font-medium border transition-colors',
-                    categoria === cat ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:border-primary/40'
-                  )}
-                >
-                  {info.emoji} {info.label}
-                </button>
-              ))}
-            </div>
+            {/* Categorías — solo en tab Productos */}
+            {catalogTab === 'products' && (
+              <Popover open={catOpen} onOpenChange={(o) => { setCatOpen(o); if (o) setTimeout(() => catSearchRef.current?.focus(), 50); else setCatSearch(''); }}>
+                <PopoverTrigger asChild>
+                  <button className={cn(
+                    'flex items-center justify-between gap-2 w-full px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors',
+                    categoria ? 'bg-primary/10 border-primary text-primary' : 'border-border text-muted-foreground hover:border-primary/40'
+                  )}>
+                    <span className="flex items-center gap-1.5 truncate">
+                      {categoria
+                        ? <>{PRODUCT_CATEGORIES[categoria].emoji} {PRODUCT_CATEGORIES[categoria].label}</>
+                        : 'Todas las categorías'}
+                    </span>
+                    <ChevronDown size={12} className={cn('shrink-0 transition-transform', catOpen && 'rotate-180')} />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-56 p-1.5 gap-0">
+                  {/* Search input */}
+                  <div className="flex items-center gap-1.5 px-2 py-1.5 border border-border rounded-lg mb-1">
+                    <Search size={12} className="shrink-0 text-muted-foreground" />
+                    <input
+                      ref={catSearchRef}
+                      value={catSearch}
+                      onChange={(e) => setCatSearch(e.target.value)}
+                      placeholder="Buscar categoría..."
+                      className="flex-1 text-xs bg-transparent outline-none placeholder:text-muted-foreground"
+                    />
+                    {catSearch && (
+                      <button onClick={() => setCatSearch('')} className="text-muted-foreground hover:text-foreground">
+                        <X size={11} />
+                      </button>
+                    )}
+                  </div>
+                  {/* Options list */}
+                  <div className="flex flex-col overflow-y-auto max-h-48" style={{ scrollbarWidth: 'thin' }}>
+                    {!catSearch && (
+                      <button
+                        onClick={() => { setCategoria(undefined); setCatOpen(false); setCatSearch(''); }}
+                        className={cn(
+                          'flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                          !categoria ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-foreground'
+                        )}
+                      >
+                        Todas las categorías
+                      </button>
+                    )}
+                    {(Object.entries(PRODUCT_CATEGORIES) as [ProductCategory, { label: string; emoji: string }][])
+                      .filter(([, info]) => !catSearch || info.label.toLowerCase().includes(catSearch.toLowerCase()))
+                      .map(([cat, info]) => (
+                        <button
+                          key={cat}
+                          onClick={() => { setCategoria(cat === categoria ? undefined : cat); setCatOpen(false); setCatSearch(''); }}
+                          className={cn(
+                            'flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                            categoria === cat ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-foreground'
+                          )}
+                        >
+                          <span>{info.emoji}</span> {info.label}
+                        </button>
+                      ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
           </div>
 
           {/* Promotions section */}
@@ -649,24 +790,43 @@ export default function SalesPage() {
             </div>
           )}
 
-          {/* Grid de productos */}
+          {/* Catálogo */}
           <div className="flex-1 overflow-y-auto px-4 pb-4">
-            {products.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground text-center">
-                <p className="text-3xl mb-2">📦</p>
-                <p className="text-sm">{searchQuery ? 'Sin resultados' : 'No hay productos en esta categoría'}</p>
-              </div>
+            {catalogTab === 'products' ? (
+              products.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-muted-foreground text-center">
+                  <p className="text-3xl mb-2">📦</p>
+                  <p className="text-sm">{searchQuery ? 'Sin resultados' : 'No hay productos en esta categoría'}</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {products.map((prod) => (
+                    <ProductCard
+                      key={prod.id}
+                      producto={prod}
+                      onAdd={() => agregar(prod)}
+                      onAddAll={() => agregarTodo(prod)}
+                    />
+                  ))}
+                </div>
+              )
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {products.map((prod) => (
-                  <ProductCard
-                    key={prod.id}
-                    producto={prod}
-                    onAdd={() => agregar(prod)}
-                    onAddAll={() => agregarTodo(prod)}
-                  />
-                ))}
-              </div>
+              services.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-muted-foreground text-center">
+                  <p className="text-3xl mb-2">🩺</p>
+                  <p className="text-sm">{searchQuery ? 'Sin resultados' : 'No hay servicios activos'}</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {services.map((svc) => (
+                    <ServiceCard
+                      key={svc.id}
+                      service={svc}
+                      onAdd={() => { agregarServicio(svc); setView('carrito'); }}
+                    />
+                  ))}
+                </div>
+              )
             )}
           </div>
         </div>

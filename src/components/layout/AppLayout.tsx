@@ -33,7 +33,7 @@ import {
   BarChart3, Settings, Search, DollarSign, Stethoscope, Receipt,
   ClipboardList, ShoppingBag, Tag, Shield, Database, LogOut, ChevronDown,
   FlaskConical, PlayCircle, UserCircle, Loader2, CheckCircle2, Phone,
-  Wallet, Bell,
+  Wallet, Bell, FileSpreadsheet,
 } from 'lucide-react';
 import {
   Popover, PopoverContent, PopoverTrigger,
@@ -66,7 +66,8 @@ const menuItems: {
   { icon: DollarSign,    label: 'Finanzas',      href: '/finances',      disponible: true,  modulo: 'finances',  navId: 'nav-finances'   },
   { icon: Receipt,       label: 'Facturas',      href: '/invoices',      disponible: true,  modulo: 'invoices'                          },
   { icon: Wallet,        label: 'Egresos',        href: '/expenses',       disponible: true,  modulo: 'finances'                          },
-  { icon: ClipboardList, label: 'Servicios',     href: '/services',     disponible: true,  modulo: 'services'                         },
+  { icon: ClipboardList,    label: 'Servicios',        href: '/services',     disponible: true,  modulo: 'services'                         },
+  { icon: FileSpreadsheet,  label: 'Importar/Exportar', href: '/import',      disponible: true,  modulo: 'import'                           },
   { icon: BarChart3,     label: 'Reportes',      href: '/reportes',      disponible: false                                              },
   { icon: Settings,      label: 'Configuración', href: '/configuracion', disponible: false                                              },
 ];

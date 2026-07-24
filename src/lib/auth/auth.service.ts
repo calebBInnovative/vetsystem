@@ -65,7 +65,7 @@ export class UserNotFoundError extends Error {
 const DEFAULT_STAFF_PERMISSIONS: Permissions = {
   patients: true, schedule: true, consultations: true, sales: true,
   inventory: false, finances: false, invoices: false, services: false,
-  promotions: false,
+  promotions: false, import: false,
 };
 
 // ─── User-creation semaphore ──────────────────────────────────────────────────

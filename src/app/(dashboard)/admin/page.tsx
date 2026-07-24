@@ -34,13 +34,14 @@ const MODULOS: { key: AppModule; label: string }[] = [
   { key: 'finances',     label: 'Finanzas'     },
   { key: 'invoices',     label: 'Facturas'     },
   { key: 'services',     label: 'Servicios'    },
-  { key: 'promotions',   label: 'Promociones'  },
+  { key: 'promotions',   label: 'Promociones'      },
+  { key: 'import',       label: 'Importar/Exportar' },
 ];
 
 const DEFAULT_PERMISSIONS: Permissions = {
   patients: true, schedule: true, consultations: true, sales: true,
   inventory: false, finances: false, invoices: false, services: false,
-  promotions: false,
+  promotions: false, import: false,
 };
 
 function permissionsForRole(role: UserRole, current: Permissions | null): Permissions | null {
