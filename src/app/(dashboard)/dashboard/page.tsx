@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useDashboard } from '@/hooks/useDashboard';
 import { ProximasCitasDia } from '@/components/dashboard/UpcomingAppointments';
 import { UltimasConsultas } from '@/components/dashboard/RecentConsultations';
-import { AlertasStock } from '@/components/inventory/StockAlerts';
 import { Users, Calendar, Package, ClipboardList, Plus, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -105,9 +104,6 @@ export default function DashboardPage() {
           </Link>
         ))}
       </div>
-
-      {/* Alertas de stock */}
-      <AlertasStock />
 
       {/* Citas del día + Últimas consultations */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

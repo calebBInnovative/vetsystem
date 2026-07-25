@@ -46,6 +46,14 @@ import {
 } from '@/types/expense';
 import { useCollaboratorAlerts, useCollaborators } from '@/hooks/useCollaborators';
 import { daysUntilCollaboratorPayment } from '@/types/collaborator';
+import { useStockAlerts } from '@/hooks/useInventory';
+import { AlertasStock } from '@/components/inventory/StockAlerts';
+import { useCitasDelDia } from '@/hooks/useAppointments';
+import {
+  requestNotifPermission,
+  getNotifPermission,
+  useSystemNotifications,
+} from '@/hooks/useNotifications';
 
 // nav-id is used by TourGuide to spotlight each item
 const menuItems: {
@@ -59,14 +67,14 @@ const menuItems: {
   { icon: Home,          label: 'Dashboard',     href: '/dashboard',     disponible: true,  navId: 'nav-dashboard'  },
   { icon: Users,         label: 'Pacientes',     href: '/patients',     disponible: true,  modulo: 'patients', navId: 'nav-patients'  },
   { icon: Calendar,      label: 'Agenda',        href: '/schedule',        disponible: true,  modulo: 'schedule',    navId: 'nav-schedule'     },
-  { icon: ShoppingBag,   label: 'Ventas',        href: '/sales',        disponible: true,  modulo: 'sales'                            },
-  { icon: Tag,           label: 'Promociones',   href: '/promotions',   disponible: true,  modulo: 'promotions'                       },
-  { icon: Package,       label: 'Inventario',    href: '/inventory',    disponible: true,  modulo: 'inventory',navId: 'nav-inventory' },
+  { icon: ShoppingBag,   label: 'Vender',        href: '/sales',        disponible: true,  modulo: 'sales'                            },
   { icon: Stethoscope,   label: 'Consultas',     href: '/consultations',     disponible: true,  modulo: 'consultations', navId: 'nav-consultations'  },
+  { icon: Package,       label: 'Inventario',    href: '/inventory',    disponible: true,  modulo: 'inventory',navId: 'nav-inventory' },
+  { icon: ClipboardList,    label: 'Servicios',        href: '/services',     disponible: true,  modulo: 'services'                         },
+  { icon: Tag,           label: 'Promociones',   href: '/promotions',   disponible: true,  modulo: 'promotions'                       },
   { icon: DollarSign,    label: 'Finanzas',      href: '/finances',      disponible: true,  modulo: 'finances',  navId: 'nav-finances'   },
   { icon: Receipt,       label: 'Facturas',      href: '/invoices',      disponible: true,  modulo: 'invoices'                          },
   { icon: Wallet,        label: 'Egresos',        href: '/expenses',       disponible: true,  modulo: 'finances'                          },
-  { icon: ClipboardList,    label: 'Servicios',        href: '/services',     disponible: true,  modulo: 'services'                         },
   { icon: FileSpreadsheet,  label: 'Importar/Exportar', href: '/import',      disponible: true,  modulo: 'import'                           },
   { icon: BarChart3,     label: 'Reportes',      href: '/reportes',      disponible: false                                              },
   { icon: Settings,      label: 'Configuración', href: '/configuracion', disponible: false                                              },
@@ -75,12 +83,14 @@ const menuItems: {
 // ── Bell notification ─────────────────────────────────────────────────────────
 
 function BellNotification() {
-  const alertsExpenses = useExpenseAlerts();
-  const alertsCollab  = useCollaboratorAlerts();
-  const { expenses }    = useFixedExpenses();
-  const { collaborators } = useCollaborators();
+  const alertsExpenses              = useExpenseAlerts();
+  const alertsCollab                = useCollaboratorAlerts();
+  const { expenses }                = useFixedExpenses();
+  const { collaborators }           = useCollaborators();
+  const { alerts: stockAlerts }     = useStockAlerts();
+  const [notifPerm, setNotifPerm]   = useState<NotificationPermission>(() => getNotifPermission());
 
-  const totalAlertas = alertsExpenses.total + alertsCollab.total;
+  const totalAlertas = alertsExpenses.total + alertsCollab.total + stockAlerts.length;
 
   const en30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
   const en14 = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
@@ -93,22 +103,27 @@ function BellNotification() {
   );
 
   const levelClasses: Record<string, string> = {
-    overdue: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400',
-    urgent: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400',
+    overdue:  'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400',
+    urgent:   'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400',
     upcoming: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400',
-    normal:  'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400',
+    normal:   'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400',
   };
 
   function colabBadgeClass(nextPaymentDate: string): string {
     const dias = daysUntilCollaboratorPayment(nextPaymentDate);
     if (dias < 0 || dias <= 3) return levelClasses.overdue;
-    if (dias <= 7) return levelClasses.upcoming;
-    return levelClasses.ok;
+    if (dias <= 7)             return levelClasses.upcoming;
+    return levelClasses.normal;
   }
 
   function colabBadgeText(nextPaymentDate: string): string {
     const dias = daysUntilCollaboratorPayment(nextPaymentDate);
     return dias < 0 ? 'Vencido' : `${dias}d`;
+  }
+
+  async function handleEnableNotifications() {
+    const granted = await requestNotifPermission();
+    setNotifPerm(granted ? 'granted' : 'denied');
   }
 
   return (
@@ -123,20 +138,77 @@ function BellNotification() {
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-72 p-0">
+      <PopoverContent align="end" className="w-72 p-0 overflow-hidden">
+
+        {/* Header */}
         <div className="px-4 py-3 border-b border-border">
-          <p className="text-sm font-semibold">Egresos por vencer</p>
+          <p className="text-sm font-semibold">Alertas</p>
           {totalAlertas === 0 && (
-            <p className="text-xs text-muted-foreground mt-0.5">Todo al día</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Todo al día ✓</p>
           )}
         </div>
 
+        {/* Enable notifications prompt */}
+        {notifPerm === 'default' && (
+          <div className="px-4 py-3 bg-primary/5 border-b border-border flex items-start gap-3">
+            <Bell size={15} className="text-primary mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium">Activar notificaciones</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Recibe alertas de stock y recordatorios de citas aunque no tengas la app abierta.
+              </p>
+              <button
+                onClick={handleEnableNotifications}
+                className="mt-2 text-[11px] font-semibold text-primary hover:underline"
+              >
+                Activar →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {notifPerm === 'denied' && (
+          <div className="px-4 py-2 bg-muted/30 border-b border-border">
+            <p className="text-[11px] text-muted-foreground">
+              🔕 Notificaciones bloqueadas en el navegador.
+            </p>
+          </div>
+        )}
+
+        {/* Content */}
         {totalAlertas === 0 ? (
-          <div className="px-4 py-4 text-xs text-muted-foreground text-center">
-            No hay payments próximos a vencer
+          <div className="px-4 py-5 text-xs text-muted-foreground text-center">
+            No hay alertas pendientes
           </div>
         ) : (
-          <ul className="divide-y divide-border max-h-72 overflow-y-auto">
+          <ul className="divide-y divide-border max-h-80 overflow-y-auto">
+
+            {/* Stock */}
+            {stockAlerts.length > 0 && (
+              <>
+                <li className="px-4 py-1.5 bg-muted/40">
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Stock</p>
+                </li>
+                {stockAlerts.map((p) => {
+                  const sinStock = p.currentStock === 0;
+                  return (
+                    <li key={p.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{p.name}</p>
+                        <p className="text-xs text-muted-foreground">Inventario</p>
+                      </div>
+                      <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
+                        sinStock ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400'
+                      }`}>
+                        {sinStock ? 'Sin stock' : `${p.currentStock} bajo mín.`}
+                      </span>
+                    </li>
+                  );
+                })}
+              </>
+            )}
+
+            {/* Expenses */}
             {upcomingExpenses.length > 0 && (
               <>
                 <li className="px-4 py-1.5 bg-muted/40">
@@ -161,6 +233,8 @@ function BellNotification() {
                 })}
               </>
             )}
+
+            {/* Collaborators */}
             {upcomingCollaborators.length > 0 && (
               <>
                 <li className="px-4 py-1.5 bg-muted/40">
@@ -184,9 +258,12 @@ function BellNotification() {
           </ul>
         )}
 
-        <div className="px-4 py-2.5 border-t border-border">
-          <a href="/egresos" className="text-xs text-primary hover:underline font-medium">
-            Ver todos los egresos →
+        <div className="px-4 py-2.5 border-t border-border flex gap-4">
+          <a href="/inventory" className="text-xs text-primary hover:underline font-medium">
+            Inventario →
+          </a>
+          <a href="/expenses" className="text-xs text-primary hover:underline font-medium">
+            Egresos →
           </a>
         </div>
       </PopoverContent>
@@ -215,6 +292,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const soloLectura = !puedeEscribir(license.mode);
   const esMaster    = session?.role === 'master';
   const esAdmin     = session?.role === 'admin' || esMaster;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const { appointments } = useCitasDelDia(today);
+  useSystemNotifications(session?.clinicId, appointments);
 
   // ── "Mi perfil" modal state ───────────────────────────────────────────────
   const [perfilOpen,   setPerfilOpen]   = useState(false);
@@ -620,6 +701,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* Banner de licencia (advertencias / solo lectura / bloqueado) */}
         {!isDemo && <LicenseBanner />}
+
+        {/* Stock alerts — visible en todas las páginas */}
+        <div className="px-6 pt-4 print:hidden">
+          <AlertasStock />
+        </div>
 
         {/* Contenido */}
         <main className="flex-1 overflow-auto p-6 print:p-0">
