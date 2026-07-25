@@ -1,0 +1,37 @@
+{
+  "name": "VetSystem - Pet's House",
+  "short_name": "VetSystem",
+  "description": "Sistema de Gestión Veterinaria para Pet's House",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#0f7d6e",
+  "lang": "es",
+  "categories": ["business", "medical"],
+  "icons": [
+    {
+      "src": "/logo.jpeg",
+      "sizes": "any",
+      "type": "image/jpeg",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Agenda de hoy",
+      "short_name": "Agenda",
+      "description": "Ver citas del día",
+      "url": "/schedule",
+      "icons": [{ "src": "/logo.jpeg", "sizes": "any" }]
+    },
+    {
+      "name": "Nueva venta",
+      "short_name": "Vender",
+      "description": "Registrar una venta",
+      "url": "/sales",
+      "icons": [{ "src": "/logo.jpeg", "sizes": "any" }]
+    }
+  ]
+}

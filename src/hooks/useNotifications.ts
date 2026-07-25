@@ -135,6 +135,23 @@ export function scheduleAppointmentReminders(
   return () => timers.forEach(clearTimeout);
 }
 
+// ── Demo test helper ─────────────────────────────────────────────────────────
+// Fires a stock alert immediately + a mock appointment notification in 10s.
+// Clears the throttle so it always triggers regardless of last check time.
+
+export async function testNotifications(clinicId: string): Promise<void> {
+  localStorage.removeItem(STOCK_LS_KEY);
+  await checkStockNotifications(clinicId);
+  // Mock appointment reminder fires in 10 seconds so the user sees it quickly
+  setTimeout(async () => {
+    await push(
+      '📅 Cita en 15 minutos (demo)',
+      'Luna — 14:00 · Consulta general',
+      '/schedule'
+    );
+  }, 10_000);
+}
+
 // ── Combined setup hook ───────────────────────────────────────────────────────
 // Call once in AppLayout after the session is ready.
 

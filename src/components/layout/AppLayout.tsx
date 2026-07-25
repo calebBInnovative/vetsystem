@@ -53,7 +53,10 @@ import {
   requestNotifPermission,
   getNotifPermission,
   useSystemNotifications,
+  testNotifications,
 } from '@/hooks/useNotifications';
+import { PWAInstallBanner } from '@/components/common/PWAInstallBanner';
+import { toast } from 'sonner';
 
 // nav-id is used by TourGuide to spotlight each item
 const menuItems: {
@@ -382,6 +385,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Tour guide overlay (demo only) */}
       <TourGuide />
 
+      {/* PWA install banner (Android/Chrome prompt or iOS manual instructions) */}
+      <PWAInstallBanner />
+
       {/* Overlay móvil */}
       {sidebarOpen && (
         <div
@@ -495,13 +501,30 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <FlaskConical size={13} />
               <span className="text-xs font-medium">Modo Demo — datos de prueba, sin conexión a la nube</span>
             </div>
-            <button
-              onClick={startTour}
-              className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400 hover:underline"
-            >
-              <PlayCircle size={13} />
-              Ver tour
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={async () => {
+                  const granted = await requestNotifPermission();
+                  if (!granted) {
+                    toast.error('Permiso denegado. Activa las notificaciones en la configuración del navegador.');
+                    return;
+                  }
+                  await testNotifications(session?.clinicId ?? '');
+                  toast.success('¡Prueba enviada! Revisa tus notificaciones. La de cita llega en 10 s.');
+                }}
+                className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400 hover:underline"
+              >
+                <Bell size={13} />
+                Probar alertas
+              </button>
+              <button
+                onClick={startTour}
+                className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400 hover:underline"
+              >
+                <PlayCircle size={13} />
+                Ver tour
+              </button>
+            </div>
           </div>
         )}
 
