@@ -1,4 +1,13 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "publicCatalog",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "supplier", "order": "ASCENDING" },
+        { "fieldPath": "name",     "order": "ASCENDING" }
+      ]
+    }
+  ],
   "fieldOverrides": []
 }
