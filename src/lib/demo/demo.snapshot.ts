@@ -175,13 +175,20 @@ export async function tryLoadDemoSnapshot(): Promise<boolean> {
     // Fall through to re-load
   }
 
-  // Fetch all collections from clinics/demo/* in parallel
+  // Fetch all collections from clinics/demo/* in parallel. A remote snapshot is
+  // optional: permission, connectivity, or configuration failures must fall
+  // back to the bundled local seed instead of preventing demo startup.
   const fsdb = getFirestoreDb();
-  const snapshots = await Promise.all(
-    DEMO_TABLES.map((table) => getDocs(clinicCol(fsdb, table)))
-  );
+  let snapshots;
+  try {
+    snapshots = await Promise.all(
+      DEMO_TABLES.map((table) => getDocs(clinicCol(fsdb, table)))
+    );
+  } catch (error) {
+    console.warn('[Demo] Remote snapshot unavailable; using local seed data.', error);
+    return false;
+  }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const allData = Object.fromEntries(
     DEMO_TABLES.map((table, i) => [
       table,
