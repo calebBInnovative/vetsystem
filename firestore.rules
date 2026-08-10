@@ -2,10 +2,71 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // DEV MODE — open access until July 28, 2026.
-    // Replace with proper rules before going to production with real users.
-    match /{document=**} {
-      allow read, write: if request.time < timestamp.date(2026, 7, 28);
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function userRef() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userExists() {
+      return isAuth() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userClinicId() {
+      return userRef().data.clinicId;
+    }
+
+    function userRole() {
+      return userRef().data.role;
+    }
+
+    function isMaster() {
+      return userExists() && userRole() == 'master';
+    }
+
+    function belongsToClinic(clinicId) {
+      return userExists() && userClinicId() == clinicId;
+    }
+
+    // ── User documents ────────────────────────────────────────────────────────
+    // Each user can only read/write their own profile.
+    // Auth service reads this on every login to get clinicId + role.
+
+    match /users/{uid} {
+      allow read, write: if isAuth() && request.auth.uid == uid;
+    }
+
+    // ── Clinic root document ──────────────────────────────────────────────────
+    // Members of the clinic can read. Only master can write.
+
+    match /clinics/{clinicId} {
+      allow read:  if belongsToClinic(clinicId);
+      allow write: if isMaster() && userClinicId() == clinicId;
+
+      // License sub-document
+      match /license/{doc} {
+        allow read:  if belongsToClinic(clinicId);
+        allow write: if isMaster() && userClinicId() == clinicId;
+      }
+
+      // All app data (patients, consultations, appointments, products, etc.)
+      match /{collection}/{docId} {
+        allow read, write: if belongsToClinic(clinicId);
+      }
+    }
+
+    // ── Public supplier catalog ───────────────────────────────────────────────
+    // Any authenticated user can read (used in /import → Catálogo tab).
+    // Only master role can add / edit / delete entries.
+
+    match /publicCatalog/{docId} {
+      allow read:  if isAuth();
+      allow write: if isMaster();
     }
   }
 }
