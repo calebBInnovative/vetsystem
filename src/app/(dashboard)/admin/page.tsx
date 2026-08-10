@@ -19,6 +19,7 @@ import {
   Loader2, Sprout, Trash2, CheckCircle2, AlertCircle,
   CloudUpload, RefreshCw, Database, Wifi, WifiOff, AlertTriangle,
   UserPlus, Users, KeyRound, ShieldAlert, Pencil, KeySquare, Phone,
+  BookOpen, ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AppModule, Permissions, UserRole } from '@/types/license';
@@ -129,6 +130,22 @@ export default function AdminPage() {
       {esMaster && tab === 'datos'    && <TabDatos />}
       {esMaster && tab === 'firebase' && <TabFirebase />}
       {esMaster && tab === 'estado'   && <TabEstado />}
+
+      {esMaster && (
+        <button
+          onClick={() => router.push('/admin/catalog')}
+          className="w-full flex items-center gap-3 p-4 rounded-xl border border-border bg-card hover:bg-muted/40 transition-colors text-left"
+        >
+          <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <BookOpen size={16} className="text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium">Catálogo de proveedores</p>
+            <p className="text-xs text-muted-foreground">Agrega y gestiona productos públicos que las clínicas pueden importar</p>
+          </div>
+          <ChevronRight size={16} className="text-muted-foreground shrink-0" />
+        </button>
+      )}
     </div>
   );
 }
