@@ -8,17 +8,42 @@ import { CatalogImportPanel } from '@/components/catalog/CatalogImportPanel';
 import { createProduct } from '@/hooks/useInventory';
 import { type ProductoFormData } from '@/lib/validations/inventory.schema';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, BookOpen, FileSpreadsheet, PencilLine } from 'lucide-react';
+import { ArrowLeft, BookOpen, FileSpreadsheet, PencilLine, Download, Upload, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { downloadProductTemplate } from '@/lib/inventory/productTemplate';
 
 type Mode = 'select' | 'manual' | 'catalog' | 'excel';
 
-// ─── Excel import panel (reuses the shared upload flow) ───────────────────────
+// ─── Column definition for the Excel guide ────────────────────────────────────
+
+const COLUMNS = [
+  { name: 'Nombre',          required: true,  type: 'Texto',   example: 'Amoxicilina 500mg',  notes: 'Nombre del producto o medicamento' },
+  { name: 'Categoría',       required: true,  type: 'Texto',   example: 'Medicamento',         notes: 'Ver lista de valores válidos abajo' },
+  { name: 'Precio de venta', required: true,  type: 'Número',  example: '150',                 notes: 'Precio al público, sin símbolo ($)' },
+  { name: 'Precio de costo', required: false, type: 'Número',  example: '80',                  notes: 'Costo de compra (opcional)' },
+  { name: 'Stock actual',    required: false, type: 'Número',  example: '50',                  notes: 'Unidades disponibles ahora (default 0)' },
+  { name: 'Stock mínimo',    required: false, type: 'Número',  example: '10',                  notes: 'Alerta cuando baje de este nivel' },
+  { name: 'Unidad',          required: false, type: 'Texto',   example: 'Tableta',             notes: 'Ver lista de valores válidos abajo' },
+  { name: 'Activo',          required: false, type: 'Sí / No', example: 'Sí',                  notes: 'Si no se indica, se asume Sí' },
+] as const;
+
+const VALID_CATEGORIES = [
+  'Medicamento', 'Vacuna', 'Antiparasitario', 'Alimento',
+  'Accesorio', 'Higiene', 'Cirugía', 'Laboratorio', 'Otro',
+];
+
+const VALID_UNITS = [
+  'Unidad', 'Caja', 'Botella', 'Ampolleta', 'Tableta',
+  'Dosis', 'mL', 'mg', 'kg', 'Gramo', 'Litro', 'Libra',
+];
+
+// ─── Excel import panel ───────────────────────────────────────────────────────
 
 function ExcelPanel({ onBack }: { onBack: () => void }) {
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center gap-3">
         <button
           onClick={onBack}
@@ -28,22 +53,112 @@ function ExcelPanel({ onBack }: { onBack: () => void }) {
         </button>
         <div>
           <p className="font-semibold text-sm">Importar desde Excel</p>
-          <p className="text-xs text-muted-foreground">Carga un archivo .xlsx con tus productos</p>
+          <p className="text-xs text-muted-foreground">Descarga la plantilla, llénala y súbela en Importar / Exportar</p>
         </div>
       </div>
-      <div className="rounded-2xl border border-dashed border-border bg-muted/30 flex flex-col items-center gap-4 py-14 px-6 text-center">
-        <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
-          <FileSpreadsheet size={26} className="text-primary" />
+
+      {/* Download CTA */}
+      <div className="flex items-center justify-between gap-4 p-4 rounded-xl border border-primary/30 bg-primary/5">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+            <FileSpreadsheet size={20} className="text-primary" />
+          </div>
+          <div>
+            <p className="font-semibold text-sm">plantilla_productos.xlsx</p>
+            <p className="text-xs text-muted-foreground">Incluye ejemplos y hoja de valores válidos</p>
+          </div>
         </div>
-        <div>
-          <p className="font-semibold">Importación masiva desde Excel</p>
-          <p className="text-sm text-muted-foreground mt-1 max-w-xs">
-            Para importar varios productos a la vez con precio y stock, usa la sección de Importar / Exportar.
-          </p>
+        <Button className="gap-2 shrink-0" onClick={downloadProductTemplate}>
+          <Download size={15} /> Descargar plantilla
+        </Button>
+      </div>
+
+      {/* Column guide */}
+      <div className="space-y-3">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Columnas del archivo</p>
+        <div className="rounded-xl border border-border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted/50 border-b border-border text-left">
+                <th className="px-4 py-2.5 text-xs font-medium text-muted-foreground">Columna</th>
+                <th className="px-4 py-2.5 text-xs font-medium text-muted-foreground hidden sm:table-cell">Tipo</th>
+                <th className="px-4 py-2.5 text-xs font-medium text-muted-foreground hidden md:table-cell">Ejemplo</th>
+                <th className="px-4 py-2.5 text-xs font-medium text-muted-foreground">Nota</th>
+              </tr>
+            </thead>
+            <tbody>
+              {COLUMNS.map((col, i) => (
+                <tr key={col.name} className={cn('border-b border-border last:border-0', i % 2 === 0 ? 'bg-background' : 'bg-muted/10')}>
+                  <td className="px-4 py-2.5">
+                    <span className="font-medium text-xs">{col.name}</span>
+                    {col.required && <span className="ml-1 text-red-500 text-[10px]">*</span>}
+                  </td>
+                  <td className="px-4 py-2.5 hidden sm:table-cell">
+                    <span className="text-xs text-muted-foreground">{col.type}</span>
+                  </td>
+                  <td className="px-4 py-2.5 hidden md:table-cell">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{col.example}</code>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <span className="text-xs text-muted-foreground">{col.notes}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        <Link href="/import?tab=products">
-          <Button className="gap-2">
-            <FileSpreadsheet size={15} /> Ir a Importar / Exportar
+        <p className="text-[11px] text-muted-foreground"><span className="text-red-500">*</span> Obligatorio</p>
+      </div>
+
+      {/* Valid values */}
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Categorías válidas</p>
+          <div className="flex flex-wrap gap-1.5">
+            {VALID_CATEGORIES.map((c) => (
+              <span key={c} className="px-2 py-1 rounded-lg bg-muted text-xs text-muted-foreground">{c}</span>
+            ))}
+          </div>
+        </div>
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Unidades válidas</p>
+          <div className="flex flex-wrap gap-1.5">
+            {VALID_UNITS.map((u) => (
+              <span key={u} className="px-2 py-1 rounded-lg bg-muted text-xs text-muted-foreground">{u}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Steps */}
+      <div className="space-y-3">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pasos para importar</p>
+        <ol className="space-y-2">
+          {[
+            'Descarga la plantilla de arriba',
+            'Llena las filas con tus productos (una por fila)',
+            'Guarda el archivo y ve a Importar / Exportar para subirlo',
+            'Revisa los errores en la tabla, corrígelos y confirma',
+          ].map((step, i) => (
+            <li key={i} className="flex items-start gap-3 text-sm text-muted-foreground">
+              <span className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                {i + 1}
+              </span>
+              {step}
+            </li>
+          ))}
+        </ol>
+      </div>
+
+      {/* CTA to import page */}
+      <div className="flex items-center gap-3 pt-2 border-t border-border">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground flex-1">
+          <CheckCircle2 size={13} className="text-primary shrink-0" />
+          La plantilla ya incluye ejemplos y la hoja de valores válidos.
+        </div>
+        <Link href="/import">
+          <Button variant="outline" className="gap-2 shrink-0">
+            <Upload size={15} /> Ir a subir archivo
           </Button>
         </Link>
       </div>
