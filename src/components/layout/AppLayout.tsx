@@ -262,12 +262,12 @@ function BellNotification() {
         )}
 
         <div className="px-4 py-2.5 border-t border-border flex gap-4">
-          <a href="/inventory" className="text-xs text-primary hover:underline font-medium">
+          <Link href="/inventory" className="text-xs text-primary hover:underline font-medium">
             Inventario →
-          </a>
-          <a href="/expenses" className="text-xs text-primary hover:underline font-medium">
+          </Link>
+          <Link href="/expenses" className="text-xs text-primary hover:underline font-medium">
             Egresos →
-          </a>
+          </Link>
         </div>
       </PopoverContent>
     </Popover>

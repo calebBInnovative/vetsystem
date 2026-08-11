@@ -28,7 +28,7 @@ export function PWAInstallBanner() {
                   <Share2 size={11} className="inline" /> Compartir
                 </span>
                 {' '}y luego{' '}
-                <span className="font-medium text-foreground">"Añadir a pantalla de inicio"</span>.
+                <span className="font-medium text-foreground">&ldquo;Añadir a pantalla de inicio&rdquo;</span>.
               </p>
             ) : (
               <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
