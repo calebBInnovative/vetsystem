@@ -12,6 +12,7 @@ import {
   fetchCatalogProducts, addCatalogProduct,
   updateCatalogProduct, deleteCatalogProduct,
 } from '@/lib/firebase/catalog';
+import { seedRiverfarmaPets } from '@/lib/firebase/seedCatalog';
 import type { CatalogProduct, CatalogCategory, CatalogDosageForm } from '@/types/catalog';
 import {
   CATALOG_CATEGORY_LABELS, CATALOG_DOSAGE_FORM_LABELS,
@@ -239,6 +240,8 @@ export default function AdminCatalogPage() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [filterSupplier, setFilterSupplier] = useState('');
   const [filterCategory, setFilterCategory] = useState<CatalogCategory | ''>('');
+  const [seeding, setSeeding] = useState(false);
+  const [seedMsg, setSeedMsg] = useState<string | null>(null);
 
   const isMaster = session?.role === 'master';
 
@@ -265,6 +268,23 @@ export default function AdminCatalogPage() {
       </div>
     );
   }
+
+  const handleSeed = async () => {
+    setSeeding(true); setSeedMsg(null);
+    try {
+      const result = await seedRiverfarmaPets();
+      if (result.skipped) {
+        setSeedMsg('Los productos de Riverfarma Pets ya estaban cargados.');
+      } else {
+        setSeedMsg(`✓ ${result.added} productos de Riverfarma Pets agregados al catálogo.`);
+        await load();
+      }
+    } catch (err) {
+      setSeedMsg(`Error: ${err instanceof Error ? err.message : 'No se pudo cargar.'}`);
+    } finally {
+      setSeeding(false);
+    }
+  };
 
   const handleAdd = async (data: Omit<CatalogProduct, 'id'>) => {
     await addCatalogProduct(data);
@@ -312,10 +332,28 @@ export default function AdminCatalogPage() {
             Productos públicos que cualquier clínica puede importar a su inventario.
           </p>
         </div>
-        <Button className="gap-2" onClick={() => setShowAddDialog(true)}>
-          <Plus size={15} /> Agregar producto
-        </Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" className="gap-2" disabled={seeding} onClick={handleSeed}>
+            {seeding
+              ? <><Loader2 size={14} className="animate-spin" /> Cargando…</>
+              : '⬇ Cargar Riverfarma Pets'}
+          </Button>
+          <Button className="gap-2" onClick={() => setShowAddDialog(true)}>
+            <Plus size={15} /> Agregar producto
+          </Button>
+        </div>
       </div>
+
+      {seedMsg && (
+        <div className={cn(
+          'flex items-center gap-2 text-sm rounded-lg px-4 py-3',
+          seedMsg.startsWith('✓') || seedMsg.includes('ya estaban')
+            ? 'bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300'
+            : 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300',
+        )}>
+          {seedMsg}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
