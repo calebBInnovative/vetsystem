@@ -65,6 +65,14 @@ export interface Product {
   /** Supplier or laboratory */
   supplier?: string;
 
+  // ── Pharmaceutical metadata (medications, vaccines, antiparasitics) ────────
+  /** Active ingredient / formula — e.g. "Enrofloxacina 50 mg / tableta" */
+  activeIngredient?: string;
+  /** Route of administration — e.g. "Intramuscular o subcutánea" */
+  administrationRoute?: string;
+  /** Sanitary registration number — e.g. "Q-0524-076" */
+  registrationNumber?: string;
+
   active: boolean;
   clinicId: string;
   createdAt: number;

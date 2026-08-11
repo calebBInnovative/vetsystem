@@ -108,6 +108,15 @@ export function ProductoForm({
           </div>
 
           <div>
+            <label className={labelClass}>Núm. de registro sanitario</label>
+            <input
+              {...register('registrationNumber')}
+              placeholder="Ej: Q-0524-076"
+              className={field(false)}
+            />
+          </div>
+
+          <div>
             <label className={labelClass}>
               Unidad de medida <span className="text-destructive">*</span>
             </label>
@@ -121,6 +130,34 @@ export function ProductoForm({
 
         </div>
       </section>
+
+      {/* ── Ficha farmacológica (medicamentos / vacunas / antiparasitarios) ── */}
+      {(['medication', 'vaccine', 'antiparasitic'] as const).includes(categoryActual as 'medication' | 'vaccine' | 'antiparasitic') && (
+        <section>
+          <h3 className={sectionLabel}>Ficha Farmacológica</h3>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+
+            <div className="sm:col-span-2">
+              <label className={labelClass}>Principio activo / Fórmula</label>
+              <input
+                {...register('activeIngredient')}
+                placeholder="Ej: Enrofloxacina 50 mg / tableta"
+                className={field(false)}
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className={labelClass}>Vía de administración</label>
+              <input
+                {...register('administrationRoute')}
+                placeholder="Ej: Intramuscular o subcutánea"
+                className={field(false)}
+              />
+            </div>
+
+          </div>
+        </section>
+      )}
 
       {/* ── Stock ────────────────────────────────────────── */}
       <section>

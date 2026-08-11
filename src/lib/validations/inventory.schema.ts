@@ -35,9 +35,12 @@ export const productSchema = z.object({
     z.number().positive('Debe ser mayor a 0').optional()
   ),
 
-  expirationDate: z.string().optional(),
-  batch:          z.string().max(50).optional(),
-  supplier:       z.string().max(100).optional(),
+  expirationDate:      z.string().optional(),
+  batch:               z.string().max(50).optional(),
+  supplier:            z.string().max(100).optional(),
+  activeIngredient:    z.string().max(200).optional(),
+  administrationRoute: z.string().max(200).optional(),
+  registrationNumber:  z.string().max(50).optional(),
 });
 
 export const stockAdjustmentSchema = z.object({
