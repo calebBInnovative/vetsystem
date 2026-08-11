@@ -12,7 +12,7 @@ import {
   fetchCatalogProducts, addCatalogProduct,
   updateCatalogProduct, deleteCatalogProduct,
 } from '@/lib/firebase/catalog';
-import { seedRiverfarmaPets } from '@/lib/firebase/seedCatalog';
+import { seedRiverfarmaPets, seedRiverfarmaAves } from '@/lib/firebase/seedCatalog';
 import type { CatalogProduct, CatalogCategory, CatalogDosageForm } from '@/types/catalog';
 import {
   CATALOG_CATEGORY_LABELS, CATALOG_DOSAGE_FORM_LABELS,
@@ -43,11 +43,14 @@ interface FormState {
   supplier: string;
   registrationNumber: string;
   species: string[];
+  description: string;
+  administrationRoute: string;
 }
 
 const EMPTY_FORM: FormState = {
   name: '', activeIngredient: '', category: '', dosageForm: '',
   presentations: '', supplier: '', registrationNumber: '', species: [],
+  description: '', administrationRoute: '',
 };
 
 function formFromProduct(p: CatalogProduct): FormState {
@@ -60,6 +63,8 @@ function formFromProduct(p: CatalogProduct): FormState {
     supplier: p.supplier,
     registrationNumber: p.registrationNumber ?? '',
     species: p.species ?? [],
+    description: p.description ?? '',
+    administrationRoute: p.administrationRoute ?? '',
   };
 }
 
@@ -115,6 +120,8 @@ function ProductFormDialog({
         supplier: form.supplier.trim(),
         registrationNumber: form.registrationNumber.trim() || undefined,
         species: form.species.length > 0 ? form.species : undefined,
+        description: form.description.trim() || undefined,
+        administrationRoute: form.administrationRoute.trim() || undefined,
         createdAt: now,
         updatedAt: now,
       });
@@ -188,6 +195,21 @@ function ProductFormDialog({
             </div>
 
             <div className="col-span-2">
+              <label className="block text-xs font-medium mb-1">Vía de administración</label>
+              <input value={form.administrationRoute} onChange={field('administrationRoute')} placeholder="Ej: Intramuscular o subcutánea" className={INPUT} />
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-xs font-medium mb-1">Características / descripción</label>
+              <textarea
+                value={form.description} onChange={field('description')}
+                placeholder="Breve descripción clínica del producto"
+                rows={3}
+                className={`${INPUT} resize-none`}
+              />
+            </div>
+
+            <div className="col-span-2">
               <label className="block text-xs font-medium mb-2">Especies</label>
               <div className="flex flex-wrap gap-2">
                 {ALL_SPECIES.map((s) => (
@@ -240,7 +262,7 @@ export default function AdminCatalogPage() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [filterSupplier, setFilterSupplier] = useState('');
   const [filterCategory, setFilterCategory] = useState<CatalogCategory | ''>('');
-  const [seeding, setSeeding] = useState(false);
+  const [seeding, setSeeding] = useState<string | null>(null);
   const [seedMsg, setSeedMsg] = useState<string | null>(null);
 
   const isMaster = session?.role === 'master';
@@ -269,8 +291,8 @@ export default function AdminCatalogPage() {
     );
   }
 
-  const handleSeed = async () => {
-    setSeeding(true); setSeedMsg(null);
+  const handleSeedPets = async () => {
+    setSeeding('pets'); setSeedMsg(null);
     try {
       const result = await seedRiverfarmaPets();
       if (result.skipped) {
@@ -282,7 +304,24 @@ export default function AdminCatalogPage() {
     } catch (err) {
       setSeedMsg(`Error: ${err instanceof Error ? err.message : 'No se pudo cargar.'}`);
     } finally {
-      setSeeding(false);
+      setSeeding(null);
+    }
+  };
+
+  const handleSeedAves = async () => {
+    setSeeding('aves'); setSeedMsg(null);
+    try {
+      const result = await seedRiverfarmaAves();
+      if (result.skipped) {
+        setSeedMsg('Los productos de Riverfarma Aves ya estaban cargados.');
+      } else {
+        setSeedMsg(`✓ ${result.added} productos de Riverfarma Aves agregados al catálogo.`);
+        await load();
+      }
+    } catch (err) {
+      setSeedMsg(`Error: ${err instanceof Error ? err.message : 'No se pudo cargar.'}`);
+    } finally {
+      setSeeding(null);
     }
   };
 
@@ -333,10 +372,15 @@ export default function AdminCatalogPage() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" className="gap-2" disabled={seeding} onClick={handleSeed}>
-            {seeding
+          <Button variant="outline" className="gap-2" disabled={!!seeding} onClick={handleSeedPets}>
+            {seeding === 'pets'
               ? <><Loader2 size={14} className="animate-spin" /> Cargando…</>
-              : '⬇ Cargar Riverfarma Pets'}
+              : '⬇ Riverfarma Pets'}
+          </Button>
+          <Button variant="outline" className="gap-2" disabled={!!seeding} onClick={handleSeedAves}>
+            {seeding === 'aves'
+              ? <><Loader2 size={14} className="animate-spin" /> Cargando…</>
+              : '⬇ Riverfarma Aves'}
           </Button>
           <Button className="gap-2" onClick={() => setShowAddDialog(true)}>
             <Plus size={15} /> Agregar producto

@@ -35,6 +35,10 @@ export interface CatalogProduct {
   registrationNumber?: string;
   /** ['dogs','cats'] | ['roosters','birds'] | ['dogs','cats','roosters','birds'] */
   species?: string[];
+  /** Clinical characteristics / short description from the vademécum */
+  description?: string;
+  /** Route of administration — e.g. "Intramuscular o subcutánea", "Oral, toma directa" */
+  administrationRoute?: string;
   createdAt: number;
   updatedAt: number;
 }
