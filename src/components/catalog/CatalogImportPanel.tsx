@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import {
   BookOpen, CheckCircle2, AlertCircle, Loader2,
-  Search, Filter, X, ChevronDown, ChevronUp, ArrowLeft,
+  Search, Filter, X, ChevronDown, ChevronUp, ArrowLeft, Minus, Plus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -27,11 +27,13 @@ const SPECIES_LABELS: Record<string, string> = {
 
 // ─── Dexie import helper ──────────────────────────────────────────────────────
 
-async function importFromCatalog(selected: CatalogProduct[]): Promise<number> {
-  if (selected.length === 0) return 0;
+async function importFromCatalog(
+  entries: { product: CatalogProduct; quantity: number }[]
+): Promise<number> {
+  if (entries.length === 0) return 0;
   const now = Date.now();
   const clinicId = await getClinicId();
-  const items: ProductLocal[] = selected.map((p) => ({
+  const items: ProductLocal[] = entries.map(({ product: p, quantity }) => ({
     id:                  crypto.randomUUID(),
     clinicId,
     name:                p.name,
@@ -41,7 +43,7 @@ async function importFromCatalog(selected: CatalogProduct[]): Promise<number> {
     activeIngredient:    p.activeIngredient || undefined,
     administrationRoute: p.administrationRoute || undefined,
     registrationNumber:  p.registrationNumber || undefined,
-    currentStock:        0,
+    currentStock:        quantity,
     minimumStock:        0,
     unit:                'unit' as const,
     active:              true,
@@ -59,18 +61,64 @@ async function importFromCatalog(selected: CatalogProduct[]): Promise<number> {
   return items.length;
 }
 
+// ─── Quantity stepper ─────────────────────────────────────────────────────────
+
+function QuantityStepper({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div
+      className="flex items-center gap-1 mt-2"
+      onClick={(e) => e.preventDefault()}   // prevent label from toggling checkbox
+    >
+      <span className="text-[11px] text-muted-foreground mr-1 shrink-0">Unidades iniciales:</span>
+      <button
+        type="button"
+        onClick={() => onChange(Math.max(0, value - 1))}
+        className="w-6 h-6 rounded-md border border-border bg-background flex items-center justify-center hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+      >
+        <Minus size={10} />
+      </button>
+      <input
+        type="number"
+        min="0"
+        value={value}
+        onChange={(e) => {
+          const n = parseInt(e.target.value, 10);
+          onChange(isNaN(n) || n < 0 ? 0 : n);
+        }}
+        className="w-12 h-6 text-center text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      />
+      <button
+        type="button"
+        onClick={() => onChange(value + 1)}
+        className="w-6 h-6 rounded-md border border-border bg-background flex items-center justify-center hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+      >
+        <Plus size={10} />
+      </button>
+    </div>
+  );
+}
+
 // ─── Product card ─────────────────────────────────────────────────────────────
 
 function ProductCard({
   product,
-  selected,
+  quantity,
   onToggle,
+  onQuantityChange,
 }: {
   product: CatalogProduct;
-  selected: boolean;
+  quantity: number | null;   // null = not selected
   onToggle: () => void;
+  onQuantityChange: (q: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const selected = quantity !== null;
   const hasDetails = !!(
     product.description ||
     product.administrationRoute ||
@@ -87,15 +135,17 @@ function ProductCard({
       )}
     >
       <input
-        type="checkbox" checked={selected} onChange={onToggle}
+        type="checkbox"
+        checked={selected}
+        onChange={onToggle}
         className="mt-0.5 accent-primary shrink-0"
       />
-      <div className="flex-1 min-w-0 space-y-1">
+      <div className="flex-1 min-w-0">
         <p className="font-medium text-sm leading-tight">{product.name}</p>
         {product.activeIngredient && (
-          <p className="text-xs text-muted-foreground">{product.activeIngredient}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{product.activeIngredient}</p>
         )}
-        <div className="flex flex-wrap gap-1 mt-1">
+        <div className="flex flex-wrap gap-1 mt-1.5">
           <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-medium', CATALOG_CATEGORY_COLORS[product.category])}>
             {CATALOG_CATEGORY_LABELS[product.category]}
           </span>
@@ -111,12 +161,18 @@ function ProductCard({
           ))}
         </div>
 
+        {/* Quantity stepper — only when selected */}
+        {selected && (
+          <QuantityStepper value={quantity} onChange={onQuantityChange} />
+        )}
+
+        {/* Expandable details */}
         {hasDetails && (
           <div>
             <button
               type="button"
               onClick={(e) => { e.preventDefault(); setExpanded((v) => !v); }}
-              className="flex items-center gap-1 text-[10px] text-primary hover:underline mt-1"
+              className="flex items-center gap-1 text-[10px] text-primary hover:underline mt-1.5"
             >
               {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
               {expanded ? 'Ocultar detalles' : 'Ver detalles'}
@@ -184,10 +240,11 @@ function ProductBrowser({
   onBack: () => void;
   onImported: (count: number) => void;
 }) {
-  const [selected, setSelected]   = useState<Set<string>>(new Set());
-  const [search, setSearch]       = useState('');
-  const [filterCat, setFilterCat] = useState<CatalogCategory | ''>('');
-  const [importing, setImporting] = useState(false);
+  // Map: productId → initial quantity (presence = selected)
+  const [quantities, setQuantities] = useState<Map<string, number>>(new Map());
+  const [search, setSearch]         = useState('');
+  const [filterCat, setFilterCat]   = useState<CatalogCategory | ''>('');
+  const [importing, setImporting]   = useState(false);
 
   const filtered = products.filter((p) => {
     const q = search.toLowerCase();
@@ -196,25 +253,47 @@ function ProductBrowser({
     return matchSearch && matchCat;
   });
 
-  const allSelected = filtered.length > 0 && filtered.every((p) => selected.has(p.id));
+  const selectedCount = quantities.size;
+  const allSelected   = filtered.length > 0 && filtered.every((p) => quantities.has(p.id));
+
+  const toggle = (id: string) =>
+    setQuantities((prev) => {
+      const next = new Map(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.set(id, 0);
+      }
+      return next;
+    });
+
+  const setQty = (id: string, qty: number) =>
+    setQuantities((prev) => new Map(prev).set(id, qty));
 
   const toggleAll = () => {
     if (allSelected) {
-      setSelected((prev) => { const s = new Set(prev); filtered.forEach((p) => s.delete(p.id)); return s; });
+      setQuantities((prev) => {
+        const next = new Map(prev);
+        filtered.forEach((p) => next.delete(p.id));
+        return next;
+      });
     } else {
-      setSelected((prev) => { const s = new Set(prev); filtered.forEach((p) => s.add(p.id)); return s; });
+      setQuantities((prev) => {
+        const next = new Map(prev);
+        filtered.forEach((p) => { if (!next.has(p.id)) next.set(p.id, 0); });
+        return next;
+      });
     }
   };
 
-  const toggle = (id: string) =>
-    setSelected((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
-
   const handleImport = async () => {
-    const toImport = products.filter((p) => selected.has(p.id));
+    const entries = products
+      .filter((p) => quantities.has(p.id))
+      .map((p) => ({ product: p, quantity: quantities.get(p.id)! }));
     setImporting(true);
     try {
-      const count = await importFromCatalog(toImport);
-      setSelected(new Set());
+      const count = await importFromCatalog(entries);
+      setQuantities(new Map());
       onImported(count);
     } finally {
       setImporting(false);
@@ -266,9 +345,9 @@ function ProductBrowser({
         <span className="text-muted-foreground text-xs">
           {filtered.length} producto{filtered.length !== 1 ? 's' : ''}
         </span>
-        {selected.size > 0 && (
+        {selectedCount > 0 && (
           <span className="ml-auto text-xs font-medium text-primary">
-            {selected.size} seleccionado{selected.size !== 1 ? 's' : ''}
+            {selectedCount} seleccionado{selectedCount !== 1 ? 's' : ''}
           </span>
         )}
       </div>
@@ -284,8 +363,9 @@ function ProductBrowser({
             <ProductCard
               key={p.id}
               product={p}
-              selected={selected.has(p.id)}
+              quantity={quantities.has(p.id) ? (quantities.get(p.id)!) : null}
               onToggle={() => toggle(p.id)}
+              onQuantityChange={(q) => setQty(p.id, q)}
             />
           ))}
         </div>
@@ -294,16 +374,16 @@ function ProductBrowser({
       {/* Import action */}
       <div className="flex items-center gap-3 pt-2 border-t border-border sticky bottom-0 bg-background/95 backdrop-blur-sm py-3">
         <p className="text-xs text-muted-foreground flex-1">
-          Se agregan con stock 0. Edita precio y stock desde Inventario.
+          Ajusta las unidades en cada producto. Puedes cambiar precio y stock mínimo desde Inventario.
         </p>
         <Button
-          disabled={selected.size === 0 || importing}
+          disabled={selectedCount === 0 || importing}
           onClick={handleImport}
           className="gap-2 shrink-0"
         >
           {importing
             ? <><Loader2 size={14} className="animate-spin" /> Importando…</>
-            : <><CheckCircle2 size={14} /> Importar {selected.size > 0 ? selected.size : ''} seleccionado{selected.size !== 1 ? 's' : ''}</>
+            : <><CheckCircle2 size={14} /> Importar {selectedCount > 0 ? selectedCount : ''} producto{selectedCount !== 1 ? 's' : ''}</>
           }
         </Button>
       </div>
@@ -331,7 +411,6 @@ export function CatalogImportPanel({ onClose }: CatalogImportPanelProps) {
       .finally(() => setLoading(false));
   }, []);
 
-  // Group products by supplier
   const supplierMap = allProducts.reduce<Record<string, CatalogProduct[]>>((acc, p) => {
     (acc[p.supplier] ??= []).push(p);
     return acc;
@@ -340,7 +419,6 @@ export function CatalogImportPanel({ onClose }: CatalogImportPanelProps) {
 
   const handleImported = (count: number) => {
     setImportedCount((prev) => (prev ?? 0) + count);
-    // Return to supplier list so user can import from other suppliers
     setActiveSupplier(null);
   };
 
@@ -374,7 +452,6 @@ export function CatalogImportPanel({ onClose }: CatalogImportPanelProps) {
 
   return (
     <div className="space-y-4">
-      {/* Success banner */}
       {importedCount !== null && (
         <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/30 rounded-lg px-4 py-3">
           <CheckCircle2 size={15} className="shrink-0" />
@@ -388,7 +465,6 @@ export function CatalogImportPanel({ onClose }: CatalogImportPanelProps) {
       )}
 
       {activeSupplier ? (
-        // ── Product browser for selected supplier ──────────────────────────
         <ProductBrowser
           supplier={activeSupplier}
           products={supplierMap[activeSupplier] ?? []}
@@ -396,12 +472,11 @@ export function CatalogImportPanel({ onClose }: CatalogImportPanelProps) {
           onImported={handleImported}
         />
       ) : (
-        // ── Supplier selection ─────────────────────────────────────────────
         <div className="space-y-4">
           <div>
             <p className="text-sm font-medium">Selecciona un proveedor</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {suppliers.length} proveedor{suppliers.length !== 1 ? 'es' : ''} disponible{suppliers.length !== 1 ? 's' : ''} · {allProducts.length} productos en total
+              {suppliers.length} proveedor{suppliers.length !== 1 ? 'es' : ''} · {allProducts.length} productos en total
             </p>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
