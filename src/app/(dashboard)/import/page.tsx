@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import {
   Upload, Download, FileSpreadsheet, CheckCircle2,
   AlertCircle, ArrowLeft, Package, Stethoscope, ChevronRight,
-  BookOpen,
+  BookOpen, RotateCcw, Save,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -421,6 +421,43 @@ async function importServiceRows(rows: ServiceRow[]): Promise<number> {
   return items.length;
 }
 
+// ─── Draft persistence ────────────────────────────────────────────────────────
+
+const PRODUCT_DRAFT_KEY = 'vetsys-import-draft-products';
+const SERVICE_DRAFT_KEY = 'vetsys-import-draft-services';
+
+interface ImportDraftPayload<T> {
+  rows: T[];
+  savedAt: number;
+}
+
+function saveDraft<T>(key: string, rows: T[]) {
+  try {
+    localStorage.setItem(key, JSON.stringify({ rows, savedAt: Date.now() }));
+  } catch { /* storage full */ }
+}
+
+function loadDraft<T>(key: string): ImportDraftPayload<T> | null {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as ImportDraftPayload<T>) : null;
+  } catch { return null; }
+}
+
+function clearDraft(key: string) {
+  try { localStorage.removeItem(key); } catch { /* ignore */ }
+}
+
+function formatTimeAgo(ts: number): string {
+  const min = Math.floor((Date.now() - ts) / 60000);
+  if (min < 1)  return 'hace un momento';
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24)   return `hace ${h} hora${h !== 1 ? 's' : ''}`;
+  const d = Math.floor(h / 24);
+  return `hace ${d} día${d !== 1 ? 's' : ''}`;
+}
+
 // ─── Drop zone ────────────────────────────────────────────────────────────────
 
 function DropZone({ onFile }: { onFile: (file: File) => void }) {
@@ -679,6 +716,27 @@ function ProductImportPanel() {
   const [importedCount, setCount] = useState(0);
   const [isLoading, setLoading]   = useState(false);
   const [importError, setError]   = useState<string | null>(null);
+  const [restoredAt, setRestoredAt] = useState<number | null>(null);
+  const [lastSaved, setLastSaved]   = useState<number | null>(null);
+
+  // Restore draft on mount
+  useEffect(() => {
+    const draft = loadDraft<ProductRow>(PRODUCT_DRAFT_KEY);
+    if (draft && draft.rows.length > 0) {
+      const revalidated = draft.rows.map((row) => ({ ...row, fieldErrors: validateProductRow(row) }));
+      setRows(revalidated);
+      setStep('table');
+      setRestoredAt(draft.savedAt);
+      setLastSaved(draft.savedAt);
+    }
+  }, []);
+
+  // Autosave whenever rows change while editing
+  useEffect(() => {
+    if (step !== 'table' || rows.length === 0) return;
+    saveDraft(PRODUCT_DRAFT_KEY, rows);
+    setLastSaved(Date.now());
+  }, [rows, step]);
 
   const validCount   = rows.filter((r) => Object.keys(r.fieldErrors).length === 0).length;
   const invalidCount = rows.length - validCount;
@@ -686,8 +744,10 @@ function ProductImportPanel() {
   const handleFile = useCallback(async (file: File) => {
     try {
       const rawRows = await parseFileToRows(file);
-      setRows(rawToProductRows(rawRows));
+      const parsed = rawToProductRows(rawRows);
+      setRows(parsed);
       setStep('table');
+      setRestoredAt(null);
     } catch {
       alert('No se pudo leer el archivo. Verifica que sea un .xlsx o .csv válido.');
     }
@@ -697,6 +757,7 @@ function ProductImportPanel() {
     setLoading(true); setError(null);
     try {
       const count = await importProductRows(rows);
+      clearDraft(PRODUCT_DRAFT_KEY);
       setCount(count);
       setStep('success');
     } catch (err) {
@@ -707,7 +768,9 @@ function ProductImportPanel() {
   }, [rows]);
 
   const handleReset = useCallback(() => {
+    clearDraft(PRODUCT_DRAFT_KEY);
     setStep('upload'); setRows([]); setCount(0); setError(null);
+    setRestoredAt(null); setLastSaved(null);
   }, []);
 
   if (step === 'success') {
@@ -732,13 +795,29 @@ function ProductImportPanel() {
   if (step === 'table') {
     return (
       <div className="space-y-4">
+        {/* Restored session banner */}
+        {restoredAt !== null && (
+          <div className="flex items-center gap-2.5 text-sm bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/40 rounded-lg px-4 py-2.5">
+            <RotateCcw size={14} className="shrink-0" />
+            <span>
+              <span className="font-semibold">Sesión anterior restaurada</span>
+              {' · '}{rows.length} fila{rows.length !== 1 ? 's' : ''}{' · '}guardada {formatTimeAgo(restoredAt)}
+            </span>
+            <button onClick={handleReset} className="ml-auto text-xs underline opacity-70 hover:opacity-100 whitespace-nowrap shrink-0">
+              Descartar y empezar de nuevo
+            </button>
+          </div>
+        )}
+
         <SummaryBar validCount={validCount} invalidCount={invalidCount} total={rows.length} />
         <ProductTable rows={rows} onChange={setRows} />
+
         {importError && (
           <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-lg px-4 py-3">
             <AlertCircle size={16} className="shrink-0" /> {importError}
           </div>
         )}
+
         <div className="flex flex-wrap items-center gap-3 pt-1">
           <Button variant="outline" className="gap-2" onClick={handleReset}>
             <ArrowLeft size={15} /> Volver
@@ -750,6 +829,11 @@ function ProductImportPanel() {
           </Button>
           {invalidCount > 0 && (
             <p className="text-xs text-muted-foreground">Corrige o elimina las filas con errores para continuar</p>
+          )}
+          {lastSaved !== null && invalidCount === 0 && (
+            <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
+              <Save size={11} /> Guardado automáticamente · {formatTimeAgo(lastSaved)}
+            </span>
           )}
         </div>
       </div>
@@ -782,6 +866,27 @@ function ServiceImportPanel() {
   const [importedCount, setCount] = useState(0);
   const [isLoading, setLoading]   = useState(false);
   const [importError, setError]   = useState<string | null>(null);
+  const [restoredAt, setRestoredAt] = useState<number | null>(null);
+  const [lastSaved, setLastSaved]   = useState<number | null>(null);
+
+  // Restore draft on mount
+  useEffect(() => {
+    const draft = loadDraft<ServiceRow>(SERVICE_DRAFT_KEY);
+    if (draft && draft.rows.length > 0) {
+      const revalidated = draft.rows.map((row) => ({ ...row, fieldErrors: validateServiceRow(row) }));
+      setRows(revalidated);
+      setStep('table');
+      setRestoredAt(draft.savedAt);
+      setLastSaved(draft.savedAt);
+    }
+  }, []);
+
+  // Autosave whenever rows change while editing
+  useEffect(() => {
+    if (step !== 'table' || rows.length === 0) return;
+    saveDraft(SERVICE_DRAFT_KEY, rows);
+    setLastSaved(Date.now());
+  }, [rows, step]);
 
   const validCount   = rows.filter((r) => Object.keys(r.fieldErrors).length === 0).length;
   const invalidCount = rows.length - validCount;
@@ -789,8 +894,10 @@ function ServiceImportPanel() {
   const handleFile = useCallback(async (file: File) => {
     try {
       const rawRows = await parseFileToRows(file);
-      setRows(rawToServiceRows(rawRows));
+      const parsed = rawToServiceRows(rawRows);
+      setRows(parsed);
       setStep('table');
+      setRestoredAt(null);
     } catch {
       alert('No se pudo leer el archivo. Verifica que sea un .xlsx o .csv válido.');
     }
@@ -800,6 +907,7 @@ function ServiceImportPanel() {
     setLoading(true); setError(null);
     try {
       const count = await importServiceRows(rows);
+      clearDraft(SERVICE_DRAFT_KEY);
       setCount(count);
       setStep('success');
     } catch (err) {
@@ -810,7 +918,9 @@ function ServiceImportPanel() {
   }, [rows]);
 
   const handleReset = useCallback(() => {
+    clearDraft(SERVICE_DRAFT_KEY);
     setStep('upload'); setRows([]); setCount(0); setError(null);
+    setRestoredAt(null); setLastSaved(null);
   }, []);
 
   if (step === 'success') {
@@ -835,13 +945,29 @@ function ServiceImportPanel() {
   if (step === 'table') {
     return (
       <div className="space-y-4">
+        {/* Restored session banner */}
+        {restoredAt !== null && (
+          <div className="flex items-center gap-2.5 text-sm bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/40 rounded-lg px-4 py-2.5">
+            <RotateCcw size={14} className="shrink-0" />
+            <span>
+              <span className="font-semibold">Sesión anterior restaurada</span>
+              {' · '}{rows.length} fila{rows.length !== 1 ? 's' : ''}{' · '}guardada {formatTimeAgo(restoredAt)}
+            </span>
+            <button onClick={handleReset} className="ml-auto text-xs underline opacity-70 hover:opacity-100 whitespace-nowrap shrink-0">
+              Descartar y empezar de nuevo
+            </button>
+          </div>
+        )}
+
         <SummaryBar validCount={validCount} invalidCount={invalidCount} total={rows.length} />
         <ServiceTable rows={rows} onChange={setRows} />
+
         {importError && (
           <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-lg px-4 py-3">
             <AlertCircle size={16} className="shrink-0" /> {importError}
           </div>
         )}
+
         <div className="flex flex-wrap items-center gap-3 pt-1">
           <Button variant="outline" className="gap-2" onClick={handleReset}>
             <ArrowLeft size={15} /> Volver
@@ -853,6 +979,11 @@ function ServiceImportPanel() {
           </Button>
           {invalidCount > 0 && (
             <p className="text-xs text-muted-foreground">Corrige o elimina las filas con errores para continuar</p>
+          )}
+          {lastSaved !== null && invalidCount === 0 && (
+            <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
+              <Save size={11} /> Guardado automáticamente · {formatTimeAgo(lastSaved)}
+            </span>
           )}
         </div>
       </div>

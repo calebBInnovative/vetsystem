@@ -67,7 +67,7 @@ export default function DashboardPage() {
         <div className="flex gap-2">
           <Link href="/patients/new">
             <Button variant="outline" size="sm" className="gap-1.5 hidden sm:flex">
-              <Plus size={14} /> Patient
+              <Plus size={14} /> Agregar paciente
             </Button>
           </Link>
           <Link href="/schedule/new">

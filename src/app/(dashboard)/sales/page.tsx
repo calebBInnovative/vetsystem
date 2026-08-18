@@ -102,6 +102,82 @@ function ProductCard({
   );
 }
 
+// ─── Promotion card ───────────────────────────────────────────────────────────
+
+function PromotionCard({
+  promo,
+  onApply,
+}: {
+  promo: PromotionLocal;
+  onApply: () => void;
+}) {
+  const savings = promo.originalTotal - promo.total;
+  const savingsPct = promo.originalTotal > 0
+    ? Math.round((savings / promo.originalTotal) * 100)
+    : 0;
+
+  return (
+    <div className="flex flex-col rounded-xl border border-primary/30 bg-primary/5 p-3 gap-2.5">
+      {/* Header */}
+      <div className="flex items-start gap-2.5">
+        <span className="text-xl shrink-0 mt-0.5">🏷️</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-sm font-semibold leading-tight truncate">{promo.name}</p>
+            {savingsPct > 0 && (
+              <span className="shrink-0 text-[10px] font-bold text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/40 px-1.5 py-0.5 rounded-full">
+                -{savingsPct}%
+              </span>
+            )}
+          </div>
+          {promo.description && (
+            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{promo.description}</p>
+          )}
+          <div className="flex items-center gap-1.5 mt-1">
+            {savings > 0 && (
+              <span className="text-xs text-muted-foreground line-through">{fmt(promo.originalTotal)}</span>
+            )}
+            <span className="text-sm font-bold text-primary">{fmt(promo.total)}</span>
+            {savings > 0 && (
+              <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                ahorrás {fmt(savings)}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Items preview */}
+      <div className="pl-2 border-l-2 border-primary/20 space-y-0.5">
+        {promo.items.slice(0, 3).map((item) => (
+          <div key={item.id} className="flex items-center justify-between gap-2 text-xs">
+            <span className="truncate text-muted-foreground">
+              {item.quantity}× {item.name}
+            </span>
+            <span className={cn(
+              'shrink-0 font-medium',
+              item.discountType !== 'none' ? 'text-green-600 dark:text-green-400' : 'text-foreground/70',
+            )}>
+              {fmt(item.finalUnitPrice)}
+            </span>
+          </div>
+        ))}
+        {promo.items.length > 3 && (
+          <p className="text-[10px] text-muted-foreground/60">+{promo.items.length - 3} producto{promo.items.length - 3 !== 1 ? 's' : ''} más</p>
+        )}
+      </div>
+
+      <button
+        type="button"
+        onClick={onApply}
+        className="flex items-center justify-center gap-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium px-3 py-1.5 hover:bg-primary/90 transition-colors"
+      >
+        <ShoppingCart size={11} /> Aplicar promoción
+      </button>
+    </div>
+  );
+}
+
 // ─── Service card ─────────────────────────────────────────────────────────────
 
 function ServiceCard({
@@ -155,8 +231,7 @@ export default function SalesPage() {
   const [notes,        setNotes]        = useState('');
   const [procesando,   setProcesando]   = useState(false);
   const [invoiceId,    setInvoiceId]    = useState('');
-  const [showPromos,   setShowPromos]   = useState(false);
-  const [catalogTab,   setCatalogTab]   = useState<'products' | 'services'>('products');
+  const [catalogTab,   setCatalogTab]   = useState<'products' | 'services' | 'promos'>('products');
   const router = useRouter();
 
   const promotions = useLiveQuery(async () => {
@@ -640,7 +715,7 @@ export default function SalesPage() {
         )}>
           {/* Búsqueda + tabs + filtro */}
           <div className="px-4 pt-4 pb-3 space-y-3 shrink-0">
-            {/* Tab: Productos / Servicios */}
+            {/* Tab: Productos / Servicios / Promos */}
             <div className="flex rounded-xl border border-border overflow-hidden text-xs font-medium">
               <button
                 type="button"
@@ -662,9 +737,25 @@ export default function SalesPage() {
               >
                 Servicios
               </button>
+              <button
+                type="button"
+                onClick={() => { setCatalogTab('promos'); setSearchQuery(''); setCategoria(undefined); }}
+                className={cn(
+                  'flex-1 py-1.5 transition-colors relative',
+                  catalogTab === 'promos' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted/50'
+                )}
+              >
+                Promos
+                {promotions.length > 0 && catalogTab !== 'promos' && (
+                  <span className="absolute top-0.5 right-1 w-3.5 h-3.5 rounded-full bg-orange-500 text-white text-[8px] font-bold flex items-center justify-center leading-none">
+                    {promotions.length}
+                  </span>
+                )}
+              </button>
             </div>
 
-            {/* Búsqueda */}
+            {/* Búsqueda — oculta en promos */}
+            {catalogTab !== 'promos' && (
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
@@ -680,6 +771,7 @@ export default function SalesPage() {
                 </button>
               )}
             </div>
+            )}
 
             {/* Categorías — solo en tab Productos */}
             {catalogTab === 'products' && (
@@ -747,49 +839,6 @@ export default function SalesPage() {
             )}
           </div>
 
-          {/* Promotions section */}
-          {promotions.length > 0 && (
-            <div className="px-4 pb-3 shrink-0">
-              <button
-                type="button"
-                onClick={() => setShowPromos((s) => !s)}
-                className="flex items-center gap-1.5 text-xs font-medium text-primary mb-2"
-              >
-                <Tag size={12} />
-                Promociones activas ({promotions.length})
-                <ChevronDown size={12} className={cn('transition-transform', showPromos && 'rotate-180')} />
-              </button>
-              {showPromos && (
-                <div className="flex flex-col gap-2">
-                  {promotions.map((promo) => (
-                    <div key={promo.id} className="rounded-xl border border-primary/20 bg-primary/5 p-3 flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold truncate">{promo.name}</p>
-                        {promo.description && (
-                          <p className="text-xs text-muted-foreground truncate">{promo.description}</p>
-                        )}
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {promo.items.length} items ·{' '}
-                          {promo.originalTotal !== promo.total && (
-                            <span className="line-through mr-1">{fmt(promo.originalTotal)}</span>
-                          )}
-                          <span className="text-primary font-medium">{fmt(promo.total)}</span>
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => { agregarPromocion(promo); setView('carrito'); }}
-                        className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
-                      >
-                        <ShoppingCart size={11} /> Aplicar
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Catálogo */}
           <div className="flex-1 overflow-y-auto px-4 pb-4">
             {catalogTab === 'products' ? (
@@ -810,7 +859,7 @@ export default function SalesPage() {
                   ))}
                 </div>
               )
-            ) : (
+            ) : catalogTab === 'services' ? (
               services.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-muted-foreground text-center">
                   <p className="text-3xl mb-2">🩺</p>
@@ -823,6 +872,25 @@ export default function SalesPage() {
                       key={svc.id}
                       service={svc}
                       onAdd={() => { agregarServicio(svc); setView('carrito'); }}
+                    />
+                  ))}
+                </div>
+              )
+            ) : (
+              /* Promos tab */
+              promotions.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-muted-foreground text-center gap-2">
+                  <Tag size={36} className="opacity-25" />
+                  <p className="text-sm font-medium">Sin promociones activas</p>
+                  <p className="text-xs">Crea una en <span className="font-medium">Promociones</span> y vuelve aquí para aplicarla.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {promotions.map((promo) => (
+                    <PromotionCard
+                      key={promo.id}
+                      promo={promo}
+                      onApply={() => { agregarPromocion(promo); setView('carrito'); }}
                     />
                   ))}
                 </div>
