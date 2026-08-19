@@ -8,6 +8,7 @@ import {
   WifiOff, FileText, Package, Receipt,
   Star, ChevronRight, Menu, X, Check,
 } from 'lucide-react';
+import { VetSystemIcon, VetSystemWordmark, PAW_BG_WHITE, PAW_BG_TEAL } from '@/components/common/VetSystemLogo';
 
 // ─── Navbar ──────────────────────────────────────────────────────────────────
 
@@ -28,8 +29,8 @@ function Navbar() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
 
         <Link href="/landing" className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center text-primary-foreground text-sm font-bold">V</div>
-          <span className="text-base font-bold tracking-tight">VetSystem</span>
+          <VetSystemIcon size={32} />
+          <VetSystemWordmark size="base" />
         </Link>
 
         <nav className="hidden md:flex items-center gap-7 text-sm font-medium text-muted-foreground">
@@ -567,7 +568,7 @@ function Precios() {
 
 function CTAFinal() {
   return (
-    <section className="py-24 bg-primary">
+    <section className="py-24 bg-primary" style={PAW_BG_WHITE}>
       <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center space-y-6 text-primary-foreground">
         <h2 className="text-3xl sm:text-4xl font-extrabold">
           Empieza hoy. Sin complicaciones.
@@ -591,13 +592,13 @@ function CTAFinal() {
 
 function Footer() {
   return (
-    <footer id="contacto" className="bg-muted/30 border-t border-border py-12">
+    <footer id="contacto" className="bg-muted/30 border-t border-border py-12" style={PAW_BG_TEAL}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="grid sm:grid-cols-3 gap-8 mb-10">
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-xl bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold">V</div>
-              <span className="font-bold">VetSystem</span>
+              <VetSystemIcon size={28} />
+              <VetSystemWordmark size="base" />
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
               El sistema de gestión veterinaria diseñado para Nicaragua.

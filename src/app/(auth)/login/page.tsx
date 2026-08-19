@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Loader2, Eye, EyeOff, WifiOff, Wifi } from 'lucide-react';
+import { VetSystemIcon, VetSystemWordmark } from '@/components/common/VetSystemLogo';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -95,9 +96,11 @@ export default function LoginPage() {
     <div className="w-full max-w-sm space-y-8">
 
       {/* Logo */}
-      <Link href="/landing" className="block text-center space-y-2 hover:opacity-80 transition-opacity">
-        <div className="text-4xl">🐾</div>
-        <h1 className="text-2xl font-bold">VetSystem</h1>
+      <Link href="/landing" className="block text-center space-y-3 hover:opacity-80 transition-opacity">
+        <VetSystemIcon size={60} className="mx-auto" />
+        <h1 className="text-2xl leading-none">
+          <VetSystemWordmark size="2xl" />
+        </h1>
         <p className="text-sm text-muted-foreground">Nicaragua</p>
       </Link>
 

@@ -7,6 +7,7 @@ import { registrarse, loginConGoogle } from '@/lib/auth/auth.service';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Loader2, Eye, EyeOff, WifiOff, Wifi, Phone } from 'lucide-react';
+import { VetSystemIcon } from '@/components/common/VetSystemLogo';
 
 // ── Validación de teléfono nicaragüense ───────────────────────────────────────
 // Acepta 8 dígitos locales (ej. 8163-0097) o con prefijo +505
@@ -159,8 +160,8 @@ export default function RegisterPage() {
     <div className="w-full max-w-sm space-y-6">
 
       {/* Logo */}
-      <div className="text-center space-y-1">
-        <div className="text-4xl">🐾</div>
+      <div className="text-center space-y-2">
+        <VetSystemIcon size={52} className="mx-auto" />
         <h1 className="text-2xl font-bold">Crear clínica</h1>
         <p className="text-sm text-muted-foreground">VetSystem · Nicaragua</p>
       </div>
