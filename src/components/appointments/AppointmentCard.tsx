@@ -3,11 +3,13 @@
 import Link from 'next/link';
 import { type AppointmentWithPatient, APPOINTMENT_STATUSES, APPOINTMENT_TYPES, type AppointmentStatus } from '@/types/appointment';
 import { PET_SPECIES } from '@/types/patient';
-import { cambiarEstadoCita, eliminarCita } from '@/hooks/useAppointments';
+import { cambiarEstadoCita, eliminarCita, updateAppointment } from '@/hooks/useAppointments';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { CitaForm } from '@/components/appointments/AppointmentForm';
 import { cn } from '@/lib/utils';
-import { Phone, Clock, Trash2 } from 'lucide-react';
+import { Phone, Clock, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useState } from 'react';
 
@@ -27,6 +29,8 @@ const TRANSICIONES: Record<AppointmentStatus, AppointmentStatus[]> = {
 
 export function CitaCard({ cita }: CitaCardProps) {
   const [cambiandoEstado, setCambiandoEstado] = useState(false);
+  const [editOpen,        setEditOpen]        = useState(false);
+  const [editLoading,     setEditLoading]     = useState(false);
   const estado     = APPOINTMENT_STATUSES[cita.status];
   const tipo       = APPOINTMENT_TYPES[cita.type];
   const especie    = cita.patientSpecies ? PET_SPECIES[cita.patientSpecies as keyof typeof PET_SPECIES] : null;
@@ -56,6 +60,7 @@ export function CitaCard({ cita }: CitaCardProps) {
   };
 
   return (
+    <>
     <div className={cn(
       'bg-card rounded-2xl border overflow-hidden transition-shadow hover:shadow-md',
       cita.status === 'cancelled' || cita.status === 'no_show'
@@ -145,6 +150,15 @@ export function CitaCard({ cita }: CitaCardProps) {
             <Button
               variant="ghost"
               size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-primary"
+              onClick={() => setEditOpen(true)}
+              title="Editar cita"
+            >
+              <Pencil size={13} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
               className="h-7 w-7 text-muted-foreground hover:text-destructive"
               onClick={handleEliminar}
               title="Eliminar cita"
@@ -155,6 +169,40 @@ export function CitaCard({ cita }: CitaCardProps) {
         )}
       </div>
     </div>
+
+    <Sheet open={editOpen} onOpenChange={setEditOpen}>
+      <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+        <SheetHeader className="mb-6">
+          <SheetTitle>Editar cita</SheetTitle>
+        </SheetHeader>
+        <CitaForm
+          loading={editLoading}
+          textoBoton="Guardar cambios"
+          defaultValues={{
+            patientId:       cita.patientId,
+            date:            cita.date,
+            startTime:       cita.startTime,
+            durationMinutes: cita.durationMinutes,
+            type:            cita.type,
+            reason:          cita.reason,
+            veterinarian:    cita.veterinarian,
+          }}
+          onSubmit={async (data) => {
+            setEditLoading(true);
+            try {
+              await updateAppointment(cita.id, data);
+              toast.success('Cita actualizada');
+              setEditOpen(false);
+            } catch {
+              toast.error('No se pudo guardar los cambios');
+            } finally {
+              setEditLoading(false);
+            }
+          }}
+        />
+      </SheetContent>
+    </Sheet>
+    </>
   );
 }
 

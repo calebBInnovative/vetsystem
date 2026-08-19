@@ -3,13 +3,16 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouteId } from '@/hooks/useRouteId';
-import { usePatient } from '@/hooks/usePatients';
+import { usePatient, updatePatientAndOwner } from '@/hooks/usePatients';
 import { PET_SPECIES } from '@/types/patient';
 import { Phone, Mail, MapPin, Weight, Calendar, Palette, Edit, ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { IniciarConsultaModal } from '@/components/patients/StartConsultationModal';
 import { AgendarCitaModal } from '@/components/patients/ScheduleAppointmentModal';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { PacienteForm } from '@/components/patients/PatientForm';
+import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -17,9 +20,10 @@ export function FichaPaciente() {
   const pacienteId = useRouteId();
   const { paciente, loading } = usePatient(pacienteId ?? '');
 
-  // Todos los hooks antes de cualquier return condicional
   const [modalConsulta, setModalConsulta] = useState(false);
   const [modalCita,     setModalCita]     = useState(false);
+  const [editOpen,      setEditOpen]      = useState(false);
+  const [editLoading,   setEditLoading]   = useState(false);
 
   if (!pacienteId || loading) {
     return (
@@ -66,7 +70,7 @@ export function FichaPaciente() {
                 {especie.label}{paciente.breed && ` · ${paciente.breed}`}
               </p>
             </div>
-            <Button variant="outline" size="sm" className="shrink-0">
+            <Button variant="outline" size="sm" className="shrink-0" onClick={() => setEditOpen(true)}>
               <Edit size={14} className="mr-1.5" />
               Editar
             </Button>
@@ -169,7 +173,6 @@ export function FichaPaciente() {
         </Button>
       </div>
 
-      {/* Modales */}
       <IniciarConsultaModal
         open={modalConsulta}
         onClose={() => setModalConsulta(false)}
@@ -180,6 +183,46 @@ export function FichaPaciente() {
         onClose={() => setModalCita(false)}
         paciente={paciente}
       />
+
+      <Sheet open={editOpen} onOpenChange={setEditOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
+          <SheetHeader className="mb-6">
+            <SheetTitle>Editar paciente</SheetTitle>
+          </SheetHeader>
+          <PacienteForm
+            loading={editLoading}
+            textoBoton="Guardar cambios"
+            defaultValues={{
+              name:      paciente.name,
+              species:   paciente.species,
+              breed:     paciente.breed,
+              sex:       paciente.sex,
+              birthDate: paciente.birthDate,
+              weight:    paciente.weight,
+              color:     paciente.color,
+              notes:     paciente.notes,
+              owner: {
+                name:    paciente.owner?.name    ?? '',
+                phone:   paciente.owner?.phone   ?? '',
+                email:   paciente.owner?.email   ?? '',
+                address: paciente.owner?.address ?? '',
+              },
+            }}
+            onSubmit={async (data) => {
+              setEditLoading(true);
+              try {
+                await updatePatientAndOwner(pacienteId, paciente.ownerId, data);
+                toast.success('Paciente actualizado');
+                setEditOpen(false);
+              } catch {
+                toast.error('No se pudo guardar los cambios');
+              } finally {
+                setEditLoading(false);
+              }
+            }}
+          />
+        </SheetContent>
+      </Sheet>
 
     </div>
   );

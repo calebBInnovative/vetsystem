@@ -3,17 +3,19 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouteId } from '@/hooks/useRouteId';
-import { useProduct, useProductMovements, adjustStock } from '@/hooks/useInventory';
+import { useProduct, useProductMovements, adjustStock, updateProduct } from '@/hooks/useInventory';
 import { PRODUCT_CATEGORIES, MEASUREMENT_UNITS } from '@/types/inventory';
 import { ajusteStockSchema, type AjusteStockFormData } from '@/lib/validations/inventory.schema';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@/lib/zod-resolver';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Plus, Minus, AlertTriangle, Loader2, TrendingUp, TrendingDown } from 'lucide-react';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { ProductoForm } from '@/components/inventory/ProductForm';
+import { ArrowLeft, Pencil, Plus, Minus, AlertTriangle, Loader2, TrendingUp, TrendingDown } from 'lucide-react';
+import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 export function ProductDetailView() {
@@ -22,6 +24,8 @@ export function ProductDetailView() {
   const { movements }                = useProductMovements(id ?? '');
   const [ajustando, setAjustando]    = useState(false);
   const [tipoAjuste, setTipoAjuste]  = useState<'entry' | 'exit'>('entry');
+  const [editOpen,   setEditOpen]    = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<AjusteStockFormData>({
     resolver: zodResolver(ajusteStockSchema),
@@ -77,11 +81,16 @@ export function ProductDetailView() {
                 {categoria.label}{producto.supplier && ` · ${producto.supplier}`}
               </p>
             </div>
-            {stockBajo && (
-              <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:text-amber-400 dark:border-amber-700 dark:bg-amber-950/40 shrink-0">
-                <AlertTriangle size={12} className="mr-1" /> Stock bajo
-              </Badge>
-            )}
+            <div className="flex items-center gap-2 shrink-0">
+              {stockBajo && (
+                <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:text-amber-400 dark:border-amber-700 dark:bg-amber-950/40">
+                  <AlertTriangle size={12} className="mr-1" /> Stock bajo
+                </Badge>
+              )}
+              <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+                <Pencil size={14} className="mr-1.5" /> Editar
+              </Button>
+            </div>
           </div>
           {producto.description && (
             <p className="text-sm text-muted-foreground mt-2">{producto.description}</p>
@@ -192,6 +201,46 @@ export function ProductDetailView() {
           </div>
         </div>
       )}
+
+      <Sheet open={editOpen} onOpenChange={setEditOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
+          <SheetHeader className="mb-6">
+            <SheetTitle>Editar producto</SheetTitle>
+          </SheetHeader>
+          <ProductoForm
+            loading={editLoading}
+            textoBoton="Guardar cambios"
+            defaultValues={{
+              name:                producto.name,
+              category:            producto.category,
+              description:         producto.description,
+              currentStock:        producto.currentStock,
+              minimumStock:        producto.minimumStock,
+              unit:                producto.unit,
+              salePrice:           producto.salePrice,
+              costPrice:           producto.costPrice,
+              expirationDate:      producto.expirationDate,
+              batch:               producto.batch,
+              supplier:            producto.supplier,
+              activeIngredient:    producto.activeIngredient,
+              administrationRoute: producto.administrationRoute,
+              registrationNumber:  producto.registrationNumber,
+            }}
+            onSubmit={async (data) => {
+              setEditLoading(true);
+              try {
+                await updateProduct(id!, data);
+                toast.success('Producto actualizado');
+                setEditOpen(false);
+              } catch {
+                toast.error('No se pudo guardar los cambios');
+              } finally {
+                setEditLoading(false);
+              }
+            }}
+          />
+        </SheetContent>
+      </Sheet>
 
     </div>
   );

@@ -193,6 +193,47 @@ export async function deletePatient(id: string): Promise<void> {
   });
 }
 
+export async function updatePatientAndOwner(
+  patientId: string,
+  ownerId: string,
+  data: PacienteFormData,
+): Promise<void> {
+  const now = Date.now();
+
+  await db.patients.update(patientId, {
+    name:       data.name,
+    species:    data.species,
+    breed:      data.breed   || undefined,
+    sex:        data.sex,
+    birthDate:  data.birthDate || undefined,
+    weight:     data.weight  ?? undefined,
+    color:      data.color   || undefined,
+    notes:      data.notes   || undefined,
+    updatedAt:  now,
+    syncStatus: 'pending' as const,
+  });
+  await encolarSync({
+    collection: 'patients', documentId: patientId, operation: 'update',
+    data: { id: patientId, name: data.name, updatedAt: now },
+    attempts: 0, createdAt: now,
+  });
+
+  await db.owners.update(ownerId, {
+    name:       data.owner.name,
+    phone:      data.owner.phone,
+    email:      data.owner.email   || undefined,
+    address:    data.owner.address || undefined,
+    notes:      data.owner.notes   || undefined,
+    updatedAt:  now,
+    syncStatus: 'pending' as const,
+  });
+  await encolarSync({
+    collection: 'owners', documentId: ownerId, operation: 'update',
+    data: { id: ownerId, name: data.owner.name, phone: data.owner.phone, updatedAt: now },
+    attempts: 0, createdAt: now,
+  });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // PRIVATE HELPERS
 // ─────────────────────────────────────────────────────────────────────────────

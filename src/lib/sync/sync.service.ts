@@ -53,6 +53,7 @@ export type SyncAllProgress = {
 class SyncService {
   private timer: ReturnType<typeof setInterval> | null = null;
   private corriendo   = false;
+  private pulling     = false;
   private hookReg     = false;
 
   // ── Arrancar / detener ────────────────────────────────────────────────────
@@ -68,13 +69,19 @@ class SyncService {
       this.hookReg = true;
     }
 
-    // Fallback: reintentar items fallidos cada 30 s
-    this.timer = setInterval(() => this.flush(), INTERVALO_MS);
+    // Heartbeat: push de items fallidos + pull de cambios remotos cada 30 s.
+    // Esto permite que User B vea los cambios de User A en ≤30 segundos
+    // sin necesidad de refrescar el browser.
+    this.timer = setInterval(() => { this.flush(); this.pullAll(); }, INTERVALO_MS);
 
-    // Push + pull al reconectar
+    // Push + pull al reconectar a internet
     window.addEventListener('online', this.onOnline);
 
-    // Flush inicial + pull (items que quedaron de sesión anterior o cambios remotos)
+    // Pull al recuperar el foco de la ventana (usuario vuelve a la computadora,
+    // desbloquea pantalla, o regresa desde otro módulo tras un período largo).
+    window.addEventListener('visibilitychange', this.onVisible);
+
+    // Flush inicial + pull al arrancar
     this.flush();
     this.pullAll();
   }
@@ -83,11 +90,19 @@ class SyncService {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     window.removeEventListener('online', this.onOnline);
+    window.removeEventListener('visibilitychange', this.onVisible);
   }
 
   private onOnline = () => {
     this.flush();
     this.pullAll();
+  };
+
+  private onVisible = () => {
+    if (document.visibilityState === 'visible') {
+      this.flush();
+      this.pullAll();
+    }
   };
 
   // ── Flush de la queue ─────────────────────────────────────────────────────
@@ -125,33 +140,38 @@ class SyncService {
    * Se llama automáticamente al arrancar y al reconectar.
    */
   async pullAll(): Promise<void> {
-    if (!navigator.onLine || await isDemoSession()) return;
+    if (this.pulling || !navigator.onLine || await isDemoSession()) return;
+    this.pulling = true;
 
     const LAST_PULL_KEY = 'vetsystem_last_pull';
     const lastPull = parseInt(localStorage.getItem(LAST_PULL_KEY) ?? '0', 10);
 
-    for (const { nombre, tabla } of TABLAS_SYNC) {
-      try {
-        const remoteDocs = await syncProvider.pull(nombre, lastPull);
-        if (remoteDocs.length === 0) continue;
+    try {
+      for (const { nombre, tabla } of TABLAS_SYNC) {
+        try {
+          const remoteDocs = await syncProvider.pull(nombre, lastPull);
+          if (remoteDocs.length === 0) continue;
 
-        const t = tabla() as unknown as { get(id: string): Promise<{ updatedAt: number } | undefined>; put(item: object): Promise<unknown> };
+          const t = tabla() as unknown as { get(id: string): Promise<{ updatedAt: number } | undefined>; put(item: object): Promise<unknown> };
 
-        for (const remoteDoc of remoteDocs) {
-          const { _syncedAt, ...clean } = remoteDoc as Record<string, unknown>;
-          void _syncedAt;
-          const local = await t.get(clean.id as string);
-          // Remote wins when newer or doc doesn't exist locally yet
-          if (!local || (clean.updatedAt as number) > local.updatedAt) {
-            await t.put({ ...clean, syncStatus: 'synced' });
+          for (const remoteDoc of remoteDocs) {
+            const { _syncedAt, ...clean } = remoteDoc as Record<string, unknown>;
+            void _syncedAt;
+            const local = await t.get(clean.id as string);
+            // Remote wins when newer or doc doesn't exist locally yet
+            if (!local || (clean.updatedAt as number) > local.updatedAt) {
+              await t.put({ ...clean, syncStatus: 'synced' });
+            }
           }
+        } catch (err) {
+          console.warn(`[sync] pull ${nombre} falló:`, err);
         }
-      } catch (err) {
-        console.warn(`[sync] pull ${nombre} falló:`, err);
       }
-    }
 
-    localStorage.setItem(LAST_PULL_KEY, Date.now().toString());
+      localStorage.setItem(LAST_PULL_KEY, Date.now().toString());
+    } finally {
+      this.pulling = false;
+    }
   }
 
   // ── Sync completo (dev workflow) ──────────────────────────────────────────
