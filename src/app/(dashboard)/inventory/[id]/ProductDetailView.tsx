@@ -10,9 +10,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@/lib/zod-resolver';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { ProductoForm } from '@/components/inventory/ProductForm';
-import { ArrowLeft, Pencil, Plus, Minus, AlertTriangle, Loader2, TrendingUp, TrendingDown } from 'lucide-react';
+import { ArrowLeft, Pencil, Plus, Minus, AlertTriangle, Loader2, TrendingUp, TrendingDown, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -24,7 +23,7 @@ export function ProductDetailView() {
   const { movements }                = useProductMovements(id ?? '');
   const [ajustando, setAjustando]    = useState(false);
   const [tipoAjuste, setTipoAjuste]  = useState<'entry' | 'exit'>('entry');
-  const [editOpen,   setEditOpen]    = useState(false);
+  const [editMode,   setEditMode]    = useState(false);
   const [editLoading, setEditLoading] = useState(false);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<AjusteStockFormData>({
@@ -63,6 +62,75 @@ export function ProductDetailView() {
   const unidad     = MEASUREMENT_UNITS[producto.unit];
   const stockBajo  = producto.currentStock <= producto.minimumStock;
 
+  // ── Edit mode ──────────────────────────────────────────────────────────────
+  if (editMode) {
+    return (
+      <div className="max-w-3xl mx-auto space-y-6">
+        {/* Sticky action bar */}
+        <div className="sticky top-0 z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 bg-background/95 backdrop-blur border-b border-border">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 text-sm">
+              <span className="font-semibold">Editar producto</span>
+              <span className="text-muted-foreground hidden sm:inline">— {producto.name}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setEditMode(false)} disabled={editLoading}>
+                <X size={14} /> Cancelar
+              </Button>
+              <Button
+                size="sm"
+                disabled={editLoading}
+                form="product-edit-form"
+                type="submit"
+                className="min-w-[130px] gap-1.5"
+              >
+                {editLoading
+                  ? <><span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" /> Guardando…</>
+                  : 'Guardar cambios'}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <ProductoForm
+          formId="product-edit-form"
+          loading={editLoading}
+          textoBoton="Guardar cambios"
+          hideSubmitButton
+          defaultValues={{
+            name:                producto.name,
+            category:            producto.category,
+            description:         producto.description,
+            currentStock:        producto.currentStock,
+            minimumStock:        producto.minimumStock,
+            unit:                producto.unit,
+            salePrice:           producto.salePrice,
+            costPrice:           producto.costPrice,
+            expirationDate:      producto.expirationDate,
+            batch:               producto.batch,
+            supplier:            producto.supplier,
+            activeIngredient:    producto.activeIngredient,
+            administrationRoute: producto.administrationRoute,
+            registrationNumber:  producto.registrationNumber,
+          }}
+          onSubmit={async (data) => {
+            setEditLoading(true);
+            try {
+              await updateProduct(id!, data);
+              toast.success('Producto actualizado');
+              setEditMode(false);
+            } catch {
+              toast.error('No se pudo guardar los cambios');
+            } finally {
+              setEditLoading(false);
+            }
+          }}
+        />
+      </div>
+    );
+  }
+
+  // ── View mode ──────────────────────────────────────────────────────────────
   return (
     <div className="max-w-3xl mx-auto space-y-6">
 
@@ -87,7 +155,7 @@ export function ProductDetailView() {
                   <AlertTriangle size={12} className="mr-1" /> Stock bajo
                 </Badge>
               )}
-              <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+              <Button variant="outline" size="sm" onClick={() => setEditMode(true)}>
                 <Pencil size={14} className="mr-1.5" /> Editar
               </Button>
             </div>
@@ -201,46 +269,6 @@ export function ProductDetailView() {
           </div>
         </div>
       )}
-
-      <Sheet open={editOpen} onOpenChange={setEditOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
-          <SheetHeader className="mb-6">
-            <SheetTitle>Editar producto</SheetTitle>
-          </SheetHeader>
-          <ProductoForm
-            loading={editLoading}
-            textoBoton="Guardar cambios"
-            defaultValues={{
-              name:                producto.name,
-              category:            producto.category,
-              description:         producto.description,
-              currentStock:        producto.currentStock,
-              minimumStock:        producto.minimumStock,
-              unit:                producto.unit,
-              salePrice:           producto.salePrice,
-              costPrice:           producto.costPrice,
-              expirationDate:      producto.expirationDate,
-              batch:               producto.batch,
-              supplier:            producto.supplier,
-              activeIngredient:    producto.activeIngredient,
-              administrationRoute: producto.administrationRoute,
-              registrationNumber:  producto.registrationNumber,
-            }}
-            onSubmit={async (data) => {
-              setEditLoading(true);
-              try {
-                await updateProduct(id!, data);
-                toast.success('Producto actualizado');
-                setEditOpen(false);
-              } catch {
-                toast.error('No se pudo guardar los cambios');
-              } finally {
-                setEditLoading(false);
-              }
-            }}
-          />
-        </SheetContent>
-      </Sheet>
 
     </div>
   );

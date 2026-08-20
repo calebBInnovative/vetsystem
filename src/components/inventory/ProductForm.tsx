@@ -14,6 +14,8 @@ interface ProductoFormProps {
   loading?: boolean;
   defaultValues?: Partial<ProductoFormData>;
   textoBoton?: string;
+  formId?: string;
+  hideSubmitButton?: boolean;
 }
 
 export function ProductoForm({
@@ -21,6 +23,8 @@ export function ProductoForm({
   loading = false,
   defaultValues,
   textoBoton = 'Guardar Producto',
+  formId,
+  hideSubmitButton = false,
 }: ProductoFormProps) {
   const {
     register,
@@ -42,7 +46,7 @@ export function ProductoForm({
   const categoryActual = watch('category');
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+    <form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-8">
 
       {/* ── Categoría ────────────────────────────────────── */}
       <section>
@@ -251,12 +255,14 @@ export function ProductoForm({
       </section>
 
       {/* ── Submit ───────────────────────────────────────── */}
-      <Button type="submit" className="w-full h-12 text-base font-medium" disabled={loading}>
-        {loading
-          ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Guardando...</>
-          : textoBoton
-        }
-      </Button>
+      {!hideSubmitButton && (
+        <Button type="submit" className="w-full h-12 text-base font-medium" disabled={loading}>
+          {loading
+            ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Guardando...</>
+            : textoBoton
+          }
+        </Button>
+      )}
 
     </form>
   );
