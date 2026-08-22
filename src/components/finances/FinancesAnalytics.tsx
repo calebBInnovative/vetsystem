@@ -15,8 +15,8 @@ import {
 import {
   useFinancialAnalytics, getPeriodLabel,
   type AnalyticsPeriod, type ProductStat, type ServiceStat, type AnalyticsInsight,
+  type PeriodPoint,
 } from '@/hooks/useAnalytics';
-import { RevenueChart } from '@/components/finances/RevenueChart';
 import { PRODUCT_CATEGORIES } from '@/types/inventory';
 import { SERVICE_CATEGORIES } from '@/types/service';
 import { cn } from '@/lib/utils';
@@ -47,6 +47,47 @@ function GrowthBadge({ pct, prevRevenue }: { pct: number; prevRevenue: number })
       <Icon size={10} />
       {pct >= 0 ? '+' : ''}{pct.toFixed(1)}%
     </span>
+  );
+}
+
+// ─── Sparkline (embedded area-line chart, no labels needed) ──────────────────
+
+function Sparkline({ data }: { data: PeriodPoint[] }) {
+  if (data.length < 2) return null;
+  const W = 240, H = 52;
+  const max = Math.max(...data.map(d => d.revenue), 1);
+  const pts = data.map((d, i) => ({
+    x: (i / (data.length - 1)) * W,
+    y: H - (d.revenue / max) * (H - 6) - 3,
+    current: d.isCurrent,
+  }));
+  const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+  const areaPath = `${linePath} L${W},${H} L0,${H}Z`;
+  const last = pts[pts.length - 1];
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="w-full text-primary"
+      preserveAspectRatio="none"
+      role="img"
+      aria-label="Tendencia de ingresos"
+    >
+      <defs>
+        <linearGradient id="spkGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor="currentColor" stopOpacity="0.28" />
+          <stop offset="100%" stopColor="currentColor" stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+      {/* Grid line at midpoint */}
+      <line x1="0" y1={H / 2} x2={W} y2={H / 2} stroke="currentColor" strokeOpacity="0.06" strokeWidth="0.5" />
+      {/* Area fill */}
+      <path d={areaPath} fill="url(#spkGrad)" />
+      {/* Line */}
+      <path d={linePath} fill="none" stroke="currentColor" strokeWidth="1.8"
+        strokeLinecap="round" strokeLinejoin="round" />
+      {/* Current-period dot */}
+      <circle cx={last.x} cy={last.y} r="3" fill="currentColor" opacity="0.9" />
+    </svg>
   );
 }
 
@@ -331,51 +372,41 @@ export function FinancesAnalytics() {
       {/* ── Revenue card + embedded chart ────────────────────────────── */}
       <div className="bg-card rounded-2xl border border-border px-4 py-3">
         {loading ? (
-          <div className="space-y-3">
-            <div className="flex items-start justify-between gap-4">
-              <div className="space-y-1.5"><Skeleton className="h-3 w-28" /><Skeleton className="h-7 w-36" /></div>
-              <div className="space-y-1 text-right"><Skeleton className="h-3 w-16" /><Skeleton className="h-4 w-20" /></div>
+          <div className="flex items-end gap-3">
+            <div className="shrink-0 space-y-1.5">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-7 w-28" />
+              <Skeleton className="h-3 w-14" />
             </div>
-            <Skeleton className="h-14 w-full" />
+            <Skeleton className="flex-1 h-14" />
           </div>
         ) : (
-          <div className="space-y-2.5">
-            {/* KPI row */}
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2 mb-0.5">
-                  <p className="text-xs text-muted-foreground font-medium">Ingresos del período</p>
-                  <GrowthBadge pct={growth} prevRevenue={analytics?.prevRevenue ?? 0} />
-                </div>
-                <p className="text-2xl font-bold tabular-nums text-primary leading-tight">
-                  {fmt(analytics?.totalRevenue ?? 0)}
-                </p>
+          <div className="flex items-end gap-3">
+            {/* KPI */}
+            <div className="shrink-0 space-y-0.5">
+              <div className="flex items-center gap-2 mb-1">
+                <p className="text-xs text-muted-foreground font-medium">Ingresos</p>
+                <GrowthBadge pct={growth} prevRevenue={analytics?.prevRevenue ?? 0} />
               </div>
-              <div className="text-right shrink-0 space-y-0.5">
-                <p className="text-xs text-muted-foreground">
-                  {analytics?.transactionCount ?? 0} venta{(analytics?.transactionCount ?? 0) !== 1 ? 's' : ''}
-                </p>
-                {(analytics?.avgPerSale ?? 0) > 0 && (
-                  <p className="text-xs font-medium">Ticket {fmt(analytics!.avgPerSale)}</p>
-                )}
-                {(analytics?.prevRevenue ?? 0) > 0 && (
-                  <p className="text-[10px] text-muted-foreground">Ant. {fmt(analytics!.prevRevenue)}</p>
-                )}
-              </div>
+              <p className="text-2xl font-bold tabular-nums text-primary leading-tight">
+                {fmt(analytics?.totalRevenue ?? 0)}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {analytics?.transactionCount ?? 0} venta{(analytics?.transactionCount ?? 0) !== 1 ? 's' : ''}
+              </p>
+              {(analytics?.avgPerSale ?? 0) > 0 && (
+                <p className="text-xs font-medium">Ticket {fmt(analytics!.avgPerSale)}</p>
+              )}
+              {(analytics?.prevRevenue ?? 0) > 0 && (
+                <p className="text-[10px] text-muted-foreground">Ant. {fmt(analytics!.prevRevenue)}</p>
+              )}
             </div>
 
-            {/* Full-width chart */}
-            {period !== 'day' && (analytics?.timeSeries.length ?? 0) > 0 && (
-              <div className="text-primary">
-                <RevenueChart data={analytics!.timeSeries} period={period} height={60} />
+            {/* Sparkline — takes remaining space */}
+            {period !== 'day' && (analytics?.timeSeries.length ?? 0) > 1 && (
+              <div className="flex-1 min-w-0">
+                <Sparkline data={analytics!.timeSeries} />
               </div>
-            )}
-
-            {/* Day: vs yesterday */}
-            {period === 'day' && (analytics?.prevRevenue ?? 0) > 0 && (
-              <p className="text-xs text-muted-foreground">
-                Ayer: {fmt(analytics!.prevRevenue)}
-              </p>
             )}
           </div>
         )}
