@@ -78,8 +78,8 @@ const menuItems: {
   { icon: DollarSign,    label: 'Finanzas',      href: '/finances',      disponible: true,  modulo: 'finances',  navId: 'nav-finances'   },
   { icon: Receipt,       label: 'Facturas',      href: '/invoices',      disponible: true,  modulo: 'invoices'                          },
   { icon: Wallet,        label: 'Egresos',        href: '/expenses',       disponible: true,  modulo: 'finances'                          },
-  { icon: FileSpreadsheet,  label: 'Importar/Exportar', href: '/import',      disponible: true,  modulo: 'import'                           },
   { icon: BarChart3,     label: 'Reportes',      href: '/reports',       disponible: true                                               },
+  { icon: FileSpreadsheet,  label: 'Importar/Exportar', href: '/import',      disponible: true,  modulo: 'import'                           },
   { icon: Settings,      label: 'Configuración', href: '/configuracion', disponible: false                                              },
 ];
 
