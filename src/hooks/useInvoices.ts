@@ -254,6 +254,75 @@ export async function cancelInvoice(id: string): Promise<void> {
   await encolarSync({ collection: 'invoices', documentId: id, operation: 'update', data: { id, status: 'cancelled', updatedAt: now }, attempts: 0, createdAt: now });
 }
 
+/**
+ * Voids an issued invoice and creates a draft rectification.
+ * The original is marked 'cancelled' with audit fields; a new pending
+ * invoice pre-filled with the same data is created and returned.
+ * The linked payment is NOT reversed automatically — the clinic handles
+ * any refund manually (shown as a warning in the UI).
+ */
+export async function voidAndRectify(
+  originalId: string,
+  reason: string,
+  cancelledBy: string,
+): Promise<string> {
+  const now      = Date.now();
+  const clinicId = await getClinicaId();
+  const original = await db.invoices.get(originalId);
+  if (!original) throw new Error('Invoice not found');
+
+  const newId     = crypto.randomUUID();
+  const newNumber = await generateInvoiceNumber(clinicId);
+
+  const newInvoice: InvoiceLocal = {
+    ...original,
+    id:            newId,
+    number:        newNumber,
+    status:        'pending',
+    amountPaid:    0,
+    paymentId:     undefined,
+    rectifiesId:   originalId,
+    cancelReason:  undefined,
+    cancelledAt:   undefined,
+    cancelledBy:   undefined,
+    rectifiedById: undefined,
+    date:          new Date(now).toISOString().slice(0, 10),
+    createdAt:     now,
+    syncStatus:    'pending',
+    updatedAt:     now,
+  };
+
+  await db.transaction('rw', [db.invoices, db.syncQueue], async () => {
+    // Void the original
+    await db.invoices.update(originalId, {
+      status:        'cancelled',
+      cancelReason:  reason,
+      cancelledAt:   now,
+      cancelledBy,
+      rectifiedById: newId,
+      updatedAt:     now,
+      syncStatus:    'pending',
+    });
+
+    // Create the rectification draft
+    await db.invoices.add(newInvoice);
+
+    // Enqueue both
+    await encolarSync({
+      collection: 'invoices', documentId: originalId, operation: 'update',
+      data: { id: originalId, status: 'cancelled', cancelReason: reason, cancelledAt: now, cancelledBy, rectifiedById: newId, updatedAt: now },
+      attempts: 0, createdAt: now,
+    });
+    await encolarSync({
+      collection: 'invoices', documentId: newId, operation: 'create',
+      data: newInvoice,
+      attempts: 0, createdAt: now,
+    });
+  });
+
+  return newId;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────────────────────────────────────

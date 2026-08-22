@@ -54,6 +54,14 @@ export interface Invoice {
   /** ID of the PaymentLocal generated when registering payment */
   paymentId?: string;
   createdAt: number;
+  /** Populated when status === 'cancelled' via void+rectify flow */
+  cancelReason?: string;
+  cancelledAt?: number;
+  cancelledBy?: string;
+  /** ID of the original invoice this one rectifies */
+  rectifiesId?: string;
+  /** ID of the replacement invoice created when this one was voided */
+  rectifiedById?: string;
 }
 
 export interface InvoiceLocal extends Invoice, SyncMeta {}
