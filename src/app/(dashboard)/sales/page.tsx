@@ -366,6 +366,15 @@ export default function SalesPage() {
     }));
   }
 
+  function cambiarPrecio(productId: string, valor: string) {
+    const num = parseFloat(valor);
+    if (isNaN(num) || num < 0) return;
+    setCart((prev) => prev.map((i) => {
+      if (i.productId !== productId) return i;
+      return { ...i, unitPrice: num, subtotal: num * i.quantity };
+    }));
+  }
+
   function eliminar(productId: string) {
     setCart((prev) => prev.filter((i) => i.productId !== productId));
   }
@@ -589,9 +598,18 @@ export default function SalesPage() {
                     <div className="flex items-start gap-2">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{item.description}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {fmt(item.unitPrice)}/{unitLabel} · disponible: {item.availableStock} {unitLabel}
-                        </p>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.unitPrice}
+                            onChange={(e) => cambiarPrecio(item.productId, e.target.value)}
+                            title="Editar precio unitario"
+                            className="w-20 text-xs tabular-nums text-muted-foreground bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:text-foreground focus:outline-none transition-colors"
+                          />
+                          <span className="text-xs text-muted-foreground">/{unitLabel} · disp: {item.availableStock}</span>
+                        </div>
                       </div>
                       <button type="button" onClick={() => eliminar(item.productId)}
                         className="text-muted-foreground hover:text-destructive transition-colors shrink-0 mt-0.5">
