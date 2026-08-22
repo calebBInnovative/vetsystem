@@ -79,7 +79,7 @@ const menuItems: {
   { icon: Receipt,       label: 'Facturas',      href: '/invoices',      disponible: true,  modulo: 'invoices'                          },
   { icon: Wallet,        label: 'Egresos',        href: '/expenses',       disponible: true,  modulo: 'finances'                          },
   { icon: FileSpreadsheet,  label: 'Importar/Exportar', href: '/import',      disponible: true,  modulo: 'import'                           },
-  { icon: BarChart3,     label: 'Reportes',      href: '/reportes',      disponible: false                                              },
+  { icon: BarChart3,     label: 'Reportes',      href: '/reports',       disponible: true                                               },
   { icon: Settings,      label: 'Configuración', href: '/configuracion', disponible: false                                              },
 ];
 

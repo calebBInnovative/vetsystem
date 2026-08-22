@@ -15,12 +15,12 @@ import type { ConsultaFormData } from '@/lib/validations/history.schema';
 
 export function usePatientHistory(patientId: string) {
   const result = useLiveQuery(async () => {
-    return db.consultations
+    const items = await db.consultations
       .where('patientId')
       .equals(patientId)
       .filter((c) => !c.deletedAt)
-      .reverse()
-      .sortBy('date');
+      .toArray();
+    return items.sort((a, b) => b.date - a.date);
   }, [patientId]);
 
   return {

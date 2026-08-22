@@ -28,7 +28,7 @@ export default function PatientsPage() {
         <Link href="/patients/new">
           <Button className="gap-2">
             <Plus size={17} />
-            <span className="hidden sm:inline">Nuevo Patient</span>
+            <span className="hidden sm:inline">Nuevo Paciente</span>
             <span className="sm:hidden">Nuevo</span>
           </Button>
         </Link>

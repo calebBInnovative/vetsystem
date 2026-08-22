@@ -64,7 +64,7 @@ export function ConsultaCard({ consulta, pacienteId }: ConsultaCardProps) {
             </div>
 
             {/* Signos vitales */}
-            {(consulta.temperature || consulta.consultationWeight) && (
+            {(consulta.temperature || consulta.weight) && (
               <div className="flex items-center gap-3 mt-2">
                 {consulta.temperature && (
                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -72,10 +72,10 @@ export function ConsultaCard({ consulta, pacienteId }: ConsultaCardProps) {
                     {consulta.temperature} °C
                   </span>
                 )}
-                {consulta.consultationWeight && (
+                {consulta.weight && (
                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Weight size={12} />
-                    {consulta.consultationWeight} kg
+                    {consulta.weight} kg
                   </span>
                 )}
                 {tieneMedicamentos && (
@@ -147,7 +147,7 @@ export function ConsultaCard({ consulta, pacienteId }: ConsultaCardProps) {
 
               <div className="pt-2 flex justify-end">
                 <Link
-                  href={`/patients/${pacienteId}/history/${consulta.id}`}
+                  href={`/consultations/${consulta.id}`}
                   className="text-xs text-primary hover:underline"
                 >
                   Ver consulta completa →

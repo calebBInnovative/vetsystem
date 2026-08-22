@@ -13,7 +13,7 @@ import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function NewConsultationView() {
-  const id     = useRouteId();
+  const id     = useRouteId(3); // /patients/[id]/history/new → patient ID is at -3
   const router  = useRouter();
   const { paciente } = usePatient(id ?? '');
   const [loading, setCargando] = useState(false);

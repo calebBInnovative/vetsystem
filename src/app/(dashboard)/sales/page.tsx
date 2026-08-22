@@ -17,6 +17,7 @@ import { type PromotionLocal } from '@/types/promotion';
 import {
   Search, Plus, Minus, Trash2, ShoppingCart,
   CheckCircle2, X, Loader2, ChevronRight, Tag, ChevronDown,
+  LayoutList, LayoutGrid,
 } from 'lucide-react';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -45,14 +46,54 @@ function ProductCard({
   producto,
   onAdd,
   onAddAll,
+  listMode = false,
 }: {
   producto:  ProductLocal;
   onAdd:    () => void;
   onAddAll: () => void;
+  listMode?: boolean;
 }) {
   const cat       = PRODUCT_CATEGORIES[producto.category];
   const unitLabel = MEASUREMENT_UNITS[producto.unit];
   const sinStock  = producto.currentStock === 0;
+
+  if (listMode) {
+    return (
+      <div className={cn(
+        'flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-all',
+        sinStock ? 'border-border opacity-40' : 'border-border'
+      )}>
+        <span className="text-xl shrink-0">{cat.emoji}</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">{producto.name}</p>
+          <p className="text-xs text-muted-foreground">
+            {sinStock ? 'Sin stock' : `${producto.currentStock} ${unitLabel} disp.`}
+          </p>
+        </div>
+        <p className="text-sm font-bold shrink-0">{fmt(producto.salePrice ?? 0)}</p>
+        {sinStock ? (
+          <span className="text-[10px] text-muted-foreground shrink-0">Sin stock</span>
+        ) : (
+          <div className="flex gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={onAdd}
+              className="flex items-center gap-1 rounded-lg border border-border bg-muted/30 hover:bg-primary/10 hover:border-primary/40 hover:text-primary transition-colors px-2 py-1.5 text-xs font-medium"
+            >
+              <Plus size={11} />+1
+            </button>
+            <button
+              type="button"
+              onClick={onAddAll}
+              className="flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/15 text-primary transition-colors px-2 py-1.5 text-xs font-medium"
+            >
+              <ShoppingCart size={11} />
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={cn(
@@ -183,11 +224,34 @@ function PromotionCard({
 function ServiceCard({
   service,
   onAdd,
+  listMode = false,
 }: {
-  service: ServiceLocal;
-  onAdd:   () => void;
+  service:  ServiceLocal;
+  onAdd:    () => void;
+  listMode?: boolean;
 }) {
   const cat = SERVICE_CATEGORIES[service.category];
+
+  if (listMode) {
+    return (
+      <div className="flex items-center gap-3 rounded-xl border border-border px-3 py-2.5 transition-all">
+        <span className="text-xl shrink-0">{cat.emoji}</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">{service.name}</p>
+          <p className="text-xs text-muted-foreground">{cat.label}</p>
+        </div>
+        <p className="text-sm font-bold shrink-0">{fmt(service.price)}</p>
+        <button
+          type="button"
+          onClick={onAdd}
+          className="flex items-center gap-1 rounded-lg border border-border bg-muted/30 hover:bg-primary/10 hover:border-primary/40 hover:text-primary transition-colors px-2 py-1.5 text-xs font-medium shrink-0"
+        >
+          <Plus size={11} />+1
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col rounded-xl border border-border p-3 gap-2.5 transition-all">
       <div className="flex items-center gap-3">
@@ -213,8 +277,9 @@ function ServiceCard({
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 
-type View = 'products' | 'carrito';
-type Step = 'cart' | 'cobrar' | 'exito';
+type View       = 'products' | 'carrito';
+type Step       = 'cart' | 'cobrar' | 'exito';
+type CatalogView = 'grid' | 'list';
 
 export default function SalesPage() {
   const [searchQuery,  setSearchQuery]  = useState('');
@@ -232,6 +297,7 @@ export default function SalesPage() {
   const [procesando,   setProcesando]   = useState(false);
   const [invoiceId,    setInvoiceId]    = useState('');
   const [catalogTab,   setCatalogTab]   = useState<'products' | 'services' | 'promos'>('products');
+  const [catalogView,  setCatalogView]  = useState<CatalogView>('grid');
   const router = useRouter();
 
   const promotions = useLiveQuery(async () => {
@@ -593,12 +659,12 @@ export default function SalesPage() {
                 const atMax        = item.quantity >= item.availableStock;
                 const atMin        = item.quantity <= (isFractional ? 0.5 : 1);
                 return (
-                  <div key={item.productId} className="rounded-xl border border-border bg-card px-3 py-2.5 space-y-2">
-                    {/* Top row: name + price + delete */}
+                  <div key={item.productId} className="rounded-xl border border-border bg-card px-3 py-3 space-y-2.5">
+                    {/* Top row: name + delete */}
                     <div className="flex items-start gap-2">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{item.description}</p>
-                        <div className="flex items-center gap-1 mt-0.5">
+                        <p className="text-sm font-medium leading-snug break-words">{item.description}</p>
+                        <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                           <input
                             type="number"
                             min="0"
@@ -616,8 +682,8 @@ export default function SalesPage() {
                         <Trash2 size={14} />
                       </button>
                     </div>
-                    {/* Bottom row: qty controls + subtotal */}
-                    <div className="flex items-center gap-1.5">
+                    {/* Bottom row: qty controls + subtotal — wraps on narrow cart */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <button type="button" onClick={() => cambiarCantidad(item.productId, -1)}
                         disabled={atMin}
                         className="w-7 h-7 rounded-lg border border-border flex items-center justify-center hover:bg-muted/40 transition-colors disabled:opacity-40 shrink-0">
@@ -630,7 +696,7 @@ export default function SalesPage() {
                         max={item.availableStock}
                         value={item.quantity}
                         onChange={(e) => setCantidadDirecta(item.productId, e.target.value)}
-                        className="w-14 text-center text-sm font-semibold tabular-nums border border-input rounded-lg px-1 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                        className="w-14 text-center text-sm font-semibold tabular-nums border border-input rounded-lg px-1 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-ring shrink-0"
                       />
                       <span className="text-xs text-muted-foreground shrink-0">{unitLabel}</span>
                       <button type="button" onClick={() => cambiarCantidad(item.productId, 1)}
@@ -651,7 +717,7 @@ export default function SalesPage() {
                           Max
                         </button>
                       )}
-                      <span className="text-sm font-bold ml-auto shrink-0">{fmt(item.subtotal)}</span>
+                      <span className="text-sm font-bold ml-auto shrink-0 tabular-nums">{fmt(item.subtotal)}</span>
                     </div>
                   </div>
                 );
@@ -772,22 +838,47 @@ export default function SalesPage() {
               </button>
             </div>
 
-            {/* Búsqueda — oculta en promos */}
+            {/* Búsqueda + view toggle — oculta en promos */}
             {catalogTab !== 'promos' && (
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={catalogTab === 'services' ? 'Buscar servicio…' : 'Buscar producto…'}
-                className="w-full pl-9 pr-8 py-2 rounded-xl border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-              {searchQuery && (
-                <button type="button" onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                  <X size={13} />
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={catalogTab === 'services' ? 'Buscar servicio…' : 'Buscar producto…'}
+                  className="w-full pl-9 pr-8 py-2 rounded-xl border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                {searchQuery && (
+                  <button type="button" onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+              {/* Grid / list toggle */}
+              <div className="flex rounded-xl border border-border overflow-hidden shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setCatalogView('grid')}
+                  className={cn(
+                    'px-2.5 py-2 transition-colors',
+                    catalogView === 'grid' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted/50'
+                  )}
+                >
+                  <LayoutGrid size={14} />
                 </button>
-              )}
+                <button
+                  type="button"
+                  onClick={() => setCatalogView('list')}
+                  className={cn(
+                    'px-2.5 py-2 transition-colors',
+                    catalogView === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted/50'
+                  )}
+                >
+                  <LayoutList size={14} />
+                </button>
+              </div>
             </div>
             )}
 
@@ -866,13 +957,17 @@ export default function SalesPage() {
                   <p className="text-sm">{searchQuery ? 'Sin resultados' : 'No hay productos en esta categoría'}</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className={cn(
+                  'gap-2',
+                  catalogView === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2' : 'flex flex-col'
+                )}>
                   {products.map((prod) => (
                     <ProductCard
                       key={prod.id}
                       producto={prod}
                       onAdd={() => agregar(prod)}
                       onAddAll={() => agregarTodo(prod)}
+                      listMode={catalogView === 'list'}
                     />
                   ))}
                 </div>
@@ -884,12 +979,16 @@ export default function SalesPage() {
                   <p className="text-sm">{searchQuery ? 'Sin resultados' : 'No hay servicios activos'}</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className={cn(
+                  'gap-2',
+                  catalogView === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2' : 'flex flex-col'
+                )}>
                   {services.map((svc) => (
                     <ServiceCard
                       key={svc.id}
                       service={svc}
                       onAdd={() => { agregarServicio(svc); setView('carrito'); }}
+                      listMode={catalogView === 'list'}
                     />
                   ))}
                 </div>

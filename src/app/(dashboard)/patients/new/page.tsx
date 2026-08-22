@@ -41,7 +41,7 @@ export default function NewPatientPage() {
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-bold">Nuevo Patient</h1>
+          <h1 className="text-2xl font-bold">Nuevo Paciente</h1>
           <p className="text-sm text-muted-foreground">
             Completa los datos básicos — menos de 60 segundos
           </p>
