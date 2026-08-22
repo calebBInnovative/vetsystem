@@ -3,11 +3,10 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useRouteId } from '@/hooks/useRouteId';
-import { useInvoice, markInvoicePaid, voidAndRectify } from '@/hooks/useInvoices';
-import { useAuth } from '@/contexts/AuthContext';
+import { useInvoice, markInvoicePaid } from '@/hooks/useInvoices';
 import { FacturaViewer } from '@/components/invoices/InvoiceViewer';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, AlertTriangle, RotateCcw, Link as LinkIcon } from 'lucide-react';
+import { ArrowLeft, Loader2, AlertTriangle, Link as LinkIcon } from 'lucide-react';
 import { INVOICE_PAYMENT_METHODS, type InvoicePaymentMethod } from '@/types/invoice';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -15,21 +14,12 @@ import Link from 'next/link';
 export function InvoiceDetailView() {
   const id      = useRouteId();
   const router  = useRouter();
-  const { session } = useAuth();
   const { factura, loading } = useInvoice(id ?? '');
 
   // Payment flow
   const [accion,     setAccion]     = useState<'cobrar' | null>(null);
   const [method,     setMethod]     = useState<InvoicePaymentMethod>('cash');
   const [procesando, setProcesando] = useState(false);
-
-  // Void + rectify flow
-  const [anularDialog, setAnularDialog] = useState(false);
-  const [cancelReason, setCancelReason] = useState('');
-  const [anulando,     setAnulando]     = useState(false);
-
-  const canVoid =
-    session?.role === 'master' || session?.role === 'admin';
 
   if (!id || loading) {
     return (
@@ -60,26 +50,8 @@ export function InvoiceDetailView() {
     }
   }
 
-  async function handleVoidAndRectify() {
-    if (!cancelReason.trim()) return;
-    setAnulando(true);
-    try {
-      const newId = await voidAndRectify(
-        id ?? '',
-        cancelReason.trim(),
-        session?.userName ?? session?.email ?? 'admin',
-      );
-      router.push(`/invoices/${newId}`);
-    } catch {
-      setAnulando(false);
-    }
-  }
-
   const puedeMarcarPagada =
     factura.status === 'pending' || factura.status === 'partially_paid';
-
-  const puedeAnular =
-    canVoid && factura.status !== 'cancelled';
 
   return (
     <div className="max-w-2xl mx-auto space-y-5 print:max-w-none print:space-y-0">
@@ -102,17 +74,8 @@ export function InvoiceDetailView() {
             </Button>
           )}
           {puedeMarcarPagada && (
-            <Button size="sm" onClick={() => { setAccion('cobrar'); setAnularDialog(false); }}>
+            <Button size="sm" onClick={() => setAccion('cobrar')}>
               Registrar cobro
-            </Button>
-          )}
-          {puedeAnular && (
-            <Button
-              variant="outline" size="sm"
-              className="text-destructive border-destructive/30 hover:bg-destructive/5 hover:text-destructive"
-              onClick={() => { setAnularDialog(true); setAccion(null); setCancelReason(''); }}
-            >
-              <RotateCcw size={13} className="mr-1.5" /> Anular y rectificar
             </Button>
           )}
         </div>
@@ -194,60 +157,6 @@ export function InvoiceDetailView() {
             <Button className="flex-1" onClick={handleMarcarPagada} disabled={procesando}>
               {procesando && <Loader2 size={14} className="mr-2 animate-spin" />}
               Confirmar cobro
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Void + rectify panel ─────────────────────────────────────────────── */}
-      {anularDialog && (
-        <div className="bg-card rounded-2xl border border-destructive/30 p-5 space-y-4 print:hidden">
-          <div>
-            <p className="font-semibold text-destructive">Anular y rectificar</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              La factura original quedará anulada en el historial. Se creará una nueva
-              en estado <strong>Pendiente</strong> con los mismos datos para que puedas corregirla.
-            </p>
-          </div>
-
-          {factura.amountPaid > 0 && (
-            <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 px-3 py-2.5">
-              <AlertTriangle size={14} className="shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
-              <p className="text-xs text-amber-700 dark:text-amber-300">
-                Esta factura tiene un cobro registrado de{' '}
-                <strong>C${factura.amountPaid.toFixed(2)}</strong>.
-                El pago no se revierte automáticamente — resuélvelo con el cliente de manera independiente.
-              </p>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium mb-1.5">
-              Motivo de anulación <span className="text-destructive">*</span>
-            </label>
-            <textarea
-              rows={2}
-              value={cancelReason}
-              onChange={(e) => setCancelReason(e.target.value)}
-              placeholder="Ej: Producto cobrado de más, descuento aplicado incorrectamente..."
-              className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-primary resize-none"
-            />
-          </div>
-
-          <div className="flex gap-2">
-            <Button variant="outline" className="flex-1" onClick={() => setAnularDialog(false)} disabled={anulando}>
-              Cancelar
-            </Button>
-            <Button
-              variant="destructive"
-              className="flex-1"
-              disabled={!cancelReason.trim() || anulando}
-              onClick={handleVoidAndRectify}
-            >
-              {anulando
-                ? <><Loader2 size={14} className="mr-2 animate-spin" /> Procesando…</>
-                : 'Confirmar anulación'
-              }
             </Button>
           </div>
         </div>

@@ -2,9 +2,10 @@
 
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, getClinicaId, type SyncQueueItem } from '@/lib/db/database';
-import type { PaymentLocal, PaymentStatus } from '@/types/finances';
+import type { PaymentLocal, PaymentStatus, PaymentMethod } from '@/types/finances';
 import type { InvoiceStatus } from '@/types/invoice';
 import type { PagoFormData } from '@/lib/validations/finances.schema';
+import { voidAndRectify } from '@/hooks/useInvoices';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // READ HOOKS
@@ -213,6 +214,94 @@ export async function deletePayment(id: string): Promise<void> {
   const now = Date.now();
   await db.payments.update(id, { deletedAt: now, syncStatus: 'pending', updatedAt: now });
   await encolarSync({ collection: 'payments', documentId: id, operation: 'delete', data: { id, deletedAt: now }, attempts: 0, createdAt: now });
+}
+
+export interface CorrectPaymentInput {
+  amount: number;
+  paymentMethod?: PaymentMethod;
+  notes?: string;
+}
+
+/**
+ * Corrects a payment and cascades to its linked invoice.
+ * - If invoice is pending/partially_paid → updates amounts directly.
+ * - If invoice is paid → voids it and creates a pending rectification.
+ * Returns the new invoice ID when void+rectify happened.
+ */
+export async function correctPayment(
+  paymentId: string,
+  input: CorrectPaymentInput,
+): Promise<{ rectificationId?: string }> {
+  const now      = Date.now();
+  const clinicId = await getClinicaId();
+  const session  = await db.session.get('singleton');
+  const payment  = await db.payments.get(paymentId);
+  if (!payment) throw new Error('Payment not found');
+
+  // Resolve linked invoice: via consultationId → consultation.invoiceId
+  let invoiceId: string | undefined;
+  if (payment.consultationId) {
+    const consult = await db.consultations.get(payment.consultationId);
+    invoiceId = consult?.invoiceId;
+  }
+  // Fallback: find invoice that points back to this payment
+  if (!invoiceId) {
+    const inv = await db.invoices
+      .where('clinicId').equals(clinicId)
+      .filter((i) => !i.deletedAt && i.paymentId === paymentId)
+      .first();
+    invoiceId = inv?.id;
+  }
+
+  const invoice = invoiceId ? await db.invoices.get(invoiceId) : undefined;
+
+  const paymentUpdates: Partial<PaymentLocal> = {
+    amount:     input.amount,
+    updatedAt:  now,
+    syncStatus: 'pending',
+    ...(input.paymentMethod ? { paymentMethod: input.paymentMethod } : {}),
+    ...(input.notes !== undefined ? { notes: input.notes } : {}),
+  };
+
+  // No linked invoice, or invoice is still open → direct update
+  if (!invoice || invoice.status === 'pending' || invoice.status === 'partially_paid') {
+    await db.transaction('rw', [db.payments, db.invoices, db.syncQueue], async () => {
+      await db.payments.update(paymentId, paymentUpdates);
+      await encolarSync({ collection: 'payments', documentId: paymentId, operation: 'update', data: { id: paymentId, ...paymentUpdates }, attempts: 0, createdAt: now });
+
+      if (invoice && invoiceId) {
+        const newDiscount = Math.max(0, invoice.subtotal - input.amount);
+        const newTotal    = Math.max(0, invoice.subtotal - newDiscount);
+        await db.invoices.update(invoiceId, {
+          discount:   newDiscount,
+          total:      newTotal,
+          updatedAt:  now,
+          syncStatus: 'pending',
+        });
+        await encolarSync({ collection: 'invoices', documentId: invoiceId, operation: 'update', data: { id: invoiceId, discount: newDiscount, total: newTotal, updatedAt: now }, attempts: 0, createdAt: now });
+      }
+    });
+    return {};
+  }
+
+  // Invoice is paid → void + rectify automatically
+  const cancelledBy = session?.userName ?? session?.email ?? 'Sistema';
+  const reason      = `Corrección de monto: C$${invoice.total.toFixed(0)} → C$${input.amount.toFixed(0)}`;
+  const rectId      = await voidAndRectify(invoiceId!, reason, cancelledBy);
+
+  // Adjust new invoice to match the corrected amount via discount
+  const rectInvoice = await db.invoices.get(rectId);
+  if (rectInvoice) {
+    const newDiscount = Math.max(0, rectInvoice.subtotal - input.amount);
+    const newTotal    = Math.max(0, rectInvoice.subtotal - newDiscount);
+    await db.invoices.update(rectId, { discount: newDiscount, total: newTotal, updatedAt: now, syncStatus: 'pending' });
+  }
+
+  // Mark original payment as cancelled
+  await db.payments.update(paymentId, { ...paymentUpdates, status: 'cancelled', updatedAt: now, syncStatus: 'pending' });
+  await encolarSync({ collection: 'payments', documentId: paymentId, operation: 'update', data: { id: paymentId, status: 'cancelled', updatedAt: now }, attempts: 0, createdAt: now });
+
+  return { rectificationId: rectId };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
