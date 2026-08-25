@@ -1,5 +1,5 @@
 export type ExpenseCategory = 'rent' | 'services' | 'payroll' | 'insurance' | 'maintenance' | 'supplies' | 'equipment' | 'marketing' | 'other';
-export type ExpenseFrequency = 'monthly' | 'bimonthly' | 'quarterly' | 'semiannual' | 'annual';
+export type ExpenseFrequency = 'daily' | 'monthly' | 'bimonthly' | 'quarterly' | 'semiannual' | 'annual';
 export type AlertLevel = 'overdue' | 'urgent' | 'upcoming' | 'ok';
 export type ExpenseType = 'recurring' | 'one_time' | 'daily';
 
@@ -56,10 +56,14 @@ export function calculateNextDueDate(
   frequency: ExpenseFrequency,
   paymentDay: number,
 ): string {
-  const months: Record<ExpenseFrequency, number> = {
+  const date = new Date(baseDate + 'T00:00:00');
+  if (frequency === 'daily') {
+    date.setDate(date.getDate() + 1);
+    return date.toISOString().slice(0, 10);
+  }
+  const months: Record<Exclude<ExpenseFrequency, 'daily'>, number> = {
     monthly: 1, bimonthly: 2, quarterly: 3, semiannual: 6, annual: 12,
   };
-  const date = new Date(baseDate + 'T00:00:00');
   date.setMonth(date.getMonth() + months[frequency]);
   // Clamp to last day of the resulting month
   const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
@@ -80,6 +84,7 @@ export const EXPENSE_CATEGORIES: Record<ExpenseCategory, string> = {
 };
 
 export const EXPENSE_FREQUENCIES: Record<ExpenseFrequency, string> = {
+  daily:      'Diario',
   monthly:    'Mensual',
   bimonthly:  'Bimestral',
   quarterly:  'Trimestral',

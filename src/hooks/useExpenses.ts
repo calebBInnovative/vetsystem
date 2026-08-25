@@ -147,7 +147,9 @@ export async function createFixedExpense(input: CreateFixedExpenseInput): Promis
     category:    input.category,
     frequency:   input.frequency,
     paymentDay:  input.paymentDay,
-    nextDueDate: calcFirstDueDate(input.paymentDay),
+    nextDueDate: input.frequency === 'daily'
+      ? new Date().toISOString().slice(0, 10)
+      : calcFirstDueDate(input.paymentDay),
     active:      true,
     syncStatus:  'pending',
     createdAt:   now,
@@ -166,9 +168,14 @@ export async function updateFixedExpense(
   const now     = Date.now();
   const updates: Partial<FixedExpense> = { ...data, syncStatus: 'pending', updatedAt: now };
 
-  if (data.paymentDay !== undefined) {
+  if (data.paymentDay !== undefined || data.frequency !== undefined) {
     const existing = await db.fixedExpenses.get(id);
-    if (existing) updates.nextDueDate = calcFirstDueDate(data.paymentDay);
+    const effectiveFrequency = data.frequency ?? existing?.frequency;
+    if (effectiveFrequency === 'daily') {
+      updates.nextDueDate = new Date().toISOString().slice(0, 10);
+    } else if (data.paymentDay !== undefined && existing) {
+      updates.nextDueDate = calcFirstDueDate(data.paymentDay);
+    }
   }
 
   await db.fixedExpenses.update(id, updates);

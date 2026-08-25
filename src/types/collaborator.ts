@@ -1,5 +1,5 @@
 export type CollaboratorType = 'employee' | 'freelance';
-export type CollaboratorPaymentFrequency = 'weekly' | 'biweekly' | 'monthly';
+export type CollaboratorPaymentFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly';
 
 export const COLLABORATOR_TYPES: Record<CollaboratorType, string> = {
   employee:  'Empleado fijo',
@@ -7,6 +7,7 @@ export const COLLABORATOR_TYPES: Record<CollaboratorType, string> = {
 };
 
 export const COLLABORATOR_PAYMENT_FREQUENCIES: Record<CollaboratorPaymentFrequency, string> = {
+  daily:     'Diario',
   weekly:    'Semanal',
   biweekly:  'Quincenal',
   monthly:   'Mensual',
@@ -50,7 +51,9 @@ export function calculateNextCollaboratorPayment(
   frequency: CollaboratorPaymentFrequency,
 ): string {
   const date = new Date(from + 'T00:00:00');
-  if (frequency === 'weekly') {
+  if (frequency === 'daily') {
+    date.setDate(date.getDate() + 1);
+  } else if (frequency === 'weekly') {
     date.setDate(date.getDate() + 7);
   } else if (frequency === 'biweekly') {
     date.setDate(date.getDate() + 15);
@@ -63,7 +66,9 @@ export function calculateNextCollaboratorPayment(
 // Initial next payment date: today or next occurrence based on frequency
 export function initialPaymentDate(frequency: CollaboratorPaymentFrequency): string {
   const today = new Date();
-  if (frequency === 'weekly') {
+  if (frequency === 'daily') {
+    // Today
+  } else if (frequency === 'weekly') {
     // Next Monday
     const day = today.getDay();
     const daysUntil = day === 0 ? 1 : 8 - day;

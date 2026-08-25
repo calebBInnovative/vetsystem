@@ -155,20 +155,22 @@ export function GastoFijoForm({ open, onClose, gasto }: Props) {
             </select>
           </div>
 
-          {/* Día de pago */}
-          <div className="space-y-1.5">
-            <Label htmlFor="gf-dia">Día del mes en que vence</Label>
-            <Input
-              id="gf-dia"
-              type="number"
-              min="1"
-              max="28"
-              value={diaPago}
-              onChange={(e) => setDiaPago(e.target.value)}
-              placeholder="1"
-            />
-            <p className="text-xs text-muted-foreground">Entre 1 y 28 para cubrir todos los meses.</p>
-          </div>
+          {/* Día de pago — hidden for daily frequency */}
+          {frecuencia !== 'daily' && (
+            <div className="space-y-1.5">
+              <Label htmlFor="gf-dia">Día del mes en que vence</Label>
+              <Input
+                id="gf-dia"
+                type="number"
+                min="1"
+                max="28"
+                value={diaPago}
+                onChange={(e) => setDiaPago(e.target.value)}
+                placeholder="1"
+              />
+              <p className="text-xs text-muted-foreground">Entre 1 y 28 para cubrir todos los meses.</p>
+            </div>
+          )}
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
