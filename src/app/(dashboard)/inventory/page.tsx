@@ -2,9 +2,12 @@
 
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
-import { useProducts, updateProduct } from '@/hooks/useInventory';
+import { useProducts, updateProduct, deleteProduct } from '@/hooks/useInventory';
 import { ProductoCard } from '@/components/inventory/ProductCard';
 import { ProductoRow } from '@/components/inventory/ProductRow';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
 import { AlertasStock } from '@/components/inventory/StockAlerts';
 import { BuscadorPacientes } from '@/components/patients/PatientSearch';
 import { Button } from '@/components/ui/button';
@@ -186,9 +189,11 @@ export default function InventoryPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoria,   setCategoria]   = useState<ProductCategory | undefined>();
   const [view,        setView]        = useState<View>('lista');
-  const [editMode,    setEditMode]    = useState(false);
-  const [drafts,      setDrafts]      = useState<ProductDraft[]>([]);
-  const [saving,      setSaving]      = useState(false);
+  const [editMode,       setEditMode]       = useState(false);
+  const [drafts,         setDrafts]         = useState<ProductDraft[]>([]);
+  const [saving,         setSaving]         = useState(false);
+  const [deleteTarget,   setDeleteTarget]   = useState<ProductLocal | null>(null);
+  const [deleting,       setDeleting]       = useState(false);
 
   const { products, loading } = useProducts(searchQuery, categoria);
 
@@ -204,6 +209,20 @@ export default function InventoryPage() {
   function exitEditMode() {
     setDrafts([]);
     setEditMode(false);
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteProduct(deleteTarget.id);
+      toast.success(`"${deleteTarget.name}" eliminado del inventario`);
+      setDeleteTarget(null);
+    } catch {
+      toast.error('Error al eliminar el producto');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   async function handleSave() {
@@ -235,6 +254,28 @@ export default function InventoryPage() {
 
   return (
     <div className="space-y-5">
+
+      {/* ── Delete confirmation dialog ───────────────────────────────────────── */}
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o && !deleting) setDeleteTarget(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>¿Eliminar producto?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Se eliminará <span className="font-semibold text-foreground">"{deleteTarget?.name}"</span> del inventario.
+            Esta acción no afecta el historial de ventas ni las finanzas.
+          </p>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting} className="gap-2">
+              {deleting && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />}
+              Eliminar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-4">
@@ -363,7 +404,9 @@ export default function InventoryPage() {
             <EmptyState searchQuery={searchQuery} categoria={categoria} />
           ) : view === 'lista' ? (
             <div className="bg-card rounded-2xl border border-border overflow-hidden">
-              {products.map((p) => <ProductoRow key={p.id} producto={p} />)}
+              {products.map((p) => (
+                <ProductoRow key={p.id} producto={p} onDelete={() => setDeleteTarget(p)} />
+              ))}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

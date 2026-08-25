@@ -13,12 +13,13 @@ interface DescuentoInputProps {
 }
 
 export function DescuentoInput({ subtotal, value, onChange, className }: DescuentoInputProps) {
-  const inputRef  = useRef<HTMLInputElement>(null);
-  const isEditing = useRef(false);
-  const [modo, setModo] = useState<Modo>('monto');
-  // rawDisplay drives the equivalencia label only — never calls parent while typing,
-  // so the parent never re-renders mid-keystroke and focus is never lost.
-  const [rawDisplay, setRawDisplay] = useState('');
+  const [modo,    setModo]    = useState<Modo>('monto');
+  const [display, setDisplay] = useState('');
+  const isEditing             = useRef(false);
+  // Tracks the last C$ amount we sent to the parent. When the parent echoes
+  // that same value back via props, we skip the DOM sync to avoid overwriting
+  // the user's raw display (which prevents the % → C$ round-trip bug).
+  const lastCommitted = useRef<number>(value);
 
   function toDisplay(v: number, m: Modo): string {
     if (v === 0) return '';
@@ -26,32 +27,32 @@ export function DescuentoInput({ subtotal, value, onChange, className }: Descuen
     return subtotal > 0 ? String(Math.round((v / subtotal) * 100)) : '';
   }
 
-  // Sync DOM when parent resets the value externally (e.g. cart cleared)
+  function computeMonto(raw: string, m: Modo = modo): number {
+    const n = parseInt(raw, 10) || 0;
+    if (m === 'monto') return Math.max(0, Math.min(n, subtotal));
+    const pct = Math.max(0, Math.min(n, 100));
+    return Math.round((pct / 100) * subtotal);
+  }
+
+  // Sync from parent only when value changes from outside (not from our own blur).
   useEffect(() => {
-    if (!isEditing.current) {
-      const d = toDisplay(value, modo);
-      setRawDisplay(d);
-      if (inputRef.current) inputRef.current.value = d;
+    if (!isEditing.current && value !== lastCommitted.current) {
+      lastCommitted.current = value;
+      setDisplay(toDisplay(value, modo));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
   function handleModeChange(newModo: Modo) {
     if (newModo === modo) return;
+    // Convert the currently displayed raw value to the new mode
+    const currentMonto = computeMonto(display, modo);
     setModo(newModo);
-    const d = toDisplay(value, newModo);
-    setRawDisplay(d);
-    if (inputRef.current) inputRef.current.value = d;
+    setDisplay(toDisplay(currentMonto, newModo));
+    lastCommitted.current = currentMonto;
   }
 
-  function computeMonto(raw: string): number {
-    const n = parseInt(raw, 10) || 0;
-    if (modo === 'monto') return Math.max(0, Math.min(n, subtotal));
-    const pct = Math.max(0, Math.min(n, 100));
-    return Math.round((pct / 100) * subtotal);
-  }
-
-  const rawNum = parseInt(rawDisplay, 10) || 0;
+  const rawNum = parseInt(display, 10) || 0;
   const equivalencia =
     modo === 'porcentaje' && subtotal > 0 && rawNum > 0
       ? `C$${Math.round((rawNum / 100) * subtotal).toLocaleString('es-NI')}`
@@ -90,33 +91,30 @@ export function DescuentoInput({ subtotal, value, onChange, className }: Descuen
           </button>
         </div>
 
-        {/* Numeric input — uncontrolled so React never resets cursor/selection */}
         <input
-          ref={inputRef}
           type="text"
           inputMode="numeric"
-          defaultValue=""
-          onFocus={() => {
-            isEditing.current = true;
-            setTimeout(() => inputRef.current?.select(), 0);
-          }}
+          value={display}
           onChange={(e) => {
             const digits = e.target.value.replace(/\D/g, '');
-            if (digits !== e.target.value && inputRef.current) {
-              inputRef.current.value = digits;
-            }
-            setRawDisplay(digits);
+            setDisplay(digits);
           }}
-          onBlur={(e) => {
+          onFocus={(e) => {
+            isEditing.current = true;
+            e.currentTarget.select();
+          }}
+          onBlur={() => {
             isEditing.current = false;
-            onChange(computeMonto(e.target.value));
+            const monto = computeMonto(display);
+            lastCommitted.current = monto;
+            onChange(monto);
           }}
           placeholder="0"
           className="flex-1 rounded-xl border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring text-right"
         />
       </div>
 
-      {/* Equivalencia — always on its own line so it never gets clipped */}
+      {/* Equivalencia — own line so it never gets clipped */}
       {equivalencia && (
         <p className="text-xs text-muted-foreground tabular-nums text-right pr-1">
           = {equivalencia}

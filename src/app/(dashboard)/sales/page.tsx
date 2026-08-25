@@ -1073,7 +1073,7 @@ export default function SalesPage() {
             )}
           </div>
           <div className="flex-1 overflow-y-auto px-5 py-4">
-            <PanelCarrito />
+            {PanelCarrito()}
           </div>
         </div>
       </div>
