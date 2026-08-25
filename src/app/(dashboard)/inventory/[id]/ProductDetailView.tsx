@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouteId } from '@/hooks/useRouteId';
 import { useProduct, useProductMovements, adjustStock, updateProduct } from '@/hooks/useInventory';
+import { createOneTimeExpense } from '@/hooks/useExpenses';
 import { PRODUCT_CATEGORIES, MEASUREMENT_UNITS } from '@/types/inventory';
 import { ajusteStockSchema, type AjusteStockFormData } from '@/lib/validations/inventory.schema';
 import { useForm } from 'react-hook-form';
@@ -11,7 +12,10 @@ import { zodResolver } from '@/lib/zod-resolver';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ProductoForm } from '@/components/inventory/ProductForm';
-import { ArrowLeft, Pencil, Plus, Minus, AlertTriangle, Loader2, TrendingUp, TrendingDown, X } from 'lucide-react';
+import {
+  ArrowLeft, Pencil, Plus, Minus, AlertTriangle,
+  Loader2, TrendingUp, TrendingDown, X, DollarSign,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -26,17 +30,51 @@ export function ProductDetailView() {
   const [editMode,   setEditMode]    = useState(false);
   const [editLoading, setEditLoading] = useState(false);
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<AjusteStockFormData>({
+  // Finance impact
+  const [affectsFinances, setAffectsFinances] = useState(false);
+  const [financeAmount,   setFinanceAmount]   = useState('');
+
+  const { register, handleSubmit, reset, getValues, formState: { errors } } = useForm<AjusteStockFormData>({
     resolver: zodResolver(ajusteStockSchema),
     defaultValues: { type: 'entry', quantity: 1 },
   });
+
+  function toggleFinances() {
+    const next = !affectsFinances;
+    setAffectsFinances(next);
+    // Pre-fill amount when enabling, based on current quantity × costPrice
+    if (next && producto?.costPrice) {
+      const qty = Number(getValues('quantity')) || 0;
+      if (qty > 0) setFinanceAmount(String(Math.round(qty * producto.costPrice)));
+    }
+  }
 
   const onAjuste = async (datos: AjusteStockFormData) => {
     setAjustando(true);
     try {
       await adjustStock(id ?? '', { ...datos, type: tipoAjuste });
-      toast.success(tipoAjuste === 'entry' ? 'Stock agregado' : 'Salida registrada');
+
+      if (affectsFinances) {
+        const amount = parseFloat(financeAmount) || 0;
+        if (amount > 0) {
+          const label = tipoAjuste === 'entry' ? 'Compra' : 'Baja';
+          await createOneTimeExpense({
+            name:     `${label}: ${producto!.name}`,
+            amount,
+            category: 'supplies',
+            date:     new Date().toISOString().slice(0, 10),
+            notes:    datos.reason || undefined,
+          });
+        }
+      }
+
+      toast.success(
+        tipoAjuste === 'entry'
+          ? `Stock agregado${affectsFinances ? ' · Egreso registrado' : ''}`
+          : `Salida registrada${affectsFinances ? ' · Egreso registrado' : ''}`,
+      );
       reset();
+      setFinanceAmount('');
     } catch {
       toast.error('No se pudo ajustar el stock');
     } finally {
@@ -66,7 +104,6 @@ export function ProductDetailView() {
   if (editMode) {
     return (
       <div className="max-w-3xl mx-auto space-y-6">
-        {/* Sticky action bar */}
         <div className="sticky top-0 z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 bg-background/95 backdrop-blur border-b border-border">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 text-sm">
@@ -77,13 +114,7 @@ export function ProductDetailView() {
               <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setEditMode(false)} disabled={editLoading}>
                 <X size={14} /> Cancelar
               </Button>
-              <Button
-                size="sm"
-                disabled={editLoading}
-                form="product-edit-form"
-                type="submit"
-                className="min-w-[130px] gap-1.5"
-              >
+              <Button size="sm" disabled={editLoading} form="product-edit-form" type="submit" className="min-w-[130px] gap-1.5">
                 {editLoading
                   ? <><span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" /> Guardando…</>
                   : 'Guardar cambios'}
@@ -170,8 +201,8 @@ export function ProductDetailView() {
         {[
           { label: 'Stock actual', value: `${producto.currentStock} ${unidad}`, highlight: stockBajo },
           { label: 'Stock mínimo', value: `${producto.minimumStock} ${unidad}`, highlight: false },
-          { label: 'Precio venta', value: producto.salePrice ? `$${producto.salePrice.toFixed(2)}` : '—', highlight: false },
-          { label: 'Precio costo', value: producto.costPrice ? `$${producto.costPrice.toFixed(2)}` : '—', highlight: false },
+          { label: 'Precio venta', value: producto.salePrice ? `C$${producto.salePrice.toFixed(0)}` : '—', highlight: false },
+          { label: 'Precio costo', value: producto.costPrice ? `C$${producto.costPrice.toFixed(0)}` : '—', highlight: false },
         ].map(({ label, value, highlight }) => (
           <div key={label} className="bg-card rounded-2xl border border-border p-4 text-center">
             <p className="text-xs text-muted-foreground mb-1">{label}</p>
@@ -180,11 +211,14 @@ export function ProductDetailView() {
         ))}
       </div>
 
+      {/* ── Stock adjustment form ─────────────────────────────────────────── */}
       <div className="bg-card rounded-2xl border border-border p-5">
         <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">
           Ajustar Stock
         </h2>
         <form onSubmit={handleSubmit(onAjuste)} className="space-y-3">
+
+          {/* Entry / exit toggle */}
           <div className="flex gap-2">
             <button
               type="button"
@@ -211,6 +245,8 @@ export function ProductDetailView() {
               <Minus size={16} /> Salida
             </button>
           </div>
+
+          {/* Quantity + reason */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <input
@@ -229,12 +265,92 @@ export function ProductDetailView() {
               className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-primary transition-colors"
             />
           </div>
+
+          {/* Finance impact toggle */}
+          <div
+            className={cn(
+              'flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border transition-colors',
+              affectsFinances
+                ? 'border-primary/40 bg-primary/5'
+                : 'border-border bg-muted/20',
+            )}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <DollarSign size={15} className={cn('shrink-0', affectsFinances ? 'text-primary' : 'text-muted-foreground')} />
+              <div className="min-w-0">
+                <p className="text-sm font-medium leading-tight">Registrar en finanzas</p>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-tight">
+                  {tipoAjuste === 'entry'
+                    ? 'Crea un egreso por compra de insumos'
+                    : 'Registra la pérdida o baja de inventario'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={toggleFinances}
+              className={cn(
+                'w-9 h-5 rounded-full transition-colors relative shrink-0',
+                affectsFinances ? 'bg-primary' : 'bg-muted-foreground/30',
+              )}
+            >
+              <span className={cn(
+                'absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all',
+                affectsFinances ? 'left-4' : 'left-0.5',
+              )} />
+            </button>
+          </div>
+
+          {/* Finance amount (shown when toggle is on) */}
+          {affectsFinances && (
+            <div className="space-y-1.5 pl-1">
+              <label className="text-xs text-muted-foreground">
+                {tipoAjuste === 'entry' ? 'Monto pagado (C$)' : 'Valor a registrar (C$)'}
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">
+                  C$
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={financeAmount}
+                  onChange={(e) => setFinanceAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full rounded-xl border border-input bg-background pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-primary transition-colors"
+                />
+              </div>
+              {producto.costPrice && (
+                <p className="text-xs text-muted-foreground">
+                  Precio costo unitario: C${producto.costPrice.toFixed(0)}
+                  {' · '}
+                  <button
+                    type="button"
+                    className="underline underline-offset-2 hover:text-foreground transition-colors"
+                    onClick={() => {
+                      const qty = Number(getValues('quantity')) || 0;
+                      if (qty > 0) setFinanceAmount(String(Math.round(qty * producto.costPrice!)));
+                    }}
+                  >
+                    Calcular por cantidad
+                  </button>
+                </p>
+              )}
+            </div>
+          )}
+
           <Button type="submit" className="w-full" disabled={ajustando}>
-            {ajustando ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Guardando...</> : 'Registrar movimiento'}
+            {ajustando
+              ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Guardando...</>
+              : affectsFinances
+              ? 'Registrar movimiento + egreso'
+              : 'Registrar movimiento'}
           </Button>
         </form>
       </div>
 
+      {/* ── Movement history ──────────────────────────────────────────────── */}
       {movements.length > 0 && (
         <div className="bg-card rounded-2xl border border-border p-5">
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">
