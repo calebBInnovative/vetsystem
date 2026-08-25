@@ -141,10 +141,13 @@ class SyncService {
    * Se llama automáticamente al arrancar y al reconectar.
    */
   async pullAll(): Promise<void> {
-    if (this.pulling || !navigator.onLine || await isDemoSession()) return;
+    if (this.pulling || !navigator.onLine) return;
+    const session = await db.session.get('singleton');
+    if (session?.isDemo) return;
     this.pulling = true;
 
-    const LAST_PULL_KEY = 'vetsystem_last_pull';
+    const clinicId = session?.clinicId ?? 'unknown';
+    const LAST_PULL_KEY = `vetsystem_last_pull_${clinicId}`;
     const lastPull = parseInt(localStorage.getItem(LAST_PULL_KEY) ?? '0', 10);
 
     try {

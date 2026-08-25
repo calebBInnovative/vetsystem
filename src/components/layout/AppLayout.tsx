@@ -369,14 +369,21 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { setNavigating(false); }, [pathname]);
 
-  // On first login from a new browser, lastPull === 0 → we need to download
-  // all data from Firestore before showing the app. Show a full-screen spinner
-  // so the user never sees an empty app and thinks data is lost.
-  const [initialSyncing, setInitialSyncing] = useState(() => {
-    if (typeof window === 'undefined' || isDemo) return false;
-    const lastPull = localStorage.getItem('vetsystem_last_pull');
-    return !lastPull || lastPull === '0';
-  });
+  // On first login from a new browser (or a new clinic on this browser),
+  // the clinic-specific lastPull key is missing → download all Firestore data
+  // before showing the app. Keyed per clinicId so switching users/clinics
+  // always triggers a fresh pull for that clinic's data.
+  const [initialSyncing, setInitialSyncing] = useState(typeof window !== 'undefined');
+
+  // Once we know the clinicId, check if data for this clinic was ever pulled
+  // on this browser. If yes, hide the spinner immediately (no full re-sync needed).
+  useEffect(() => {
+    if (isDemo) { setInitialSyncing(false); return; }
+    if (!session?.clinicId) return;
+    const key = `vetsystem_last_pull_${session.clinicId}`;
+    const lastPull = localStorage.getItem(key);
+    if (lastPull && lastPull !== '0') setInitialSyncing(false);
+  }, [session?.clinicId, isDemo]);
 
   useEffect(() => {
     syncService.start().finally(() => setInitialSyncing(false));
