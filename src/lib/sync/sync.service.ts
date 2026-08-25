@@ -58,8 +58,8 @@ class SyncService {
 
   // ── Arrancar / detener ────────────────────────────────────────────────────
 
-  start() {
-    if (this.timer) return;
+  start(): Promise<void> {
+    if (this.timer) return Promise.resolve();
 
     // Trigger inmediato: cada ítem nuevo en syncQueue dispara flush
     if (!this.hookReg) {
@@ -81,9 +81,10 @@ class SyncService {
     // desbloquea pantalla, o regresa desde otro módulo tras un período largo).
     window.addEventListener('visibilitychange', this.onVisible);
 
-    // Flush inicial + pull al arrancar
+    // Flush inicial + pull al arrancar — devuelve la Promise del pull
+    // para que el caller pueda mostrar un spinner de "primera sincronización"
     this.flush();
-    this.pullAll();
+    return this.pullAll();
   }
 
   stop() {

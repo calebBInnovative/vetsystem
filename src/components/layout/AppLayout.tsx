@@ -369,8 +369,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { setNavigating(false); }, [pathname]);
 
+  // On first login from a new browser, lastPull === 0 → we need to download
+  // all data from Firestore before showing the app. Show a full-screen spinner
+  // so the user never sees an empty app and thinks data is lost.
+  const [initialSyncing, setInitialSyncing] = useState(() => {
+    if (typeof window === 'undefined' || isDemo) return false;
+    const lastPull = localStorage.getItem('vetsystem_last_pull');
+    return !lastPull || lastPull === '0';
+  });
+
   useEffect(() => {
-    syncService.start();
+    syncService.start().finally(() => setInitialSyncing(false));
     return () => syncService.stop();
   }, []);
 
@@ -378,6 +387,27 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   const esActivo = (href: string) =>
     href === '/' ? pathname === '/' : pathname.startsWith(href);
+
+  // First-time login on this browser: show a spinner while all Firestore
+  // data downloads into local IndexedDB before revealing the empty-looking app.
+  if (initialSyncing) {
+    return (
+      <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-background">
+        <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+          <Loader2 className="h-7 w-7 animate-spin text-primary" />
+        </div>
+        <div className="text-center space-y-1">
+          <p className="font-semibold">Sincronizando datos</p>
+          <p className="text-sm text-muted-foreground">
+            Descargando información de la clínica…
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Esto solo ocurre la primera vez en este navegador
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
