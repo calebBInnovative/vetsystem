@@ -123,14 +123,46 @@ export function generatePdfHtml(report: ReportSummary, clinicName = 'Pet\'s Hous
   .empty { color: #777; font-style: italic; padding: 8px 0; font-size: 10px; }
   .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   section { page-break-inside: avoid; }
+  /* ── Floating toolbar ── */
+  .toolbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    background: #fff; border-bottom: 1px solid #ddd;
+    padding: 8px 16px; gap: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  }
+  .toolbar-title { font-size: 12px; color: #555; flex: 1; }
+  .toolbar-hint { font-size: 10px; color: #888; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 14px; border-radius: 8px; font-size: 12px;
+    font-weight: 600; cursor: pointer; border: none; white-space: nowrap;
+  }
+  .btn-primary { background: #0f7d6e; color: #fff; }
+  .btn-primary:hover { background: #0a6459; }
+  .btn-outline { background: #fff; color: #333; border: 1px solid #ccc; }
+  .btn-outline:hover { background: #f5f5f5; }
+  .btn-ghost { background: transparent; color: #888; border: 1px solid transparent; }
+  .btn-ghost:hover { color: #333; border-color: #ccc; }
   @media print {
-    body { padding: 12px; }
-    button, .no-print { display: none !important; }
+    body { padding: 12px; padding-top: 12px; }
+    .toolbar { display: none !important; }
     @page { margin: 15mm; size: A4; }
   }
 </style>
 </head>
 <body>
+<!-- Toolbar: hidden during print via @media print -->
+<div class="toolbar">
+  <span class="toolbar-title">Reporte — ${clinicName} · ${periodLabel}</span>
+  <span class="toolbar-hint">Para descargar: selecciona &ldquo;Guardar como PDF&rdquo; en el diálogo de impresión</span>
+  <div style="display:flex;gap:6px;align-items:center;">
+    <button class="btn btn-outline" onclick="window.print()">🖨️ Imprimir</button>
+    <button class="btn btn-primary" onclick="window.print()">⬇️ Descargar PDF</button>
+    <button class="btn btn-ghost" onclick="window.close()">✕</button>
+  </div>
+</div>
+<!-- Spacer so content doesn't hide behind toolbar -->
+<div style="height:48px"></div>
 <header>
   <div>
     <div class="clinic-name">🐾 ${clinicName}</div>
@@ -157,19 +189,30 @@ ${section('Detalle de pagos', paymentTable)}
 <footer style="margin-top:24px;padding-top:8px;border-top:1px solid #ddd;font-size:9px;color:#999;text-align:right;">
   Generado por VetSystem · ${report.generatedAt}
 </footer>
-
-<script>window.onload = function(){ window.print(); }</script>
 </body>
 </html>`;
 }
 
-export function openPdfReport(report: ReportSummary, clinicName?: string): void {
-  const html = generatePdfHtml(report, clinicName);
-  const win  = window.open('', '_blank', 'width=900,height=700');
+function openPopup(html: string): void {
+  const win = window.open('', '_blank', 'width=960,height=750');
   if (!win) {
     alert('El navegador bloqueó la ventana emergente. Permite ventanas emergentes para este sitio.');
     return;
   }
   win.document.write(html);
   win.document.close();
+}
+
+/** Opens the report in a new window with Print + Save as PDF toolbar. */
+export function openPdfReport(report: ReportSummary, clinicName?: string): void {
+  openPopup(generatePdfHtml(report, clinicName));
+}
+
+/** Opens the report and immediately triggers the print/save dialog. */
+export function printPdfReport(report: ReportSummary, clinicName?: string): void {
+  const html = generatePdfHtml(report, clinicName).replace(
+    '</body>',
+    '<script>window.onload=function(){window.print();}<\/script></body>',
+  );
+  openPopup(html);
 }

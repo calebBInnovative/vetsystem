@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { format, subDays, subMonths, startOfMonth, endOfMonth, startOfYear, endOfYear, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter } from 'date-fns';
 import { useReportData } from '@/hooks/useReports';
-import { openPdfReport } from '@/lib/reports/exportPdf';
+import { openPdfReport, printPdfReport } from '@/lib/reports/exportPdf';
 import { downloadCsv } from '@/lib/reports/exportCsv';
 import { RevenueChart } from '@/components/finances/RevenueChart';
 import { PRODUCT_CATEGORIES } from '@/types/inventory';
@@ -11,7 +11,7 @@ import { SERVICE_CATEGORIES } from '@/types/service';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import {
-  FileText, Sheet, ShoppingBag, Stethoscope, CreditCard, ListCollapse,
+  FileText, Printer, Sheet, ShoppingBag, Stethoscope, CreditCard, ListCollapse,
   CalendarDays, ChevronDown, ChevronUp,
 } from 'lucide-react';
 
@@ -165,11 +165,20 @@ export default function ReportsPage() {
           <button
             type="button"
             disabled={loading || !report}
+            onClick={() => report && printPdfReport(report, session?.clinicName)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Printer size={14} />
+            Imprimir
+          </button>
+          <button
+            type="button"
+            disabled={loading || !report}
             onClick={() => report && openPdfReport(report, session?.clinicName)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <FileText size={14} />
-            Exportar PDF
+            Descargar PDF
           </button>
         </div>
       </div>
