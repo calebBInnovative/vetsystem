@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import {
   Plus, Wallet, Pencil, Trash2, ToggleLeft, ToggleRight, Users,
+  Receipt, CheckCircle2, Clock, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -10,9 +11,9 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { GastoFijoForm } from '@/components/expenses/ExpenseForm';
-import { useFixedExpenses } from '@/hooks/useExpenses';
-import { markAsPaid, deleteFixedExpense, toggleExpenseActive } from '@/hooks/useExpenses';
+import { GastoFijoForm, GastoEventualForm } from '@/components/expenses/ExpenseForm';
+import { useFixedExpenses, useOneTimeExpenses } from '@/hooks/useExpenses';
+import { markAsPaid, deleteFixedExpense, toggleExpenseActive, deleteOneTimeExpense } from '@/hooks/useExpenses';
 import type { FixedExpense } from '@/types/expense';
 import {
   daysUntilDue,
@@ -358,6 +359,152 @@ function TabExpenses() {
   );
 }
 
+function TabOneTime() {
+  const { expenses, loading } = useOneTimeExpenses();
+  const [formOpen, setFormOpen] = useState(false);
+  const [showPaid, setShowPaid] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  const pending = expenses.filter((g) => g.active);
+  const paid    = expenses.filter((g) => !g.active);
+
+  async function handleDelete(id: string) {
+    if (!confirm('¿Eliminar este egreso?')) return;
+    setDeleting(id);
+    try { await deleteOneTimeExpense(id); } finally { setDeleting(null); }
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="bg-card rounded-2xl border border-border h-16 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-sm text-muted-foreground">Egresos puntuales — compras, gastos únicos</p>
+        <Button size="sm" onClick={() => setFormOpen(true)} className="gap-1.5">
+          <Plus size={14} /> Registrar egreso
+        </Button>
+      </div>
+
+      {/* Pending */}
+      <section className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Clock size={13} className="text-amber-500" />
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Pendientes ({pending.length})</h2>
+        </div>
+        {pending.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border px-4 py-8 text-center">
+            <p className="text-sm text-muted-foreground">Sin egresos pendientes</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {pending.map((g) => {
+              const days = daysUntilDue(g.nextDueDate);
+              const overdue = days < 0;
+              return (
+                <div key={g.id} className="bg-card rounded-2xl border border-border px-4 py-3 flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium truncate">{g.name}</p>
+                      {overdue && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                          Vencido
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                      <span className="text-xs text-muted-foreground">{EXPENSE_CATEGORIES[g.category]}</span>
+                      <span className="text-xs text-muted-foreground">{formatDate(g.nextDueDate)}</span>
+                      {g.notes && <span className="text-xs text-muted-foreground truncate max-w-[160px]">{g.notes}</span>}
+                    </div>
+                  </div>
+                  <p className="text-sm font-bold tabular-nums shrink-0">{formatAmount(g.amount)}</p>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(g.id)}
+                    disabled={deleting === g.id}
+                    className="text-muted-foreground hover:text-destructive transition-colors shrink-0 disabled:opacity-40"
+                    title="Eliminar"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* Paid history — collapsible */}
+      {paid.length > 0 && (
+        <section className="space-y-2">
+          <button
+            type="button"
+            onClick={() => setShowPaid(v => !v)}
+            className="flex items-center gap-2 w-full text-left"
+          >
+            <CheckCircle2 size={13} className="text-green-500" />
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              Historial de pagados ({paid.length})
+            </h2>
+            {showPaid ? <ChevronUp size={13} className="text-muted-foreground ml-auto" /> : <ChevronDown size={13} className="text-muted-foreground ml-auto" />}
+          </button>
+          {showPaid && (
+            <div className="space-y-2">
+              {paid.map((g) => (
+                <div key={g.id} className="bg-card rounded-2xl border border-border px-4 py-3 flex items-center gap-3 opacity-70">
+                  <CheckCircle2 size={14} className="text-green-500 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{g.name}</p>
+                    <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                      <span className="text-xs text-muted-foreground">{EXPENSE_CATEGORIES[g.category]}</span>
+                      <span className="text-xs text-muted-foreground">{formatDate(g.nextDueDate)}</span>
+                      {g.notes && <span className="text-xs text-muted-foreground truncate max-w-[160px]">{g.notes}</span>}
+                    </div>
+                  </div>
+                  <p className="text-sm font-bold tabular-nums shrink-0">{formatAmount(g.amount)}</p>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(g.id)}
+                    disabled={deleting === g.id}
+                    className="text-muted-foreground hover:text-destructive transition-colors shrink-0 disabled:opacity-40"
+                    title="Eliminar"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {expenses.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+          <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
+            <Receipt size={32} className="text-muted-foreground" />
+          </div>
+          <div>
+            <p className="text-lg font-semibold">Sin egresos eventuales</p>
+            <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+              Registra compras, pagos únicos o cualquier gasto que no sea recurrente
+            </p>
+          </div>
+        </div>
+      )}
+
+      <GastoEventualForm open={formOpen} onClose={() => setFormOpen(false)} />
+    </div>
+  );
+}
+
 function TabCollaborators() {
   const { collaborators, loading } = useCollaborators();
   const [formOpen,  setFormOpen]  = useState(false);
@@ -488,32 +635,38 @@ function TabCollaborators() {
   );
 }
 
+type EgresosTab = 'recurring' | 'one_time' | 'collaborators';
+
 export function EgresosView() {
-  const [tab, setTab] = useState<'expenses' | 'collaborators'>('expenses');
+  const [tab, setTab] = useState<EgresosTab>('recurring');
+
+  const tabs: { value: EgresosTab; label: string }[] = [
+    { value: 'recurring',     label: 'Gastos Fijos'  },
+    { value: 'one_time',      label: 'Eventuales'    },
+    { value: 'collaborators', label: 'Colaboradores' },
+  ];
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Egresos</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Gastos fijos y nómina de colaboradores</p>
+        <p className="text-sm text-muted-foreground mt-0.5">Gastos fijos, eventuales y nómina</p>
       </div>
 
       <div className="flex gap-1 border-b border-border">
-        <button
-          onClick={() => setTab('expenses')}
-          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${tab === 'expenses' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-        >
-          Gastos Fijos
-        </button>
-        <button
-          onClick={() => setTab('collaborators')}
-          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${tab === 'collaborators' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-        >
-          Colaboradores
-        </button>
+        {tabs.map(t => (
+          <button
+            key={t.value}
+            onClick={() => setTab(t.value)}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${tab === t.value ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
-      {tab === 'expenses'      && <TabExpenses />}
+      {tab === 'recurring'     && <TabExpenses />}
+      {tab === 'one_time'      && <TabOneTime />}
       {tab === 'collaborators' && <TabCollaborators />}
     </div>
   );

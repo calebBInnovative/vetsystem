@@ -12,7 +12,7 @@ import { Loader2 } from 'lucide-react';
 const selectClass = 'w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
 import type { FixedExpense, ExpenseCategory, ExpenseFrequency } from '@/types/expense';
 import { EXPENSE_CATEGORIES, EXPENSE_FREQUENCIES } from '@/types/expense';
-import { createFixedExpense, updateFixedExpense } from '@/hooks/useExpenses';
+import { createFixedExpense, updateFixedExpense, createOneTimeExpense } from '@/hooks/useExpenses';
 
 interface Props {
   open:     boolean;
@@ -179,6 +179,114 @@ export function GastoFijoForm({ open, onClose, gasto }: Props) {
             <Button type="submit" disabled={guardando} className="gap-2">
               {guardando && <Loader2 size={13} className="animate-spin" />}
               {editando ? 'Guardar cambios' : 'Agregar gasto'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── One-time expense form ────────────────────────────────────────────────────
+
+interface OneTimeFormProps {
+  open:    boolean;
+  onClose: () => void;
+}
+
+export function GastoEventualForm({ open, onClose }: OneTimeFormProps) {
+  const today = new Date().toISOString().slice(0, 10);
+
+  const [nombre,    setNombre]    = useState('');
+  const [categoria, setCategoria] = useState<ExpenseCategory>('other');
+  const [monto,     setMonto]     = useState('');
+  const [fecha,     setFecha]     = useState(today);
+  const [notas,     setNotas]     = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const [error,     setError]     = useState('');
+
+  useEffect(() => {
+    if (open) {
+      setNombre(''); setCategoria('other'); setMonto('');
+      setFecha(today); setNotas(''); setError('');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    const montoNum = parseFloat(monto);
+    if (!nombre.trim()) { setError('El nombre es requerido.'); return; }
+    if (isNaN(montoNum) || montoNum <= 0) { setError('Ingresa un monto válido.'); return; }
+    if (!fecha) { setError('Selecciona una fecha.'); return; }
+    setGuardando(true);
+    try {
+      await createOneTimeExpense({
+        name: nombre.trim(), amount: montoNum, category: categoria, date: fecha,
+        notes: notas.trim() || undefined,
+      });
+      onClose();
+    } catch {
+      setError('Error al guardar. Intenta de nuevo.');
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Registrar egreso eventual</DialogTitle>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+          <div className="space-y-1.5">
+            <Label htmlFor="ge-nombre">Descripción</Label>
+            <Input id="ge-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)}
+              placeholder="Ej: Compra de vacunas" required />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Categoría</Label>
+            <select className={selectClass} value={categoria}
+              onChange={(e) => setCategoria(e.target.value as ExpenseCategory)}>
+              {(Object.keys(EXPENSE_CATEGORIES) as ExpenseCategory[]).map((k) => (
+                <option key={k} value={k}>{EXPENSE_CATEGORIES[k]}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="ge-monto">Monto</Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">C$</span>
+                <Input id="ge-monto" type="number" min="0.01" step="0.01" value={monto}
+                  onChange={(e) => setMonto(e.target.value)} placeholder="0.00" className="pl-9" required />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ge-fecha">Fecha</Label>
+              <Input id="ge-fecha" type="date" value={fecha} max={today}
+                onChange={(e) => setFecha(e.target.value)} required />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="ge-notas">Notas <span className="text-muted-foreground font-normal">(opcional)</span></Label>
+            <Input id="ge-notas" value={notas} onChange={(e) => setNotas(e.target.value)}
+              placeholder="Proveedor, factura, etc." />
+          </div>
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose} disabled={guardando}>Cancelar</Button>
+            <Button type="submit" disabled={guardando} className="gap-2">
+              {guardando && <Loader2 size={13} className="animate-spin" />}
+              Registrar egreso
             </Button>
           </DialogFooter>
         </form>

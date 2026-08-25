@@ -18,9 +18,23 @@ export function useFixedExpenses() {
     const expenses = await db.fixedExpenses
       .where('clinicId')
       .equals(clinicId)
-      .filter((g) => !g.deletedAt)
+      .filter((g) => !g.deletedAt && (g.expenseType === 'recurring' || !g.expenseType))
       .toArray();
     return expenses.sort((a, b) => a.nextDueDate.localeCompare(b.nextDueDate));
+  }, []);
+
+  return { expenses: result ?? [], loading: result === undefined };
+}
+
+export function useOneTimeExpenses() {
+  const result = useLiveQuery(async () => {
+    const clinicId = await getClinicaId();
+    const expenses = await db.fixedExpenses
+      .where('clinicId')
+      .equals(clinicId)
+      .filter((g) => !g.deletedAt && g.expenseType === 'one_time')
+      .toArray();
+    return expenses.sort((a, b) => b.nextDueDate.localeCompare(a.nextDueDate));
   }, []);
 
   return { expenses: result ?? [], loading: result === undefined };
@@ -112,6 +126,14 @@ export interface CreateFixedExpenseInput {
   paymentDay: number;
 }
 
+export interface CreateOneTimeExpenseInput {
+  name:     string;
+  amount:   number;
+  category: ExpenseCategory;
+  date:     string; // YYYY-MM-DD
+  notes?:   string;
+}
+
 export async function createFixedExpense(input: CreateFixedExpenseInput): Promise<string> {
   const now      = Date.now();
   const id       = crypto.randomUUID();
@@ -165,6 +187,79 @@ export async function deleteFixedExpense(id: string): Promise<void> {
       await db.syncQueue.add({ collection: 'expensePayments', documentId: payment.id, operation: 'delete', data: { id: payment.id, deletedAt: now, updatedAt: now }, attempts: 0, createdAt: now } as SyncQueueItem);
     }
 
+    await db.syncQueue.add({ collection: 'fixedExpenses', documentId: id, operation: 'delete', data: { id, deletedAt: now, updatedAt: now }, attempts: 0, createdAt: now } as SyncQueueItem);
+  });
+}
+
+export async function createOneTimeExpense(input: CreateOneTimeExpenseInput): Promise<string> {
+  const now      = Date.now();
+  const id       = crypto.randomUUID();
+  const clinicId = await getClinicaId();
+
+  const expense: FixedExpense = {
+    id,
+    clinicId,
+    name:        input.name,
+    amount:      input.amount,
+    category:    input.category,
+    frequency:   'monthly',  // unused for one_time
+    paymentDay:  1,           // unused for one_time
+    nextDueDate: input.date,  // reused as the expense date
+    active:      true,
+    expenseType: 'one_time',
+    notes:       input.notes,
+    syncStatus:  'pending',
+    createdAt:   now,
+    updatedAt:   now,
+  };
+
+  await db.fixedExpenses.add(expense);
+  await encolarSync({ collection: 'fixedExpenses', documentId: id, operation: 'create', data: expense, attempts: 0, createdAt: now });
+  return id;
+}
+
+export async function markOneTimePaid(
+  id:     string,
+  amount: number,
+  date:   string,
+  notes?: string,
+): Promise<void> {
+  const now = Date.now();
+  const clinicId = await getClinicaId();
+
+  const paymentId = crypto.randomUUID();
+  const payment: ExpensePayment = {
+    id:             paymentId,
+    clinicId,
+    fixedExpenseId: id,
+    amount,
+    paymentDate:    date,
+    notes,
+    syncStatus:     'pending',
+    createdAt:      now,
+    updatedAt:      now,
+  };
+
+  const expenseUpdates = { active: false, updatedAt: now, syncStatus: 'pending' as const };
+
+  await db.transaction('rw', [db.fixedExpenses, db.expensePayments, db.syncQueue], async () => {
+    await db.expensePayments.add(payment);
+    await db.fixedExpenses.update(id, expenseUpdates);
+    await db.syncQueue.add({ collection: 'expensePayments', documentId: paymentId, operation: 'create', data: payment, attempts: 0, createdAt: now } as SyncQueueItem);
+    await db.syncQueue.add({ collection: 'fixedExpenses', documentId: id, operation: 'update', data: { id, ...expenseUpdates }, attempts: 0, createdAt: now } as SyncQueueItem);
+  });
+}
+
+export async function deleteOneTimeExpense(id: string): Promise<void> {
+  const now = Date.now();
+  const linkedPayments = await db.expensePayments.where('fixedExpenseId').equals(id).toArray();
+
+  await db.transaction('rw', [db.fixedExpenses, db.expensePayments, db.syncQueue], async () => {
+    await db.fixedExpenses.update(id, { deletedAt: now, updatedAt: now, syncStatus: 'pending' });
+    for (const p of linkedPayments) {
+      await db.expensePayments.update(p.id, { deletedAt: now, updatedAt: now, syncStatus: 'pending' });
+      await db.syncQueue.add({ collection: 'expensePayments', documentId: p.id, operation: 'delete', data: { id: p.id, deletedAt: now, updatedAt: now }, attempts: 0, createdAt: now } as SyncQueueItem);
+    }
     await db.syncQueue.add({ collection: 'fixedExpenses', documentId: id, operation: 'delete', data: { id, deletedAt: now, updatedAt: now }, attempts: 0, createdAt: now } as SyncQueueItem);
   });
 }

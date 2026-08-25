@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, getClinicaId } from '@/lib/db/database';
@@ -24,6 +24,57 @@ import {
 
 function fmt(n: number) {
   return new Intl.NumberFormat('es-NI', { style: 'currency', currency: 'NIO', maximumFractionDigits: 0 }).format(n);
+}
+
+// ─── CartNumberInput ──────────────────────────────────────────────────────────
+
+interface CartNumberInputProps {
+  value: number;
+  min?: number;
+  max?: number;
+  onChange: (num: number) => void;
+  className?: string;
+}
+
+function CartNumberInput({ value, min, max, onChange, className }: CartNumberInputProps) {
+  const [localValue, setLocalValue] = useState(String(value));
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    if (!editing) setLocalValue(String(value));
+  }, [value, editing]);
+
+  function handleFocus(e: React.FocusEvent<HTMLInputElement>) {
+    setEditing(true);
+    e.target.select();
+  }
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setLocalValue(e.target.value);
+  }
+
+  function handleBlur() {
+    setEditing(false);
+    const parsed = parseFloat(localValue);
+    if (!isNaN(parsed)) {
+      const clamped = Math.max(min ?? -Infinity, Math.min(max ?? Infinity, parsed));
+      onChange(clamped);
+    } else {
+      setLocalValue(String(value));
+    }
+  }
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={localValue}
+      onFocus={handleFocus}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      className={className}
+    />
+  );
 }
 
 // ─── Cart item type ───────────────────────────────────────────────────────────
@@ -665,13 +716,10 @@ export default function SalesPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium leading-snug break-words">{item.description}</p>
                         <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
+                          <CartNumberInput
                             value={item.unitPrice}
-                            onChange={(e) => cambiarPrecio(item.productId, e.target.value)}
-                            title="Editar precio unitario"
+                            min={0}
+                            onChange={(num) => cambiarPrecio(item.productId, String(num))}
                             className="w-20 text-xs tabular-nums text-muted-foreground bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:text-foreground focus:outline-none transition-colors"
                           />
                           <span className="text-xs text-muted-foreground">/{unitLabel} · disp: {item.availableStock}</span>
@@ -689,13 +737,11 @@ export default function SalesPage() {
                         className="w-7 h-7 rounded-lg border border-border flex items-center justify-center hover:bg-muted/40 transition-colors disabled:opacity-40 shrink-0">
                         <Minus size={12} />
                       </button>
-                      <input
-                        type="number"
-                        min={isFractional ? 0.01 : 1}
-                        step={isFractional ? 0.5 : 1}
-                        max={item.availableStock}
+                      <CartNumberInput
                         value={item.quantity}
-                        onChange={(e) => setCantidadDirecta(item.productId, e.target.value)}
+                        min={isFractional ? 0.01 : 1}
+                        max={item.availableStock}
+                        onChange={(num) => setCantidadDirecta(item.productId, String(num))}
                         className="w-14 text-center text-sm font-semibold tabular-nums border border-input rounded-lg px-1 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-ring shrink-0"
                       />
                       <span className="text-xs text-muted-foreground shrink-0">{unitLabel}</span>

@@ -1,6 +1,7 @@
-export type ExpenseCategory = 'rent' | 'services' | 'payroll' | 'insurance' | 'maintenance' | 'other';
+export type ExpenseCategory = 'rent' | 'services' | 'payroll' | 'insurance' | 'maintenance' | 'supplies' | 'equipment' | 'marketing' | 'other';
 export type ExpenseFrequency = 'monthly' | 'bimonthly' | 'quarterly' | 'semiannual' | 'annual';
 export type AlertLevel = 'overdue' | 'urgent' | 'upcoming' | 'ok';
+export type ExpenseType = 'recurring' | 'one_time';
 
 export interface FixedExpense {
   id: string;
@@ -8,10 +9,13 @@ export interface FixedExpense {
   name: string;
   amount: number;
   category: ExpenseCategory;
+  // recurring-only fields (ignored for one_time)
   frequency: ExpenseFrequency;
-  paymentDay: number; // 1–28
-  nextDueDate: string; // YYYY-MM-DD
-  active: boolean;
+  paymentDay: number;       // 1–28
+  nextDueDate: string;      // YYYY-MM-DD — for one_time this is the expense date
+  active: boolean;          // for one_time: true=pending, false=done
+  expenseType?: ExpenseType; // undefined = 'recurring' (backwards compat)
+  notes?: string;           // one_time: description/notes
   syncStatus: 'synced' | 'pending' | 'conflict';
   createdAt: number;
   updatedAt: number;
@@ -69,6 +73,9 @@ export const EXPENSE_CATEGORIES: Record<ExpenseCategory, string> = {
   payroll:      'Nómina',
   insurance:    'Seguros',
   maintenance:  'Mantenimiento',
+  supplies:     'Insumos',
+  equipment:    'Equipos',
+  marketing:    'Marketing',
   other:        'Otros',
 };
 
