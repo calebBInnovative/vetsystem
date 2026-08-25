@@ -1061,10 +1061,10 @@ export default function SalesPage() {
 
         {/* ── Panel derecho: carrito ────────────────────────────── */}
         <div className={cn(
-          'w-full lg:w-80 border-l border-border bg-card flex flex-col overflow-hidden shrink-0',
+          'w-full lg:w-[22rem] border-l border-border bg-card flex flex-col overflow-hidden shrink-0',
           view === 'products' ? 'hidden lg:flex' : 'flex'
         )}>
-          <div className="px-4 py-3 border-b border-border flex items-center justify-between shrink-0">
+          <div className="px-5 py-3 border-b border-border flex items-center justify-between shrink-0">
             <p className="font-semibold text-sm">
               {step === 'cobrar' ? 'Confirmar cobro' : step === 'exito' ? 'Venta completada' : `Carrito${totalItems > 0 ? ` (${totalItems})` : ''}`}
             </p>
@@ -1072,7 +1072,7 @@ export default function SalesPage() {
               <span className="text-xs text-muted-foreground">{fmt(total)}</span>
             )}
           </div>
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-y-auto px-5 py-4">
             <PanelCarrito />
           </div>
         </div>

@@ -60,65 +60,67 @@ export function DescuentoInput({ subtotal, value, onChange, className }: Descuen
       : null;
 
   return (
-    <div className={cn('flex items-center gap-2', className)}>
-      {/* C$ / % toggle */}
-      <div className="flex rounded-lg border border-input overflow-hidden shrink-0 text-xs font-semibold">
-        <button
-          type="button"
-          onClick={() => handleModeChange('monto')}
-          className={cn(
-            'px-2.5 py-1.5 transition-colors',
-            modo === 'monto'
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-background text-muted-foreground hover:text-foreground',
-          )}
-        >
-          C$
-        </button>
-        <button
-          type="button"
-          onClick={() => handleModeChange('porcentaje')}
-          className={cn(
-            'px-2.5 py-1.5 transition-colors',
-            modo === 'porcentaje'
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-background text-muted-foreground hover:text-foreground',
-          )}
-        >
-          %
-        </button>
+    <div className={cn('space-y-1', className)}>
+      <div className="flex items-center gap-2">
+        {/* C$ / % toggle */}
+        <div className="flex rounded-lg border border-input overflow-hidden shrink-0 text-xs font-semibold">
+          <button
+            type="button"
+            onClick={() => handleModeChange('monto')}
+            className={cn(
+              'px-2.5 py-1.5 transition-colors',
+              modo === 'monto'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-background text-muted-foreground hover:text-foreground',
+            )}
+          >
+            C$
+          </button>
+          <button
+            type="button"
+            onClick={() => handleModeChange('porcentaje')}
+            className={cn(
+              'px-2.5 py-1.5 transition-colors',
+              modo === 'porcentaje'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-background text-muted-foreground hover:text-foreground',
+            )}
+          >
+            %
+          </button>
+        </div>
+
+        {/* Numeric input — uncontrolled so React never resets cursor/selection */}
+        <input
+          ref={inputRef}
+          type="text"
+          inputMode="numeric"
+          defaultValue=""
+          onFocus={() => {
+            isEditing.current = true;
+            setTimeout(() => inputRef.current?.select(), 0);
+          }}
+          onChange={(e) => {
+            const digits = e.target.value.replace(/\D/g, '');
+            if (digits !== e.target.value && inputRef.current) {
+              inputRef.current.value = digits;
+            }
+            setRawDisplay(digits);
+          }}
+          onBlur={(e) => {
+            isEditing.current = false;
+            onChange(computeMonto(e.target.value));
+          }}
+          placeholder="0"
+          className="flex-1 rounded-xl border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring text-right"
+        />
       </div>
 
-      {/* Numeric input — uncontrolled so React never resets cursor/selection */}
-      <input
-        ref={inputRef}
-        type="text"
-        inputMode="numeric"
-        defaultValue=""
-        onFocus={() => {
-          isEditing.current = true;
-          setTimeout(() => inputRef.current?.select(), 0);
-        }}
-        onChange={(e) => {
-          const digits = e.target.value.replace(/\D/g, '');
-          // Keep the DOM correct if non-digits were typed (e.g. on desktop)
-          if (digits !== e.target.value && inputRef.current) {
-            inputRef.current.value = digits;
-          }
-          setRawDisplay(digits); // local re-render for equivalencia only — parent untouched
-        }}
-        onBlur={(e) => {
-          isEditing.current = false;
-          onChange(computeMonto(e.target.value));
-        }}
-        placeholder="0"
-        className="flex-1 rounded-xl border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring text-right"
-      />
-
+      {/* Equivalencia — always on its own line so it never gets clipped */}
       {equivalencia && (
-        <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
+        <p className="text-xs text-muted-foreground tabular-nums text-right pr-1">
           = {equivalencia}
-        </span>
+        </p>
       )}
     </div>
   );
