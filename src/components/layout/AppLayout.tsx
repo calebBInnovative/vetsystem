@@ -571,15 +571,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               >
                 {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
               </Button>
-
-              <div className="relative hidden sm:block w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" size={14} />
-                <input
-                  type="text"
-                  placeholder="Buscar paciente, dueño..."
-                  className="w-full bg-muted/60 border-0 pl-8 pr-4 py-1.5 rounded-lg text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
-                />
-              </div>
             </div>
 
             <div className="flex items-center gap-3">
