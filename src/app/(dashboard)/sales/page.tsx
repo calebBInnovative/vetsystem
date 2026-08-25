@@ -37,41 +37,38 @@ interface CartNumberInputProps {
 }
 
 function CartNumberInput({ value, min, max, onChange, className }: CartNumberInputProps) {
-  const [localValue, setLocalValue] = useState(String(value));
-  const [editing, setEditing] = useState(false);
+  const inputRef  = useRef<HTMLInputElement>(null);
+  const isEditing = useRef(false);
 
+  // Sync DOM from prop only when the user is not actively editing (e.g. +/- button clicks)
   useEffect(() => {
-    if (!editing) setLocalValue(String(value));
-  }, [value, editing]);
-
-  function handleFocus(e: React.FocusEvent<HTMLInputElement>) {
-    setEditing(true);
-    e.target.select();
-  }
-
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setLocalValue(e.target.value);
-  }
-
-  function handleBlur() {
-    setEditing(false);
-    const parsed = parseFloat(localValue);
-    if (!isNaN(parsed)) {
-      const clamped = Math.max(min ?? -Infinity, Math.min(max ?? Infinity, parsed));
-      onChange(clamped);
-    } else {
-      setLocalValue(String(value));
+    if (!isEditing.current && inputRef.current) {
+      inputRef.current.value = String(value);
     }
-  }
+  }, [value]);
 
   return (
     <input
+      ref={inputRef}
       type="text"
       inputMode="decimal"
-      value={localValue}
-      onFocus={handleFocus}
-      onChange={handleChange}
-      onBlur={handleBlur}
+      defaultValue={String(value)}
+      onFocus={() => {
+        isEditing.current = true;
+        // Defer select so any pending React reconciliation finishes first
+        setTimeout(() => inputRef.current?.select(), 0);
+      }}
+      onBlur={() => {
+        isEditing.current = false;
+        const num = parseFloat(inputRef.current?.value ?? '');
+        if (!isNaN(num)) {
+          const clamped = Math.max(min ?? -Infinity, Math.min(max ?? Infinity, num));
+          if (inputRef.current) inputRef.current.value = String(clamped);
+          onChange(clamped);
+        } else {
+          if (inputRef.current) inputRef.current.value = String(value);
+        }
+      }}
       className={className}
     />
   );
