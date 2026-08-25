@@ -262,7 +262,7 @@ export default function InventoryPage() {
             <DialogTitle>¿Eliminar producto?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Se eliminará <span className="font-semibold text-foreground">"{deleteTarget?.name}"</span> del inventario.
+            Se eliminará <span className="font-semibold text-foreground">&ldquo;{deleteTarget?.name}&rdquo;</span> del inventario.
             Esta acción no afecta el historial de ventas ni las finanzas.
           </p>
           <DialogFooter className="gap-2 sm:gap-0">

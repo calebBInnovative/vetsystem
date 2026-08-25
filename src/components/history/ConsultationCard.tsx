@@ -25,7 +25,7 @@ interface ConsultaCardProps {
   pacienteId: string;
 }
 
-export function ConsultaCard({ consulta, pacienteId }: ConsultaCardProps) {
+export function ConsultaCard({ consulta, pacienteId: _pacienteId }: ConsultaCardProps) {
   const [expandida, setExpandida] = useState(false);
   const tipo = CONSULTATION_TYPES[consulta.type];
   const tieneMedicamentos = (consulta.medications?.length ?? 0) > 0;
