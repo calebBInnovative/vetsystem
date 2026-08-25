@@ -1,7 +1,7 @@
 export type ExpenseCategory = 'rent' | 'services' | 'payroll' | 'insurance' | 'maintenance' | 'supplies' | 'equipment' | 'marketing' | 'other';
 export type ExpenseFrequency = 'monthly' | 'bimonthly' | 'quarterly' | 'semiannual' | 'annual';
 export type AlertLevel = 'overdue' | 'urgent' | 'upcoming' | 'ok';
-export type ExpenseType = 'recurring' | 'one_time';
+export type ExpenseType = 'recurring' | 'one_time' | 'daily';
 
 export interface FixedExpense {
   id: string;

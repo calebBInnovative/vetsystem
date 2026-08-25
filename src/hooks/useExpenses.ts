@@ -300,6 +300,60 @@ export async function markAsPaid(
   });
 }
 
+export function useDailyExpenses() {
+  const result = useLiveQuery(async () => {
+    const clinicId = await getClinicaId();
+    const expenses = await db.fixedExpenses
+      .where('clinicId')
+      .equals(clinicId)
+      .filter((g) => !g.deletedAt && g.expenseType === 'daily')
+      .toArray();
+    return expenses.sort((a, b) => b.nextDueDate.localeCompare(a.nextDueDate));
+  }, []);
+  return { expenses: result ?? [], loading: result === undefined };
+}
+
+export interface CreateDailyExpenseInput {
+  name:     string;
+  amount:   number;
+  category: ExpenseCategory;
+  date:     string;
+  notes?:   string;
+}
+
+export async function createDailyExpense(input: CreateDailyExpenseInput): Promise<string> {
+  const now      = Date.now();
+  const id       = crypto.randomUUID();
+  const clinicId = await getClinicaId();
+
+  const expense: FixedExpense = {
+    id,
+    clinicId,
+    name:        input.name,
+    amount:      input.amount,
+    category:    input.category,
+    frequency:   'monthly',
+    paymentDay:  1,
+    nextDueDate: input.date,
+    active:      false,
+    expenseType: 'daily',
+    notes:       input.notes,
+    syncStatus:  'pending',
+    createdAt:   now,
+    updatedAt:   now,
+  };
+
+  await db.fixedExpenses.add(expense);
+  await encolarSync({ collection: 'fixedExpenses', documentId: id, operation: 'create', data: expense, attempts: 0, createdAt: now });
+  return id;
+}
+
+export async function deleteDailyExpense(id: string): Promise<void> {
+  const now = Date.now();
+  await db.fixedExpenses.update(id, { deletedAt: now, updatedAt: now, syncStatus: 'pending' });
+  await encolarSync({ collection: 'fixedExpenses', documentId: id, operation: 'delete', data: { id, deletedAt: now, updatedAt: now }, attempts: 0, createdAt: now });
+}
+
 export async function toggleExpenseActive(id: string): Promise<void> {
   const now     = Date.now();
   const expense = await db.fixedExpenses.get(id);
