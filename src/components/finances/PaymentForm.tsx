@@ -119,9 +119,8 @@ export function PagoForm({ pacienteIdInicial, onExito, onCancelar }: PagoFormPro
         <label className="text-sm font-medium">Monto (C$) *</label>
         <input
           {...register('amount')}
-          type="number"
-          step="0.01"
-          min="0"
+          type="text"
+          inputMode="numeric"
           placeholder="0.00"
           className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />

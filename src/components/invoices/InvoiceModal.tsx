@@ -158,10 +158,8 @@ export function FacturaModal({ consultation, open, onGuardada }: FacturaModalPro
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Monto cobrado (C$) *</label>
               <input
-                type="number"
-                min="1"
-                max={total - 1}
-                step="1"
+                type="text"
+                inputMode="numeric"
                 placeholder="0"
                 value={amountPaid}
                 onChange={(e) => setMontoPagado(e.target.value)}

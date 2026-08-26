@@ -202,9 +202,8 @@ export function ProductoForm({
             <label className={labelClass}>Precio de venta ($)</label>
             <input
               {...register('salePrice')}
-              type="number"
-              step="0.01"
-              min="0"
+              type="text"
+              inputMode="numeric"
               placeholder="0.00"
               className={field(!!errors.salePrice)}
             />
@@ -215,9 +214,8 @@ export function ProductoForm({
             <label className={labelClass}>Precio de costo ($)</label>
             <input
               {...register('costPrice')}
-              type="number"
-              step="0.01"
-              min="0"
+              type="text"
+              inputMode="numeric"
               placeholder="0.00"
               className={field(false)}
             />

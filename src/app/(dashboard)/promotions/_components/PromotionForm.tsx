@@ -566,10 +566,8 @@ export function PromotionForm({
                             {item.discountType === 'percentage' ? 'Porcentaje (%)' : 'Monto (C$)'}
                           </p>
                           <input
-                            type="number"
-                            min="0"
-                            max={item.discountType === 'percentage' ? 100 : undefined}
-                            step={item.discountType === 'percentage' ? 1 : 0.01}
+                            type="text"
+                            inputMode="numeric"
                             value={item.discountValue || ''}
                             onChange={(e) =>
                               setItemDiscount(

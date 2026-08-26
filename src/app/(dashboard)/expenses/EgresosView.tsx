@@ -138,7 +138,7 @@ function PayExpenseDialog({
             <Label htmlFor="pay-amount">Monto pagado</Label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">C$</span>
-              <Input id="pay-amount" type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="pl-9" required />
+              <Input id="pay-amount" type="text" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} className="pl-9" required />
             </div>
           </div>
           <div className="space-y-1.5">
@@ -209,7 +209,7 @@ function PayCollaboratorDialog({
             <Label htmlFor="pcolab-amount">Monto</Label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">C$</span>
-              <Input id="pcolab-amount" type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="pl-9" required />
+              <Input id="pcolab-amount" type="text" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} className="pl-9" required />
             </div>
           </div>
           <div className="space-y-1.5">
@@ -737,9 +737,8 @@ function TabDaily() {
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">C$</span>
               <Input
                 id="daily-amount"
-                type="number"
-                min="0.01"
-                step="0.01"
+                type="text"
+                inputMode="numeric"
                 value={amount}
                 onChange={e => setAmount(e.target.value)}
                 className="pl-8"

@@ -880,7 +880,11 @@ function TextCell({ value, error, placeholder, type = 'text', onChange }: {
   return (
     <div>
       <input
-        type={type} value={value} placeholder={placeholder} title={error}
+        type="text"
+        inputMode={type === 'number' ? 'numeric' : 'text'}
+        value={value}
+        placeholder={placeholder}
+        title={error}
         onChange={(e) => onChange(e.target.value)}
         className={cn(BASE, error ? ERR : OK)}
       />

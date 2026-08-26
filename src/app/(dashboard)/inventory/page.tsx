@@ -70,7 +70,10 @@ function TCell({ value, error, placeholder, type = 'text', onChange }: {
   return (
     <div>
       <input
-        type={type} value={value} placeholder={placeholder}
+        type="text"
+        inputMode={type === 'number' ? 'numeric' : 'text'}
+        value={value}
+        placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         className={cn(BASE, error ? ERR : OK)}
       />

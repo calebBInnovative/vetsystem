@@ -312,9 +312,8 @@ export function ProductDetailView() {
                   C$
                 </span>
                 <input
-                  type="number"
-                  min="0"
-                  step="0.01"
+                  type="text"
+                  inputMode="numeric"
                   value={financeAmount}
                   onChange={(e) => setFinanceAmount(e.target.value)}
                   placeholder="0.00"

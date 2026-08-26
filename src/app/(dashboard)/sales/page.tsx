@@ -719,10 +719,8 @@ export default function SalesPage() {
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-base text-muted-foreground font-semibold pointer-events-none">C$</span>
                     <input
-                      type="number"
+                      type="text"
                       inputMode="numeric"
-                      min={0}
-                      step={1}
                       value={receivedAmount}
                       onChange={(e) => setReceivedAmount(e.target.value)}
                       placeholder={String(Math.ceil(total))}

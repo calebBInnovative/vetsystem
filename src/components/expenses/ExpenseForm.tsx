@@ -129,9 +129,8 @@ export function GastoFijoForm({ open, onClose, gasto }: Props) {
               </span>
               <Input
                 id="gf-monto"
-                type="number"
-                min="0.01"
-                step="0.01"
+                type="text"
+                inputMode="numeric"
                 value={monto}
                 onChange={(e) => setMonto(e.target.value)}
                 placeholder="0.00"
@@ -265,7 +264,7 @@ export function GastoEventualForm({ open, onClose }: OneTimeFormProps) {
               <Label htmlFor="ge-monto">Monto</Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">C$</span>
-                <Input id="ge-monto" type="number" min="0.01" step="0.01" value={monto}
+                <Input id="ge-monto" type="text" inputMode="numeric" value={monto}
                   onChange={(e) => setMonto(e.target.value)} placeholder="0.00" className="pl-9" required />
               </div>
             </div>

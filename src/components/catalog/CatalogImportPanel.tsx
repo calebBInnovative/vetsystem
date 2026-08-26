@@ -293,7 +293,7 @@ function ProductCard({
                   Precio venta ($){missingPrice && ' *'}
                 </label>
                 <input
-                  type="number" min="0" step="0.01"
+                  type="text" inputMode="numeric"
                   value={draft.salePrice}
                   onChange={(e) => set({ salePrice: e.target.value })}
                   placeholder="0.00"
@@ -303,7 +303,7 @@ function ProductCard({
               <div>
                 <label className="text-[10px] text-muted-foreground block mb-1">Precio costo ($)</label>
                 <input
-                  type="number" min="0" step="0.01"
+                  type="text" inputMode="numeric"
                   value={draft.costPrice}
                   onChange={(e) => set({ costPrice: e.target.value })}
                   placeholder="0.00"

@@ -144,9 +144,8 @@ export function ColaboradorForm({ open, onClose, colaborador }: Props) {
               </span>
               <Input
                 id="colab-salario"
-                type="number"
-                min="0.01"
-                step="0.01"
+                type="text"
+                inputMode="numeric"
                 value={salario}
                 onChange={(e) => setSalario(e.target.value)}
                 placeholder="0.00"

@@ -311,9 +311,8 @@ export function PagoCard({ pago, compact = false }: PagoCardProps) {
                 <div className="col-span-2 sm:col-span-1">
                   <label className="block text-xs font-medium mb-1">Monto (C$)</label>
                   <input
-                    type="number"
-                    min="0"
-                    step="0.01"
+                    type="text"
+                    inputMode="numeric"
                     value={newAmount}
                     onChange={(e) => setNewAmount(e.target.value)}
                     className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-primary"

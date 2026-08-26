@@ -512,8 +512,8 @@ export function ConsultaForm({ consultaId, consultation, onFinalizada, onCancela
                 <input
                   value={servicioPrecio}
                   onChange={(e) => setServicioPrecio(e.target.value)}
-                  type="number"
-                  min="0"
+                  type="text"
+                  inputMode="numeric"
                   placeholder="C$"
                   className="w-24 rounded-xl border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 />
