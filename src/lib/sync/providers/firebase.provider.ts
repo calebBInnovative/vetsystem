@@ -10,6 +10,7 @@ import {
   getDocs,
   onSnapshot,
   serverTimestamp,
+  Timestamp,
   type Firestore,
   type QueryDocumentSnapshot,
   type QueryConstraint,
@@ -48,6 +49,11 @@ export class FirebaseSyncProvider implements SyncProvider {
   }
 
   async pull(collectionName: string, since: number, clinicId: string): Promise<RemoteDoc[]> {
+    // Query by _syncedAt (server-set timestamp) instead of updatedAt (app-set timestamp).
+    // This ensures documents pushed to Firestore for the first time are visible to all
+    // other clients regardless of when they were originally created — their updatedAt
+    // could be months old and would never be returned by a cursor based on updatedAt.
+    const sinceTimestamp = Timestamp.fromMillis(since);
     // Simplified rules use 1 read per doc evaluation; batch of 9 stays under the 10-read limit.
     const BATCH_SIZE = 9;
     const results: RemoteDoc[] = [];
@@ -55,8 +61,8 @@ export class FirebaseSyncProvider implements SyncProvider {
 
     do {
       const constraints: QueryConstraint[] = [
-        where('updatedAt', '>', since),
-        orderBy('updatedAt', 'asc'),
+        where('_syncedAt', '>', sinceTimestamp),
+        orderBy('_syncedAt', 'asc'),
         limit(BATCH_SIZE),
       ];
       if (lastDoc) constraints.push(startAfter(lastDoc));

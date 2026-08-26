@@ -179,6 +179,10 @@ class SyncService {
       localStorage.setItem(ACTIVE_USER_KEY, currentUser);
     }
     const lastPull = parseInt(localStorage.getItem(LAST_PULL_KEY) ?? '0', 10);
+    // Snapshot the current time before starting the pull. We save this as the new
+    // cursor only on full success, so any documents written to Firestore during the
+    // pull (between now and when we finish) will be captured on the next pull.
+    const pullStartedAt = Date.now();
     let pullErrored = false;
 
     try {
@@ -209,7 +213,7 @@ class SyncService {
       // If any failed, we keep lastPull unchanged so the next pull retries
       // from the same point — preventing a permanently empty app.
       if (!pullErrored) {
-        localStorage.setItem(LAST_PULL_KEY, Date.now().toString());
+        localStorage.setItem(LAST_PULL_KEY, pullStartedAt.toString());
       } else if (lastPull === 0) {
         // First-ever pull for this user on this browser failed — show a visible
         // error so the problem is clear (not just a silent empty app).
