@@ -147,7 +147,8 @@ class SyncService {
     this.pulling = true;
 
     const clinicId = session?.clinicId ?? 'unknown';
-    const LAST_PULL_KEY = `vetsystem_last_pull_${clinicId}`;
+    const uid      = session?.uid      ?? 'unknown';
+    const LAST_PULL_KEY = `vetsystem_last_pull_${clinicId}_${uid}`;
     const lastPull = parseInt(localStorage.getItem(LAST_PULL_KEY) ?? '0', 10);
 
     try {

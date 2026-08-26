@@ -375,15 +375,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   // always triggers a fresh pull for that clinic's data.
   const [initialSyncing, setInitialSyncing] = useState(typeof window !== 'undefined');
 
-  // Once we know the clinicId, check if data for this clinic was ever pulled
-  // on this browser. If yes, hide the spinner immediately (no full re-sync needed).
+  // Once we know who is logged in, check if THIS user has already pulled data
+  // on this browser. Key includes uid so different users on the same browser
+  // each get a fresh pull (different IndexedDB state, different pull cursor).
   useEffect(() => {
     if (isDemo) { setInitialSyncing(false); return; }
-    if (!session?.clinicId) return;
-    const key = `vetsystem_last_pull_${session.clinicId}`;
+    if (!session?.clinicId || !session?.uid) return;
+    const key = `vetsystem_last_pull_${session.clinicId}_${session.uid}`;
     const lastPull = localStorage.getItem(key);
     if (lastPull && lastPull !== '0') setInitialSyncing(false);
-  }, [session?.clinicId, isDemo]);
+  }, [session?.clinicId, session?.uid, isDemo]);
 
   useEffect(() => {
     syncService.start().finally(() => setInitialSyncing(false));
