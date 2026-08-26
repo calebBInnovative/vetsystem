@@ -1106,7 +1106,7 @@ export default function SalesPage() {
               ) : (
                 <div className={cn(
                   'gap-2',
-                  catalogView === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2' : 'flex flex-col'
+                  catalogView === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3' : 'flex flex-col'
                 )}>
                   {products.map((prod) => (
                     <ProductCard
@@ -1128,7 +1128,7 @@ export default function SalesPage() {
               ) : (
                 <div className={cn(
                   'gap-2',
-                  catalogView === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2' : 'flex flex-col'
+                  catalogView === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3' : 'flex flex-col'
                 )}>
                   {services.map((svc) => (
                     <ServiceCard
@@ -1149,7 +1149,7 @@ export default function SalesPage() {
                   <p className="text-xs">Crea una en <span className="font-medium">Promociones</span> y vuelve aquí para aplicarla.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
                   {promotions.map((promo) => (
                     <PromotionCard
                       key={promo.id}
@@ -1165,7 +1165,7 @@ export default function SalesPage() {
 
         {/* ── Panel derecho: carrito ────────────────────────────── */}
         <div className={cn(
-          'w-full lg:w-[22rem] border-l border-border bg-card flex flex-col overflow-hidden shrink-0',
+          'w-full lg:w-[30%] lg:min-w-[22rem] lg:max-w-[30rem] border-l border-border bg-card flex flex-col overflow-hidden shrink-0',
           view === 'products' ? 'hidden lg:flex' : 'flex'
         )}>
           <div className="px-5 py-3 border-b border-border flex items-center justify-between shrink-0">
