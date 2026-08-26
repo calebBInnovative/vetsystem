@@ -98,6 +98,10 @@ export function DescuentoInput({ subtotal, value, onChange, className }: Descuen
           onChange={(e) => {
             const digits = e.target.value.replace(/\D/g, '');
             setDisplay(digits);
+            // Update total in real-time while user types
+            const monto = computeMonto(digits);
+            lastCommitted.current = monto;
+            onChange(monto);
           }}
           onFocus={(e) => {
             isEditing.current = true;

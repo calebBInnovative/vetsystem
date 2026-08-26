@@ -17,7 +17,7 @@ import { type PromotionLocal } from '@/types/promotion';
 import {
   Search, Plus, Minus, Trash2, ShoppingCart,
   CheckCircle2, X, Loader2, ChevronRight, Tag, ChevronDown,
-  LayoutList, LayoutGrid,
+  LayoutList, LayoutGrid, Pencil,
 } from 'lucide-react';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -344,8 +344,9 @@ export default function SalesPage() {
   const [notes,        setNotes]        = useState('');
   const [procesando,   setProcesando]   = useState(false);
   const [invoiceId,    setInvoiceId]    = useState('');
-  const [catalogTab,   setCatalogTab]   = useState<'products' | 'services' | 'promos'>('products');
-  const [catalogView,  setCatalogView]  = useState<CatalogView>('grid');
+  const [catalogTab,     setCatalogTab]     = useState<'products' | 'services' | 'promos'>('products');
+  const [catalogView,    setCatalogView]    = useState<CatalogView>('grid');
+  const [receivedAmount, setReceivedAmount] = useState('');
   const router = useRouter();
 
   const promotions = useLiveQuery(async () => {
@@ -502,6 +503,7 @@ export default function SalesPage() {
     setStep('cart');
     setView('products');
     setInvoiceId('');
+    setReceivedAmount('');
   }
 
   function agregarPromocion(promo: PromotionLocal) {
@@ -646,7 +648,7 @@ export default function SalesPage() {
                 <button
                   key={key}
                   type="button"
-                  onClick={() => setMethod(key)}
+                  onClick={() => { setMethod(key); setReceivedAmount(''); }}
                   className={cn(
                     'flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm transition-colors',
                     method === key
@@ -659,6 +661,41 @@ export default function SalesPage() {
               ))}
             </div>
           </div>
+
+          {/* Monto recibido + cambio — solo efectivo */}
+          {method === 'cash' && (() => {
+            const received = parseFloat(receivedAmount) || 0;
+            const change   = received - total;
+            return (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Monto recibido del cliente</p>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">C$</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    step={1}
+                    value={receivedAmount}
+                    onChange={(e) => setReceivedAmount(e.target.value)}
+                    placeholder={String(Math.ceil(total))}
+                    className="w-full pl-9 h-10 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+                {received > 0 && (
+                  <div className={cn(
+                    'flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-bold',
+                    change >= 0
+                      ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                      : 'bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                  )}>
+                    <span>{change >= 0 ? '💵 Cambio' : '⚠️ Falta'}</span>
+                    <span className="text-base tabular-nums">{fmt(Math.abs(change))}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Cliente opcional */}
           <div className="space-y-1.5">
@@ -676,7 +713,7 @@ export default function SalesPage() {
           />
 
           <div className="flex gap-2">
-            <Button variant="outline" className="flex-1" onClick={() => setStep('cart')} disabled={procesando}>
+            <Button variant="outline" className="flex-1" onClick={() => { setStep('cart'); setReceivedAmount(''); }} disabled={procesando}>
               ← Volver
             </Button>
             <Button className="flex-1 gap-2" onClick={handleCobrar} disabled={procesando || total <= 0}>
@@ -712,14 +749,16 @@ export default function SalesPage() {
                     <div className="flex items-start gap-2">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium leading-snug break-words">{item.description}</p>
-                        <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                        <div className="flex items-center gap-1 mt-1 flex-wrap">
+                          <Pencil size={10} className="text-primary/60 shrink-0" />
+                          <span className="text-xs text-muted-foreground">C$</span>
                           <CartNumberInput
                             value={item.unitPrice}
                             min={0}
                             onChange={(num) => cambiarPrecio(item.productId, String(num))}
-                            className="w-20 text-xs tabular-nums text-muted-foreground bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:text-foreground focus:outline-none transition-colors"
+                            className="w-16 text-xs font-semibold tabular-nums text-foreground bg-primary/5 border border-dashed border-primary/40 rounded px-1.5 py-0.5 focus:border-primary focus:bg-background focus:outline-none transition-colors cursor-text"
                           />
-                          <span className="text-xs text-muted-foreground">/{unitLabel} · disp: {item.availableStock}</span>
+                          <span className="text-xs text-muted-foreground">/{unitLabel} · {item.availableStock} disp.</span>
                         </div>
                       </div>
                       <button type="button" onClick={() => eliminar(item.productId)}
