@@ -143,13 +143,15 @@ class SyncService {
   async pullAll(): Promise<void> {
     if (this.pulling || !navigator.onLine) return;
     const session = await db.session.get('singleton');
-    if (session?.isDemo) return;
+    // Skip if no session yet (app not fully initialized) or demo mode
+    if (!session || session.isDemo) return;
     this.pulling = true;
 
-    const clinicId = session?.clinicId ?? 'unknown';
-    const uid      = session?.uid      ?? 'unknown';
+    const clinicId = session.clinicId;
+    const uid      = session.uid;
     const LAST_PULL_KEY = `vetsystem_last_pull_${clinicId}_${uid}`;
     const lastPull = parseInt(localStorage.getItem(LAST_PULL_KEY) ?? '0', 10);
+    let pullErrored = false;
 
     try {
       for (const { nombre, tabla } of TABLAS_SYNC) {
@@ -169,11 +171,18 @@ class SyncService {
             }
           }
         } catch (err) {
-          console.warn(`[sync] pull ${nombre} falló:`, err);
+          pullErrored = true;
+          // Use console.error so this is visible in browser DevTools
+          console.error(`[sync] pull ${nombre} falló:`, err);
         }
       }
 
-      localStorage.setItem(LAST_PULL_KEY, Date.now().toString());
+      // Only advance the cursor when all collections pulled successfully.
+      // If any failed, we keep lastPull unchanged so the next pull retries
+      // from the same point — preventing a permanently empty app.
+      if (!pullErrored) {
+        localStorage.setItem(LAST_PULL_KEY, Date.now().toString());
+      }
     } finally {
       this.pulling = false;
     }
