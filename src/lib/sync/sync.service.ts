@@ -13,6 +13,7 @@
 
 import { db } from '@/lib/db/database';
 import { syncProvider } from './sync.config';
+import { toast } from 'sonner';
 
 async function isDemoSession(): Promise<boolean> {
   const s = await db.session.get('singleton');
@@ -182,6 +183,13 @@ class SyncService {
       // from the same point — preventing a permanently empty app.
       if (!pullErrored) {
         localStorage.setItem(LAST_PULL_KEY, Date.now().toString());
+      } else if (lastPull === 0) {
+        // First-ever pull for this user on this browser failed — show a visible
+        // error so the problem is clear (not just a silent empty app).
+        toast.error('Error al sincronizar datos de la clínica. Revisa la consola del navegador para más detalles.', {
+          duration: 8000,
+          id: 'sync-pull-error',
+        });
       }
     } finally {
       this.pulling = false;
