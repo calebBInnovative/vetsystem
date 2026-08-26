@@ -111,7 +111,8 @@ class SyncService {
 
   async flush(): Promise<void> {
     if (this.corriendo || !navigator.onLine) return;
-    if (await isDemoSession()) return;
+    const session = await db.session.get('singleton');
+    if (!session || session.isDemo) return;
     this.corriendo = true;
 
     try {
@@ -121,8 +122,13 @@ class SyncService {
         .sortBy('createdAt');
 
       for (const item of pendientes) {
+        // Use the clinicId embedded in the queued document data (always set by hooks
+        // from the live session), falling back to the current session clinicId.
+        const itemClinicId =
+          ((item.data as Record<string, unknown>).clinicId as string | undefined) ??
+          session.clinicId;
         try {
-          await syncProvider.push(item.collection, item.documentId, item.data);
+          await syncProvider.push(item.collection, item.documentId, item.data, itemClinicId);
           await db.syncQueue.delete(item.id!);
         } catch (err) {
           console.warn(`[sync] fallo ${item.collection}/${item.documentId}:`, err);
@@ -150,14 +156,25 @@ class SyncService {
 
     const clinicId = session.clinicId;
     const uid      = session.uid;
-    const LAST_PULL_KEY = `vetsystem_last_pull_${clinicId}_${uid}`;
+    const LAST_PULL_KEY   = `vetsystem_last_pull_${clinicId}_${uid}`;
+    // Track which (clinicId, uid) pair performed the last pull so we can detect
+    // when a different user logs in on the same browser and force a full re-sync.
+    const ACTIVE_USER_KEY = 'vetsystem_sync_active_user';
+    const activeUser      = localStorage.getItem(ACTIVE_USER_KEY);
+    const currentUser     = `${clinicId}__${uid}`;
+    if (activeUser !== currentUser) {
+      // New user (or first-ever login): clear any stale cursor left by the previous
+      // session so we pull all documents from the beginning, not just deltas.
+      localStorage.removeItem(LAST_PULL_KEY);
+      localStorage.setItem(ACTIVE_USER_KEY, currentUser);
+    }
     const lastPull = parseInt(localStorage.getItem(LAST_PULL_KEY) ?? '0', 10);
     let pullErrored = false;
 
     try {
       for (const { nombre, tabla } of TABLAS_SYNC) {
         try {
-          const remoteDocs = await syncProvider.pull(nombre, lastPull);
+          const remoteDocs = await syncProvider.pull(nombre, lastPull, clinicId);
           if (remoteDocs.length === 0) continue;
 
           const t = tabla() as unknown as { get(id: string): Promise<{ updatedAt: number } | undefined>; put(item: object): Promise<unknown> };
@@ -220,8 +237,9 @@ class SyncService {
       const mensajesError: string[] = [];
 
       for (const doc of docs) {
+        const docClinicId = (doc as { id: string; clinicId?: string }).clinicId ?? '';
         try {
-          await syncProvider.push(nombre, (doc as { id: string }).id, doc);
+          await syncProvider.push(nombre, (doc as { id: string }).id, doc, docClinicId);
           enviados++;
         } catch (err) {
           errores++;

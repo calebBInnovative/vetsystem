@@ -17,14 +17,16 @@ export interface SyncProvider {
   /**
    * Escribe o actualiza un documento en el backend.
    * Si el documento ya existe, se hace merge (no sobreescribe campos no incluidos).
+   * clinicId must come from the authenticated session — never from a build-time env var.
    */
-  push(collection: string, id: string, data: object): Promise<void>;
+  push(collection: string, id: string, data: object, clinicId: string): Promise<void>;
 
   /**
    * Trae documentos de una colección modificados después de `desde` (timestamp ms).
    * Retorna array vacío si no hay cambios.
+   * clinicId must come from the authenticated session — never from a build-time env var.
    */
-  pull(collection: string, desde: number): Promise<RemoteDoc[]>;
+  pull(collection: string, desde: number, clinicId: string): Promise<RemoteDoc[]>;
 
   /**
    * Suscripción en tiempo real (opcional).

@@ -26,34 +26,29 @@ import type { SyncProvider, RemoteDoc } from '@/lib/sync/sync.provider';
 export class FirebaseSyncProvider implements SyncProvider {
   readonly name = 'firebase';
 
-  private readonly clinicId: string;
   private db: Firestore | null = null;
 
-  constructor(clinicId: string) {
-    this.clinicId = clinicId;
-  }
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  constructor(_clinicId: string) {}
 
   private getDb(): Firestore {
     if (!this.db) this.db = getFirestoreDb();
     return this.db;
   }
 
-  private colRef(collectionName: string) {
-    return firestoreCollection(this.getDb(), 'clinics', this.clinicId, collectionName);
+  private colRef(collectionName: string, clinicId: string) {
+    return firestoreCollection(this.getDb(), 'clinics', clinicId, collectionName);
   }
 
-  async push(collectionName: string, id: string, data: object): Promise<void> {
+  async push(collectionName: string, id: string, data: object, clinicId: string): Promise<void> {
     // Firestore rejects undefined values — strip them before sending
     const clean = JSON.parse(JSON.stringify(data));
-    const ref = doc(this.colRef(collectionName), id);
+    const ref = doc(this.colRef(collectionName, clinicId), id);
     await setDoc(ref, { ...clean, _syncedAt: serverTimestamp() }, { merge: true });
   }
 
-  async pull(collectionName: string, since: number): Promise<RemoteDoc[]> {
-    // Firestore allows at most 10 external document reads per list-query request.
-    // With 1 cross-document read per security-rule evaluation (userRef().data.clinicId),
-    // a batch of 9 documents uses 9 of the 10 allowed reads — safely within the limit.
-    // Batching also avoids timeouts on large initial syncs.
+  async pull(collectionName: string, since: number, clinicId: string): Promise<RemoteDoc[]> {
+    // Simplified rules use 1 read per doc evaluation; batch of 9 stays under the 10-read limit.
     const BATCH_SIZE = 9;
     const results: RemoteDoc[] = [];
     let lastDoc: QueryDocumentSnapshot | null = null;
@@ -66,7 +61,7 @@ export class FirebaseSyncProvider implements SyncProvider {
       ];
       if (lastDoc) constraints.push(startAfter(lastDoc));
 
-      const snap = await getDocs(query(this.colRef(collectionName), ...constraints));
+      const snap = await getDocs(query(this.colRef(collectionName, clinicId), ...constraints));
       results.push(...snap.docs.map((d) => ({ id: d.id, ...d.data() }) as RemoteDoc));
 
       lastDoc = snap.size === BATCH_SIZE ? snap.docs[snap.docs.length - 1] : null;
@@ -77,10 +72,10 @@ export class FirebaseSyncProvider implements SyncProvider {
 
   subscribe(
     collectionName: string,
-    _clinicId: string,
+    clinicId: string,
     onChange: (docs: RemoteDoc[]) => void,
   ): () => void {
-    const q = query(this.colRef(collectionName));
+    const q = query(this.colRef(collectionName, clinicId));
     const unsub = onSnapshot(q, (snap) => {
       const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as RemoteDoc);
       onChange(docs);
