@@ -618,6 +618,11 @@ export default function SalesPage() {
     }
 
     if (step === 'cobrar') {
+      const received     = parseFloat(receivedAmount) || 0;
+      const change       = received - total;
+      const BILLS        = [10, 20, 50, 100, 200, 500, 1000];
+      const quickBills   = BILLS.filter((b) => b >= Math.ceil(total)).slice(0, 5);
+
       return (
         <div className="flex flex-col gap-4">
           {/* Resumen compacto */}
@@ -662,40 +667,100 @@ export default function SalesPage() {
             </div>
           </div>
 
-          {/* Monto recibido + cambio — solo efectivo */}
-          {method === 'cash' && (() => {
-            const received = parseFloat(receivedAmount) || 0;
-            const change   = received - total;
-            return (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Monto recibido del cliente</p>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">C$</span>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
-                    step={1}
-                    value={receivedAmount}
-                    onChange={(e) => setReceivedAmount(e.target.value)}
-                    placeholder={String(Math.ceil(total))}
-                    className="w-full pl-9 h-10 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
+          {/* ── Calculadora de cobro — solo efectivo ── */}
+          {method === 'cash' && (
+            <div className="rounded-2xl border border-border overflow-hidden">
+              {/* Total a cobrar */}
+              <div className="bg-primary px-4 py-3 text-center">
+                <p className="text-xs text-primary-foreground/70 uppercase tracking-widest font-medium">Total a cobrar</p>
+                <p className="text-4xl font-bold text-primary-foreground tabular-nums mt-0.5">{fmt(total)}</p>
+              </div>
+
+              <div className="p-4 space-y-3">
+                {/* Quick bill buttons */}
+                {quickBills.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium">Billetes rápidos</p>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {quickBills.map((bill) => (
+                        <button
+                          key={bill}
+                          type="button"
+                          onClick={() => setReceivedAmount(String(bill))}
+                          className={cn(
+                            'flex-1 min-w-[3.5rem] rounded-xl border py-2 text-sm font-bold transition-colors',
+                            receivedAmount === String(bill)
+                              ? 'border-primary bg-primary/10 text-primary'
+                              : 'border-border bg-background hover:border-primary/50 hover:bg-primary/5'
+                          )}
+                        >
+                          {bill}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setReceivedAmount(String(Math.ceil(total)))}
+                        className={cn(
+                          'flex-1 min-w-[3.5rem] rounded-xl border py-2 text-sm font-bold transition-colors',
+                          receivedAmount === String(Math.ceil(total))
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border bg-background hover:border-primary/50 hover:bg-primary/5'
+                        )}
+                      >
+                        Exacto
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Amount input */}
+                <div className="space-y-1">
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium">Monto recibido</p>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-base text-muted-foreground font-semibold pointer-events-none">C$</span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      step={1}
+                      value={receivedAmount}
+                      onChange={(e) => setReceivedAmount(e.target.value)}
+                      placeholder={String(Math.ceil(total))}
+                      autoFocus
+                      className="w-full pl-10 pr-3 h-12 rounded-xl border border-input bg-background text-xl font-bold text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </div>
                 </div>
-                {received > 0 && (
+
+                {/* Change display */}
+                {received > 0 ? (
                   <div className={cn(
-                    'flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-bold',
+                    'rounded-xl px-4 py-3 text-center',
                     change >= 0
-                      ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                      : 'bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                      ? 'bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800'
+                      : 'bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800'
                   )}>
-                    <span>{change >= 0 ? '💵 Cambio' : '⚠️ Falta'}</span>
-                    <span className="text-base tabular-nums">{fmt(Math.abs(change))}</span>
+                    <p className={cn(
+                      'text-xs font-semibold uppercase tracking-widest mb-1',
+                      change >= 0 ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'
+                    )}>
+                      {change >= 0 ? 'Cambio a devolver' : 'Falta por cobrar'}
+                    </p>
+                    <p className={cn(
+                      'text-4xl font-bold tabular-nums',
+                      change >= 0 ? 'text-green-700 dark:text-green-300' : 'text-orange-700 dark:text-orange-300'
+                    )}>
+                      {fmt(Math.abs(change))}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-xl bg-muted/40 px-4 py-3 text-center">
+                    <p className="text-xs text-muted-foreground">Ingresa o selecciona el monto recibido</p>
                   </div>
                 )}
               </div>
-            );
-          })()}
+            </div>
+          )}
 
           {/* Cliente opcional */}
           <div className="space-y-1.5">
