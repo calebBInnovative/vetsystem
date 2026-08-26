@@ -29,8 +29,12 @@ service cloud.firestore {
       return userExists() && userRole() == 'master';
     }
 
+    // Uses a single get() call (not exists() + get()) to stay within Firestore's
+    // 10 external-read limit per list-query request. Previously, 2 reads per
+    // document evaluation caused permission failures when a collection had more
+    // than 5 documents on a user's first full sync.
     function belongsToClinic(clinicId) {
-      return userExists() && userClinicId() == clinicId;
+      return isAuth() && userRef().data.clinicId == clinicId;
     }
 
     // ── User documents ────────────────────────────────────────────────────────

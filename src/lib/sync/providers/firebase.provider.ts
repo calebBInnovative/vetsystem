@@ -4,10 +4,15 @@ import {
   collection as firestoreCollection,
   query,
   where,
+  orderBy,
+  limit,
+  startAfter,
   getDocs,
   onSnapshot,
   serverTimestamp,
   type Firestore,
+  type QueryDocumentSnapshot,
+  type QueryConstraint,
 } from 'firebase/firestore';
 import { getFirestoreDb } from '@/lib/firebase/firebase.config';
 import type { SyncProvider, RemoteDoc } from '@/lib/sync/sync.provider';
@@ -45,12 +50,29 @@ export class FirebaseSyncProvider implements SyncProvider {
   }
 
   async pull(collectionName: string, since: number): Promise<RemoteDoc[]> {
-    const q = query(
-      this.colRef(collectionName),
-      where('updatedAt', '>', since),
-    );
-    const snap = await getDocs(q);
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as RemoteDoc);
+    // Firestore allows at most 10 external document reads per list-query request.
+    // With 1 cross-document read per security-rule evaluation (userRef().data.clinicId),
+    // a batch of 9 documents uses 9 of the 10 allowed reads — safely within the limit.
+    // Batching also avoids timeouts on large initial syncs.
+    const BATCH_SIZE = 9;
+    const results: RemoteDoc[] = [];
+    let lastDoc: QueryDocumentSnapshot | null = null;
+
+    do {
+      const constraints: QueryConstraint[] = [
+        where('updatedAt', '>', since),
+        orderBy('updatedAt', 'asc'),
+        limit(BATCH_SIZE),
+      ];
+      if (lastDoc) constraints.push(startAfter(lastDoc));
+
+      const snap = await getDocs(query(this.colRef(collectionName), ...constraints));
+      results.push(...snap.docs.map((d) => ({ id: d.id, ...d.data() }) as RemoteDoc));
+
+      lastDoc = snap.size === BATCH_SIZE ? snap.docs[snap.docs.length - 1] : null;
+    } while (lastDoc !== null);
+
+    return results;
   }
 
   subscribe(
