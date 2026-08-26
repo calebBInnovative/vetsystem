@@ -55,7 +55,11 @@ function TCell({ value, error, placeholder, type = 'text', onChange }: {
 }) {
   return (
     <div>
-      <input type={type} value={value} placeholder={placeholder}
+      <input
+        type="text"
+        inputMode={type === 'number' ? 'numeric' : 'text'}
+        value={value}
+        placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         className={cn(BASE, error ? ERR : OK)} />
       {error && <p className="text-[10px] text-red-500 mt-0.5 px-0.5">{error}</p>}
@@ -192,7 +196,7 @@ function ServicioForm({ inicial, onGuardar, onCancelar }: ServicioFormProps) {
         </div>
         <div>
           <label className="text-xs text-muted-foreground">Precio (C$) *</label>
-          <input type="number" min="0" step="1" value={precio} onChange={(e) => setPrecio(e.target.value)} placeholder="0"
+          <input type="text" inputMode="numeric" value={precio} onChange={(e) => setPrecio(e.target.value)} placeholder="0"
             className="mt-1 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
         </div>
         <div className="sm:col-span-2">
@@ -250,7 +254,7 @@ function ServicioRow({ servicio, onEditar }: ServicioRowProps) {
       <div className="shrink-0">
         {editandoPrecio ? (
           <div className="flex items-center gap-1">
-            <input autoFocus type="number" min="0" value={precioTmp}
+            <input autoFocus type="text" inputMode="numeric" value={precioTmp}
               onChange={(e) => setPrecioTmp(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') guardarPrecio(); if (e.key === 'Escape') setEditandoPrecio(false); }}
               className="w-20 rounded-lg border border-primary px-2 py-1 text-sm text-right focus:outline-none" />
