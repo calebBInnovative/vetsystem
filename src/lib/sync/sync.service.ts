@@ -82,9 +82,11 @@ class SyncService {
     // desbloquea pantalla, o regresa desde otro módulo tras un período largo).
     window.addEventListener('visibilitychange', this.onVisible);
 
-    // Flush inicial + pull al arrancar — devuelve la Promise del pull
-    // para que el caller pueda mostrar un spinner de "primera sincronización"
-    this.flush();
+    // Reset any permanently-failed queue items (attempts >= MAX_INTENTOS) so they
+    // are retried with the current session's clinicId. Previous builds used a
+    // build-time CLINIC_ID constant that didn't match the actual clinic, causing
+    // all pushes to fail with permission-denied and exhaust their retry limit.
+    this.resetDeadQueueItems().then(() => this.flush());
     return this.pullAll();
   }
 
@@ -108,6 +110,14 @@ class SyncService {
   };
 
   // ── Flush de la queue ─────────────────────────────────────────────────────
+
+  private async resetDeadQueueItems(): Promise<void> {
+    const session = await db.session.get('singleton');
+    if (!session || session.isDemo) return;
+    await db.syncQueue
+      .where('attempts').aboveOrEqual(MAX_INTENTOS)
+      .modify({ attempts: 0 });
+  }
 
   async flush(): Promise<void> {
     if (this.corriendo || !navigator.onLine) return;
