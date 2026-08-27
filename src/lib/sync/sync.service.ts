@@ -21,8 +21,22 @@ async function isDemoSession(): Promise<boolean> {
 }
 
 const MAX_INTENTOS = 5;
-const INTERVALO_MS = 30_000;
 const BATCH_SIZE   = 20;
+
+// ── Pull throttling ───────────────────────────────────────────────────────────
+// Firestore charges 1 read per query (even 0-result), so pulling 15 collections
+// every 30 s would cost 43,200 reads/day per active user — far above the free
+// tier (50 K/day shared across ALL users).
+//
+// Budget math (target: ≤ 10 K reads/day per user):
+//   15 collections × N pulls/day = 10 000 → N ≤ 666 pulls/day ≈ 1 pull / 2 min
+//   We use 5 min (300 s) as the minimum gap between any two full pulls.
+//   That gives 15 × 288 = 4,320 reads/day in the worst case (user active 24 h).
+//
+// Push (flush) is NOT rate-limited — it only writes, and a write is only triggered
+// when the user actually creates/edits something locally.
+const MIN_PULL_GAP_MS = 5 * 60 * 1_000;  // 5 minutes between full pulls
+const FLUSH_INTERVAL_MS = 60_000;          // retry failed pushes every 60 s (reads: 0)
 
 // All tables that are synced (in order for foreign keys)
 const TABLAS_SYNC = [
@@ -53,9 +67,10 @@ export type SyncAllProgress = {
 
 class SyncService {
   private timer: ReturnType<typeof setInterval> | null = null;
-  private corriendo   = false;
-  private pulling     = false;
-  private hookReg     = false;
+  private corriendo      = false;
+  private pulling        = false;
+  private hookReg        = false;
+  private lastPullAt     = 0; // ms timestamp of the last completed pull attempt
 
   // ── Arrancar / detener ────────────────────────────────────────────────────
 
@@ -70,16 +85,20 @@ class SyncService {
       this.hookReg = true;
     }
 
-    // Heartbeat: push de items fallidos + pull de cambios remotos cada 30 s.
-    // Esto permite que User B vea los cambios de User A en ≤30 segundos
-    // sin necesidad de refrescar el browser.
-    this.timer = setInterval(() => { this.flush(); this.pullAll(); }, INTERVALO_MS);
+    // Heartbeat: retry failed pushes every 60 s. Pull runs inside but is
+    // throttled by MIN_PULL_GAP_MS — it will only fire every 5 min at most.
+    // Separating flush and pull intervals lets push stay reactive while pull
+    // stays frugal with Firestore reads.
+    this.timer = setInterval(() => {
+      this.flush();
+      this.pullIfDue();
+    }, FLUSH_INTERVAL_MS);
 
-    // Push + pull al reconectar a internet
+    // Push + pull on network reconnect. Pull is still throttled.
     window.addEventListener('online', this.onOnline);
 
-    // Pull al recuperar el foco de la ventana (usuario vuelve a la computadora,
-    // desbloquea pantalla, o regresa desde otro módulo tras un período largo).
+    // Pull when tab regains focus, but only if enough time has passed.
+    // Prevents read spikes when users switch tabs rapidly.
     window.addEventListener('visibilitychange', this.onVisible);
 
     // Reset any permanently-failed queue items (attempts >= MAX_INTENTOS) so they
@@ -87,7 +106,8 @@ class SyncService {
     // build-time CLINIC_ID constant that didn't match the actual clinic, causing
     // all pushes to fail with permission-denied and exhaust their retry limit.
     this.resetDeadQueueItems().then(() => this.flush());
-    return this.pullAll();
+    // Run the first pull immediately on start; subsequent ones are throttled.
+    return this.pullAll();  // sets this.lastPullAt, blocking duplicates for 5 min
   }
 
   stop() {
@@ -99,24 +119,35 @@ class SyncService {
 
   private onOnline = () => {
     this.flush();
-    this.pullAll();
+    this.pullIfDue();
   };
 
   private onVisible = () => {
     if (document.visibilityState === 'visible') {
+      // Only flush (no reads). Pull will fire on the next heartbeat if due.
+      // This prevents a read spike when users switch tabs or wake their laptop.
       this.flush();
-      this.pullAll();
     }
   };
+
+  // Calls pullAll() only when the minimum gap since the last pull has elapsed.
+  // This is the single choke-point for all Firestore read traffic.
+  private pullIfDue(): void {
+    if (Date.now() - this.lastPullAt >= MIN_PULL_GAP_MS) {
+      this.pullAll();
+    }
+  }
 
   // ── Flush de la queue ─────────────────────────────────────────────────────
 
   private async resetDeadQueueItems(): Promise<void> {
     const session = await db.session.get('singleton');
     if (!session || session.isDemo) return;
-    await db.syncQueue
-      .where('attempts').aboveOrEqual(MAX_INTENTOS)
-      .modify({ attempts: 0 });
+    const dead = await db.syncQueue.where('attempts').aboveOrEqual(MAX_INTENTOS).count();
+    if (dead > 0) {
+      console.log(`[sync] resetting ${dead} dead queue items for retry`);
+      await db.syncQueue.where('attempts').aboveOrEqual(MAX_INTENTOS).modify({ attempts: 0 });
+    }
   }
 
   async flush(): Promise<void> {
@@ -130,6 +161,8 @@ class SyncService {
         .where('attempts').below(MAX_INTENTOS)
         .limit(BATCH_SIZE)
         .sortBy('createdAt');
+
+      if (pendientes.length > 0) console.log(`[sync] flush — pushing ${pendientes.length} items`);
 
       for (const item of pendientes) {
         // Use the clinicId embedded in the queued document data (always set by hooks
@@ -185,11 +218,22 @@ class SyncService {
     const pullStartedAt = Date.now();
     let pullErrored = false;
 
+    // Stamp lastPullAt immediately so concurrent triggers are blocked for the
+    // full MIN_PULL_GAP_MS even while this pull is still running.
+    this.lastPullAt = Date.now();
+
+    let totalReads = 0;
+
     try {
       for (const { nombre, tabla } of TABLAS_SYNC) {
         try {
           const remoteDocs = await syncProvider.pull(nombre, lastPull, clinicId);
+          // Every pull() call costs 1 Firestore read (the query itself) plus
+          // 1 read per document returned.
+          totalReads += 1 + remoteDocs.length;
+
           if (remoteDocs.length === 0) continue;
+          console.log(`[sync] pulled ${remoteDocs.length} docs from ${nombre}`);
 
           const t = tabla() as unknown as { get(id: string): Promise<{ updatedAt: number } | undefined>; put(item: object): Promise<unknown> };
 
@@ -204,19 +248,16 @@ class SyncService {
           }
         } catch (err) {
           pullErrored = true;
-          // Use console.error so this is visible in browser DevTools
           console.error(`[sync] pull ${nombre} falló:`, err);
         }
       }
 
+      console.log(`[sync] pull done — ~${totalReads} Firestore reads, gap enforced ${MIN_PULL_GAP_MS / 1000}s`);
+
       // Only advance the cursor when all collections pulled successfully.
-      // If any failed, we keep lastPull unchanged so the next pull retries
-      // from the same point — preventing a permanently empty app.
       if (!pullErrored) {
         localStorage.setItem(LAST_PULL_KEY, pullStartedAt.toString());
       } else if (lastPull === 0) {
-        // First-ever pull for this user on this browser failed — show a visible
-        // error so the problem is clear (not just a silent empty app).
         toast.error('Error al sincronizar datos de la clínica. Revisa la consola del navegador para más detalles.', {
           duration: 8000,
           id: 'sync-pull-error',
