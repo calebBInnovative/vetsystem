@@ -78,14 +78,36 @@ export class FirebaseSyncProvider implements SyncProvider {
 
   subscribe(
     collectionName: string,
+    since: number,
     clinicId: string,
     onChange: (docs: RemoteDoc[]) => void,
   ): () => void {
-    const q = query(this.colRef(collectionName, clinicId));
-    const unsub = onSnapshot(q, (snap) => {
-      const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as RemoteDoc);
-      onChange(docs);
+    // Only listen for documents pushed AFTER `since` (the pull cursor).
+    // This means:
+    //   - On open: 1 read (the query itself) + 0 docs if pullAll just ran — FREE
+    //   - Going forward: 1 read per document that actually changes in Firestore
+    //   - Idle with no activity: 0 reads
+    const sinceTs = Timestamp.fromMillis(since);
+    const q = query(
+      this.colRef(collectionName, clinicId),
+      where('_syncedAt', '>', sinceTs),
+      orderBy('_syncedAt', 'asc'),
+    );
+
+    // includeMetadataChanges: false → we skip the hasPendingWrites transient state
+    // and only react to server-confirmed writes (from other devices or our own push).
+    const unsub = onSnapshot(q, { includeMetadataChanges: false }, (snap) => {
+      // docChanges() gives only the delta since the last snapshot — not all docs.
+      // On the very first snapshot this is the docs matching the query (should be 0
+      // because pullAll ran with the same cursor moments before).
+      const changed = snap
+        .docChanges()
+        .filter((c) => c.type === 'added' || c.type === 'modified')
+        .map((c) => ({ id: c.doc.id, ...c.doc.data() }) as RemoteDoc);
+
+      if (changed.length > 0) onChange(changed);
     });
+
     return unsub;
   }
 }

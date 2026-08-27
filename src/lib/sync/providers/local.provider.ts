@@ -12,4 +12,13 @@ export class LocalSyncProvider implements SyncProvider {
   async pull(_collection: string, _desde: number, _clinicId: string): Promise<RemoteDoc[]> {
     return [];
   }
+
+  subscribe(
+    _collection: string,
+    _since: number,
+    _clinicId: string,
+    _onChange: (docs: RemoteDoc[]) => void,
+  ): () => void {
+    return () => {};
+  }
 }

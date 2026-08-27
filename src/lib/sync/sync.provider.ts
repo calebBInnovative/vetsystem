@@ -29,11 +29,14 @@ export interface SyncProvider {
   pull(collection: string, desde: number, clinicId: string): Promise<RemoteDoc[]>;
 
   /**
-   * Suscripción en tiempo real (opcional).
-   * Retorna una función para cancelar la suscripción.
+   * Real-time subscription. Firestore calls onChange with ONLY the docs that
+   * changed since `since` (a ms timestamp — set it to the cursor returned by
+   * the last pullAll so the listener picks up exactly where the catch-up left off).
+   * Returns an unsubscribe function; call it when the session ends.
    */
-  subscribe?(
+  subscribe(
     collection: string,
+    since: number,
     clinicId: string,
     onChange: (docs: RemoteDoc[]) => void,
   ): () => void;
