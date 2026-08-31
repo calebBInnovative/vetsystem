@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Plus, Wallet, Pencil, Trash2, ToggleLeft, ToggleRight, Users,
   Receipt, CheckCircle2, Clock, ChevronDown, ChevronUp,
-  CalendarDays, TrendingDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,8 +12,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { GastoFijoForm, GastoEventualForm } from '@/components/expenses/ExpenseForm';
-import { useFixedExpenses, useOneTimeExpenses, useDailyExpenses, createDailyExpense, deleteDailyExpense } from '@/hooks/useExpenses';
-import { markAsPaid, deleteFixedExpense, toggleExpenseActive, deleteOneTimeExpense } from '@/hooks/useExpenses';
+import { useFixedExpenses, useOneTimeExpenses } from '@/hooks/useExpenses';
+import { markAsPaid, markOneTimePaid, deleteFixedExpense, toggleExpenseActive, deleteOneTimeExpense } from '@/hooks/useExpenses';
 import { PendingExpensesAlert } from '@/components/finances/PendingExpensesAlert';
 import { ExportMenu } from '@/components/common/ExportMenu';
 import { getExpensesExportData, getCollaboratorsExportData } from '@/lib/export/modules';
@@ -100,9 +99,11 @@ function CollaboratorBadge({ nextPaymentDate }: { nextPaymentDate: string }) {
 function PayExpenseDialog({
   expense,
   onClose,
+  onPay,
 }: {
   expense: FixedExpense | null;
   onClose: () => void;
+  onPay?: (id: string, amount: number, date: string, notes?: string) => Promise<void>;
 }) {
   const [amount, setAmount] = useState('');
   const [notes,  setNotes]  = useState('');
@@ -119,6 +120,8 @@ function PayExpenseDialog({
 
   if (!expense) return null;
 
+  const payFn = onPay ?? markAsPaid;
+
   async function handlePay(e: React.FormEvent) {
     e.preventDefault();
     setError('');
@@ -126,7 +129,7 @@ function PayExpenseDialog({
     if (isNaN(amountNum) || amountNum <= 0) { setError('Ingresa un monto válido.'); return; }
     setSaving(true);
     try {
-      await markAsPaid(expense!.id, amountNum, new Date().toISOString().slice(0, 10), notes.trim() || undefined);
+      await payFn(expense!.id, amountNum, new Date().toISOString().slice(0, 10), notes.trim() || undefined);
       onClose();
     } catch { setError('Error al registrar el pago.'); }
     finally { setSaving(false); }
@@ -243,9 +246,23 @@ function TabExpenses() {
   const [editExpense, setEditExpense] = useState<FixedExpense | undefined>(undefined);
   const [payExpense,  setPayExpense]  = useState<FixedExpense | null>(null);
   const [deleting,    setDeleting]    = useState<string | null>(null);
+  const [payingAll,   setPayingAll]   = useState(false);
 
   const in30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
   const upcomingExpenses = expenses.filter((g) => g.active && g.nextDueDate <= in30);
+
+  async function handlePayAll() {
+    if (upcomingExpenses.length === 0) return;
+    const total = upcomingExpenses.reduce((s, g) => s + g.amount, 0);
+    if (!confirm(`¿Registrar pago de ${upcomingExpenses.length} egresos recurrentes por ${formatAmount(total)}?`)) return;
+    setPayingAll(true);
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      await Promise.all(upcomingExpenses.map((g) => markAsPaid(g.id, g.amount, today)));
+    } finally {
+      setPayingAll(false);
+    }
+  }
 
   function openEdit(g: FixedExpense) { setEditExpense(g); setFormOpen(true); }
   function closeForm() { setFormOpen(false); setEditExpense(undefined); }
@@ -286,7 +303,14 @@ function TabExpenses() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <p className="text-sm text-muted-foreground">Seguimiento de gastos recurrentes</p>
-        <Button size="sm" onClick={() => setFormOpen(true)} className="gap-1.5"><Plus size={14} /> Agregar gasto</Button>
+        <div className="flex items-center gap-2">
+          {upcomingExpenses.length > 0 && (
+            <Button size="sm" variant="outline" onClick={handlePayAll} disabled={payingAll} className="gap-1.5">
+              <Wallet size={14} /> Pagar todos ({upcomingExpenses.length})
+            </Button>
+          )}
+          <Button size="sm" onClick={() => setFormOpen(true)} className="gap-1.5"><Plus size={14} /> Agregar gasto</Button>
+        </div>
       </div>
 
       {upcomingExpenses.length > 0 && (
@@ -366,9 +390,11 @@ function TabExpenses() {
 
 function TabOneTime() {
   const { expenses, loading } = useOneTimeExpenses();
-  const [formOpen, setFormOpen] = useState(false);
-  const [showPaid, setShowPaid] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [formOpen,   setFormOpen]   = useState(false);
+  const [showPaid,   setShowPaid]   = useState(false);
+  const [deleting,   setDeleting]   = useState<string | null>(null);
+  const [payExpense, setPayExpense] = useState<FixedExpense | null>(null);
+  const [payingAll,  setPayingAll]  = useState(false);
 
   const pending = expenses.filter((g) => g.active);
   const paid    = expenses.filter((g) => !g.active);
@@ -377,6 +403,19 @@ function TabOneTime() {
     if (!confirm('¿Eliminar este egreso?')) return;
     setDeleting(id);
     try { await deleteOneTimeExpense(id); } finally { setDeleting(null); }
+  }
+
+  async function handlePayAll() {
+    if (pending.length === 0) return;
+    const total = pending.reduce((s, g) => s + g.amount, 0);
+    if (!confirm(`¿Registrar pago de ${pending.length} egresos eventuales por ${formatAmount(total)}?`)) return;
+    setPayingAll(true);
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      await Promise.all(pending.map((g) => markOneTimePaid(g.id, g.amount, today)));
+    } finally {
+      setPayingAll(false);
+    }
   }
 
   if (loading) {
@@ -393,9 +432,16 @@ function TabOneTime() {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-4">
         <p className="text-sm text-muted-foreground">Egresos puntuales — compras, gastos únicos</p>
-        <Button size="sm" onClick={() => setFormOpen(true)} className="gap-1.5">
-          <Plus size={14} /> Registrar egreso
-        </Button>
+        <div className="flex items-center gap-2">
+          {pending.length > 0 && (
+            <Button size="sm" variant="outline" onClick={handlePayAll} disabled={payingAll} className="gap-1.5">
+              <Wallet size={14} /> Pagar todos ({pending.length})
+            </Button>
+          )}
+          <Button size="sm" onClick={() => setFormOpen(true)} className="gap-1.5">
+            <Plus size={14} /> Registrar egreso
+          </Button>
+        </div>
       </div>
 
       {/* Pending */}
@@ -431,6 +477,9 @@ function TabOneTime() {
                     </div>
                   </div>
                   <p className="text-sm font-bold tabular-nums shrink-0">{formatAmount(g.amount)}</p>
+                  <Button size="sm" variant="outline" onClick={() => setPayExpense(g)} className="gap-1 shrink-0 h-7 px-2 text-xs">
+                    <Wallet size={12} /> Pagar
+                  </Button>
                   <button
                     type="button"
                     onClick={() => handleDelete(g.id)}
@@ -506,19 +555,43 @@ function TabOneTime() {
       )}
 
       <GastoEventualForm open={formOpen} onClose={() => setFormOpen(false)} />
+      <PayExpenseDialog expense={payExpense} onClose={() => setPayExpense(null)} onPay={markOneTimePaid} />
     </div>
   );
 }
 
 function TabCollaborators() {
   const { collaborators, loading } = useCollaborators();
-  const [formOpen,  setFormOpen]  = useState(false);
-  const [editColab, setEditColab] = useState<Collaborator | undefined>(undefined);
-  const [payColab,  setPayColab]  = useState<Collaborator | null>(null);
-  const [deleting,  setDeleting]  = useState<string | null>(null);
+  const [formOpen,   setFormOpen]   = useState(false);
+  const [editColab,  setEditColab]  = useState<Collaborator | undefined>(undefined);
+  const [payColab,   setPayColab]   = useState<Collaborator | null>(null);
+  const [deleting,   setDeleting]   = useState<string | null>(null);
+  const [payingAll,  setPayingAll]  = useState(false);
 
   const in14 = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
   const upcomingCollaborators = collaborators.filter((c) => c.active && c.nextPaymentDate <= in14);
+
+  async function handlePayAll() {
+    if (upcomingCollaborators.length === 0) return;
+    const total = upcomingCollaborators.reduce((s, c) => s + c.salary, 0);
+    if (!confirm(`¿Registrar pago de ${upcomingCollaborators.length} colaboradores por ${formatAmount(total)}?`)) return;
+    setPayingAll(true);
+    const today = new Date().toISOString().slice(0, 10);
+    const todayDate = new Date();
+    const month = todayDate.toLocaleString('es-NI', { month: 'short' });
+    const year  = todayDate.getFullYear();
+    try {
+      await Promise.all(
+        upcomingCollaborators.map((c) => {
+          const freq = COLLABORATOR_PAYMENT_FREQUENCIES[c.paymentFrequency];
+          const period = `${freq} ${month} ${year}`;
+          return registerCollaboratorPayment(c.id, c.salary, period, today);
+        })
+      );
+    } finally {
+      setPayingAll(false);
+    }
+  }
 
   function openEdit(c: Collaborator) { setEditColab(c); setFormOpen(true); }
   function closeForm() { setFormOpen(false); setEditColab(undefined); }
@@ -559,7 +632,14 @@ function TabCollaborators() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <p className="text-sm text-muted-foreground">Nómina y recordatorios de pago</p>
-        <Button size="sm" onClick={() => setFormOpen(true)} className="gap-1.5"><Plus size={14} /> Agregar colaborador</Button>
+        <div className="flex items-center gap-2">
+          {upcomingCollaborators.length > 0 && (
+            <Button size="sm" variant="outline" onClick={handlePayAll} disabled={payingAll} className="gap-1.5">
+              <Wallet size={14} /> Pagar todos ({upcomingCollaborators.length})
+            </Button>
+          )}
+          <Button size="sm" onClick={() => setFormOpen(true)} className="gap-1.5"><Plus size={14} /> Agregar colaborador</Button>
+        </div>
       </div>
 
       {upcomingCollaborators.length > 0 && (
@@ -640,225 +720,7 @@ function TabCollaborators() {
   );
 }
 
-function TabDaily() {
-  const { expenses, loading } = useDailyExpenses();
-  const [name,     setName]     = useState('');
-  const [amount,   setAmount]   = useState('');
-  const [category, setCategory] = useState<keyof typeof EXPENSE_CATEGORIES>('other');
-  const [date,     setDate]     = useState(() => new Date().toISOString().slice(0, 10));
-  const [saving,   setSaving]   = useState(false);
-  const [filter,   setFilter]   = useState<'week' | 'month' | 'all'>('month');
-  const nameRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => { nameRef.current?.focus(); }, []);
-
-  const today     = new Date().toISOString().slice(0, 10);
-  const weekAgo   = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
-  const monthSlug = today.slice(0, 7);
-
-  const todayTotal = expenses.filter(e => e.nextDueDate === today).reduce((s, e) => s + e.amount, 0);
-  const weekTotal  = expenses.filter(e => e.nextDueDate >= weekAgo).reduce((s, e) => s + e.amount, 0);
-  const monthTotal = expenses.filter(e => e.nextDueDate.startsWith(monthSlug)).reduce((s, e) => s + e.amount, 0);
-
-  const filtered = filter === 'week'
-    ? expenses.filter(e => e.nextDueDate >= weekAgo)
-    : filter === 'month'
-    ? expenses.filter(e => e.nextDueDate.startsWith(monthSlug))
-    : expenses;
-
-  const grouped = filtered.reduce<Record<string, FixedExpense[]>>((acc, exp) => {
-    if (!acc[exp.nextDueDate]) acc[exp.nextDueDate] = [];
-    acc[exp.nextDueDate].push(exp);
-    return acc;
-  }, {});
-  const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const amountNum = parseFloat(amount);
-    if (!name.trim() || isNaN(amountNum) || amountNum <= 0) return;
-    setSaving(true);
-    try {
-      await createDailyExpense({ name: name.trim(), amount: amountNum, category, date });
-      setName('');
-      setAmount('');
-      nameRef.current?.focus();
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleDelete(id: string) {
-    await deleteDailyExpense(id);
-  }
-
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="bg-card rounded-2xl border border-border h-16 animate-pulse" />
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-5">
-      {/* Stats bar */}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: 'Hoy',       value: todayTotal },
-          { label: 'Esta semana', value: weekTotal  },
-          { label: 'Este mes',  value: monthTotal  },
-        ].map(({ label, value }) => (
-          <div key={label} className="bg-card border border-border rounded-2xl px-4 py-3">
-            <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
-            <p className="text-lg font-bold tabular-nums">{formatAmount(value)}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Quick-entry form */}
-      <form onSubmit={handleSubmit} className="bg-card border border-border rounded-2xl px-5 py-4 space-y-3">
-        <p className="text-sm font-semibold flex items-center gap-2">
-          <TrendingDown size={14} className="text-destructive" /> Registrar egreso diario
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto] gap-2 items-end">
-          <div>
-            <Label htmlFor="daily-name" className="text-xs mb-1 block">Descripción</Label>
-            <Input
-              id="daily-name"
-              ref={nameRef}
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="Ej: Gasolina, almuerzo, suministros…"
-              required
-            />
-          </div>
-          <div className="w-full sm:w-36">
-            <Label htmlFor="daily-amount" className="text-xs mb-1 block">Monto</Label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">C$</span>
-              <Input
-                id="daily-amount"
-                type="text"
-                inputMode="numeric"
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                className="pl-8"
-                placeholder="0.00"
-                required
-              />
-            </div>
-          </div>
-          <div className="w-full sm:w-36">
-            <Label htmlFor="daily-category" className="text-xs mb-1 block">Categoría</Label>
-            <select
-              id="daily-category"
-              value={category}
-              onChange={e => setCategory(e.target.value as keyof typeof EXPENSE_CATEGORIES)}
-              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              {Object.entries(EXPENSE_CATEGORIES).map(([k, v]) => (
-                <option key={k} value={k}>{v}</option>
-              ))}
-            </select>
-          </div>
-          <div className="w-full sm:w-36">
-            <Label htmlFor="daily-date" className="text-xs mb-1 block">Fecha</Label>
-            <Input
-              id="daily-date"
-              type="date"
-              value={date}
-              onChange={e => setDate(e.target.value)}
-              max={today}
-            />
-          </div>
-        </div>
-        <div className="flex justify-end">
-          <Button type="submit" size="sm" disabled={saving} className="gap-1.5">
-            <Plus size={14} /> {saving ? 'Guardando…' : 'Registrar'}
-          </Button>
-        </div>
-      </form>
-
-      {/* Filter */}
-      <div className="flex items-center gap-1">
-        {(['week', 'month', 'all'] as const).map(f => (
-          <button
-            key={f}
-            type="button"
-            onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-              filter === f
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {f === 'week' ? 'Esta semana' : f === 'month' ? 'Este mes' : 'Todo'}
-          </button>
-        ))}
-        <span className="ml-auto text-xs text-muted-foreground">{filtered.length} registro{filtered.length !== 1 ? 's' : ''}</span>
-      </div>
-
-      {/* Date-grouped list */}
-      {sortedDates.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
-            <CalendarDays size={32} className="text-muted-foreground" />
-          </div>
-          <div>
-            <p className="text-lg font-semibold">Sin egresos registrados</p>
-            <p className="text-sm text-muted-foreground mt-1 max-w-xs">
-              Usa el formulario de arriba para registrar gastos del día
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {sortedDates.map(dateKey => {
-            const items     = grouped[dateKey];
-            const dayTotal  = items.reduce((s, e) => s + e.amount, 0);
-            const isToday   = dateKey === today;
-            return (
-              <section key={dateKey} className="space-y-1.5">
-                <div className="flex items-center justify-between px-1">
-                  <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
-                    <CalendarDays size={13} />
-                    {isToday ? 'Hoy' : formatDate(dateKey)}
-                    {isToday && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">hoy</span>}
-                  </h3>
-                  <span className="text-sm font-bold tabular-nums">{formatAmount(dayTotal)}</span>
-                </div>
-                <div className="space-y-1.5">
-                  {items.map(exp => (
-                    <div key={exp.id} className="bg-card border border-border rounded-xl px-4 py-2.5 flex items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{exp.name}</p>
-                        <p className="text-xs text-muted-foreground">{EXPENSE_CATEGORIES[exp.category]}</p>
-                      </div>
-                      <p className="text-sm font-bold tabular-nums shrink-0">{formatAmount(exp.amount)}</p>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(exp.id)}
-                        className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
-                        title="Eliminar"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-type EgresosTab = 'recurring' | 'one_time' | 'collaborators' | 'daily';
+type EgresosTab = 'recurring' | 'one_time' | 'collaborators';
 
 export function EgresosView() {
   const { session } = useAuth();
@@ -867,7 +729,6 @@ export function EgresosView() {
   const tabs: { value: EgresosTab; label: string }[] = [
     { value: 'recurring',     label: 'Recurrentes'   },
     { value: 'one_time',      label: 'Eventuales'    },
-    { value: 'daily',         label: 'Diarios'       },
     { value: 'collaborators', label: 'Colaboradores' },
   ];
 
@@ -876,7 +737,7 @@ export function EgresosView() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Egresos</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Recurrentes, eventuales, diarios y nómina</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Recurrentes, eventuales y nómina</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <ExportMenu
@@ -910,7 +771,6 @@ export function EgresosView() {
 
       {tab === 'recurring'     && <TabExpenses />}
       {tab === 'one_time'      && <TabOneTime />}
-      {tab === 'daily'         && <TabDaily />}
       {tab === 'collaborators' && <TabCollaborators />}
     </div>
   );
