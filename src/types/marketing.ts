@@ -1,4 +1,23 @@
 import type { PetSpecies } from './patient';
+import type { PromotionLocal } from './promotion';
+import type { ProductLocal } from './inventory';
+import type { ServiceLocal } from './service';
+
+// ─── Data source (selected promotion / product / service) ────────────────────
+
+export type MarketingDataSource =
+  | { type: 'promotion'; data: PromotionLocal }
+  | { type: 'product';   data: ProductLocal   }
+  | { type: 'service';   data: ServiceLocal   };
+
+// Template IDs that require picking a data source from the DB
+export const TEMPLATE_NEEDS_SOURCE: Record<string, 'promotion' | 'product' | 'service' | null> = {
+  promo:    'promotion',
+  product:  'product',
+  vaccine:  'service',
+  reminder: null,
+  custom:   null,
+};
 
 // ─── Message template ────────────────────────────────────────────────────────
 

@@ -1,16 +1,27 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { MessageSquare, Send, Users, ChevronDown, Check, Search, Phone, RefreshCcw } from 'lucide-react';
+import {
+  MessageSquare, Users, ChevronDown, Check, Search,
+  Phone, RefreshCcw, Tag, Package, Stethoscope, ChevronRight,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMarketingContacts, composeMessage, buildWhatsAppUrl } from '@/hooks/useMarketing';
+import {
+  useMarketingContacts,
+  useMarketingDataSources,
+  composeMessage,
+  buildWhatsAppUrl,
+  generateMessageFromSource,
+} from '@/hooks/useMarketing';
 import {
   MESSAGE_TEMPLATES,
   CONTACT_FILTERS,
+  TEMPLATE_NEEDS_SOURCE,
   type ContactFilter,
   type MarketingContact,
+  type MarketingDataSource,
 } from '@/types/marketing';
 import {
   DropdownMenu,
@@ -18,13 +29,22 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import type { PromotionLocal } from '@/types/promotion';
+import type { ProductLocal } from '@/types/inventory';
+import type { ServiceLocal } from '@/types/service';
+import { SERVICE_CATEGORIES } from '@/types/service';
 
-// ── Variables chip bar ────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const fmt = (n: number) =>
+  new Intl.NumberFormat('es-NI', { style: 'currency', currency: 'NIO', maximumFractionDigits: 0 }).format(n);
+
+// ── Variable chip ─────────────────────────────────────────────────────────────
 
 const VARS = [
-  { label: '{{dueño}}',   desc: 'Nombre del dueño' },
-  { label: '{{mascota}}', desc: 'Nombre de la mascota' },
-  { label: '{{clinica}}', desc: 'Nombre de la clínica' },
+  { label: '{{dueño}}' },
+  { label: '{{mascota}}' },
+  { label: '{{clinica}}' },
 ];
 
 function VarChip({ label, onInsert }: { label: string; onInsert: (v: string) => void }) {
@@ -39,20 +59,129 @@ function VarChip({ label, onInsert }: { label: string; onInsert: (v: string) => 
   );
 }
 
+// ── Data source picker ────────────────────────────────────────────────────────
+
+function SourcePicker({
+  sourceType,
+  promotions,
+  products,
+  services,
+  selected,
+  onSelect,
+}: {
+  sourceType: 'promotion' | 'product' | 'service';
+  promotions: PromotionLocal[];
+  products:   ProductLocal[];
+  services:   ServiceLocal[];
+  selected:   MarketingDataSource | null;
+  onSelect:   (src: MarketingDataSource) => void;
+}) {
+  const items =
+    sourceType === 'promotion' ? promotions :
+    sourceType === 'product'   ? products   :
+    services.filter((s) => s.category === 'vaccination' || sourceType === 'service');
+
+  const icon =
+    sourceType === 'promotion' ? <Tag size={14} /> :
+    sourceType === 'product'   ? <Package size={14} /> :
+    <Stethoscope size={14} />;
+
+  const placeholder =
+    sourceType === 'promotion' ? 'Seleccionar promoción...' :
+    sourceType === 'product'   ? 'Seleccionar producto...' :
+    'Seleccionar servicio...';
+
+  const selectedLabel =
+    selected?.type === 'promotion' ? selected.data.name :
+    selected?.type === 'product'   ? selected.data.name :
+    selected?.type === 'service'   ? selected.data.name :
+    null;
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-medium text-muted-foreground">
+        {sourceType === 'promotion' ? 'Promoción a enviar' :
+         sourceType === 'product'   ? 'Producto a promover' :
+         'Servicio a promover'}
+      </p>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn(
+              'w-full justify-between gap-2 h-9',
+              !selectedLabel && 'text-muted-foreground',
+            )}
+          >
+            <span className="flex items-center gap-1.5">
+              {icon}
+              {selectedLabel ?? placeholder}
+            </span>
+            <ChevronRight size={13} className="opacity-50" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-72 max-h-64 overflow-y-auto">
+          {items.length === 0 ? (
+            <div className="px-3 py-4 text-sm text-muted-foreground text-center">
+              No hay {sourceType === 'promotion' ? 'promociones activas' :
+                      sourceType === 'product'   ? 'productos con precio' :
+                      'servicios activos'}
+            </div>
+          ) : (
+            items.map((item) => {
+              const isPromo   = sourceType === 'promotion';
+              const isProduct = sourceType === 'product';
+              const name      = item.name;
+              const sub       = isPromo   ? `${fmt((item as PromotionLocal).total)} · ${(item as PromotionLocal).items.length} item(s)` :
+                                isProduct ? (item as ProductLocal).salePrice ? fmt((item as ProductLocal).salePrice!) : 'Sin precio' :
+                                fmt((item as ServiceLocal).price);
+              const active =
+                (selected?.type === 'promotion' && selected.data.id === item.id) ||
+                (selected?.type === 'product'   && selected.data.id === item.id) ||
+                (selected?.type === 'service'   && selected.data.id === item.id);
+
+              return (
+                <DropdownMenuItem
+                  key={item.id}
+                  onClick={() => {
+                    if (isPromo)   onSelect({ type: 'promotion', data: item as PromotionLocal });
+                    else if (isProduct) onSelect({ type: 'product', data: item as ProductLocal });
+                    else           onSelect({ type: 'service',   data: item as ServiceLocal });
+                  }}
+                  className={cn('gap-2 cursor-pointer flex-col items-start', active && 'bg-accent')}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className="font-medium text-sm">{name}</span>
+                    {active && <Check size={13} />}
+                  </div>
+                  <span className="text-xs text-muted-foreground">{sub}</span>
+                </DropdownMenuItem>
+              );
+            })
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
 // ── Contact row ───────────────────────────────────────────────────────────────
 
 function ContactRow({
   contact,
   message,
+  clinicName,
   sent,
   onMarkSent,
 }: {
-  contact: MarketingContact;
-  message: string;
-  sent: boolean;
+  contact:    MarketingContact;
+  message:    string;
+  clinicName: string;
+  sent:       boolean;
   onMarkSent: () => void;
 }) {
-  const composed = composeMessage(message, contact, 'Pet\'s House');
+  const composed = composeMessage(message, contact, clinicName);
   const url      = buildWhatsAppUrl(contact.phone, composed);
 
   return (
@@ -60,29 +189,22 @@ function ContactRow({
       'flex items-center gap-3 px-4 py-3 border-b border-border/50 last:border-0 transition-colors',
       sent ? 'bg-green-50/50 dark:bg-green-950/20' : 'hover:bg-muted/30',
     )}>
-      {/* Avatar */}
       <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-sm font-bold text-primary">
         {contact.ownerName.charAt(0).toUpperCase()}
       </div>
-
-      {/* Info */}
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm truncate">{contact.ownerName}</p>
         <p className="text-xs text-muted-foreground truncate">
           {contact.species} {contact.petNames}
         </p>
       </div>
-
-      {/* Phone */}
       <p className="text-xs text-muted-foreground hidden sm:block shrink-0 font-mono">{contact.phone}</p>
-
-      {/* Actions */}
       <div className="flex items-center gap-2 shrink-0">
-        {sent ? (
+        {sent && (
           <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
             <Check size={13} /> Enviado
           </span>
-        ) : null}
+        )}
         <a
           href={url}
           target="_blank"
@@ -106,38 +228,45 @@ function ContactRow({
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function MarketingPage() {
-  const { session } = useAuth();
-  const clinicName  = session?.clinicName ?? 'Pet\'s House';
+  const { session }   = useAuth();
+  const clinicName    = session?.clinicName ?? 'Pet\'s House';
 
-  const [filter,       setFilter]       = useState<ContactFilter>('all');
-  const [templateId,   setTemplateId]   = useState('promo');
-  const [message,      setMessage]      = useState(MESSAGE_TEMPLATES[0].body);
-  const [search,       setSearch]       = useState('');
-  const [sentIds,      setSentIds]      = useState<Set<string>>(new Set());
+  const [filter,      setFilter]      = useState<ContactFilter>('all');
+  const [templateId,  setTemplateId]  = useState('promo');
+  const [message,     setMessage]     = useState(MESSAGE_TEMPLATES[0].body);
+  const [dataSource,  setDataSource]  = useState<MarketingDataSource | null>(null);
+  const [search,      setSearch]      = useState('');
+  const [sentIds,     setSentIds]     = useState<Set<string>>(new Set());
 
-  const { contacts, loading } = useMarketingContacts(filter);
+  const { contacts, loading }                        = useMarketingContacts(filter);
+  const { promotions, products, services, loading: srcLoading } = useMarketingDataSources();
 
   const activeTemplate = MESSAGE_TEMPLATES.find((t) => t.id === templateId)!;
   const filterInfo     = CONTACT_FILTERS[filter];
+  const sourceType     = TEMPLATE_NEEDS_SOURCE[templateId] ?? null;
 
-  // Filter by search
   const visible = useMemo(() => {
     const q = search.toLowerCase().trim();
     if (!q) return contacts;
     return contacts.filter(
       (c) =>
         c.ownerName.toLowerCase().includes(q) ||
-        c.petNames.toLowerCase().includes(q) ||
+        c.petNames.toLowerCase().includes(q)  ||
         c.phone.includes(q),
     );
   }, [contacts, search]);
 
-  const sentCount = sentIds.size;
-
   function selectTemplate(id: string) {
     const t = MESSAGE_TEMPLATES.find((t) => t.id === id)!;
     setTemplateId(id);
+    setDataSource(null);
     setMessage(t.body);
+  }
+
+  function handleSourceSelect(src: MarketingDataSource) {
+    setDataSource(src);
+    const generated = generateMessageFromSource(src, clinicName);
+    setMessage(generated);
   }
 
   function insertVar(v: string) {
@@ -148,11 +277,6 @@ export default function MarketingPage() {
     setSentIds((prev) => new Set(prev).add(ownerId));
   }
 
-  function resetSent() {
-    setSentIds(new Set());
-  }
-
-  // Preview with first contact
   const previewContact: MarketingContact = contacts[0] ?? {
     ownerId:  '',
     ownerName: 'María López',
@@ -160,7 +284,6 @@ export default function MarketingPage() {
     petNames: 'Luna',
     species:  '🐕',
   };
-
   const preview = composeMessage(message, previewContact, clinicName);
 
   return (
@@ -174,10 +297,10 @@ export default function MarketingPage() {
             Envía mensajes personalizados a tus clientes
           </p>
         </div>
-        {sentCount > 0 && (
+        {sentIds.size > 0 && (
           <div className="flex items-center gap-2">
-            <span className="text-sm text-green-600 font-medium">{sentCount} enviados</span>
-            <Button variant="ghost" size="sm" onClick={resetSent} className="gap-1.5 text-xs">
+            <span className="text-sm text-green-600 font-medium">{sentIds.size} enviados</span>
+            <Button variant="ghost" size="sm" onClick={() => setSentIds(new Set())} className="gap-1.5 text-xs">
               <RefreshCcw size={13} /> Reiniciar
             </Button>
           </div>
@@ -191,7 +314,7 @@ export default function MarketingPage() {
 
           {/* Template selector */}
           <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
-            <p className="text-sm font-semibold">Plantilla</p>
+            <p className="text-sm font-semibold">Tipo de mensaje</p>
             <div className="grid grid-cols-1 gap-2">
               {MESSAGE_TEMPLATES.map((t) => (
                 <button
@@ -213,13 +336,32 @@ export default function MarketingPage() {
             </div>
           </div>
 
+          {/* Data source picker (only for promo / product / vaccine) */}
+          {sourceType && !srcLoading && (
+            <div className="bg-card border border-border rounded-2xl p-4">
+              <SourcePicker
+                sourceType={sourceType}
+                promotions={promotions}
+                products={products}
+                services={services}
+                selected={dataSource}
+                onSelect={handleSourceSelect}
+              />
+              {!dataSource && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Selecciona uno para que el mensaje se complete automáticamente con sus detalles.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Message composer */}
           <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
             <p className="text-sm font-semibold">Mensaje</p>
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              rows={8}
+              rows={9}
               className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none font-mono"
               placeholder="Escribe tu mensaje..."
             />
@@ -248,7 +390,7 @@ export default function MarketingPage() {
         {/* RIGHT: contact list */}
         <div className="lg:col-span-3 space-y-3">
 
-          {/* Filters + search bar */}
+          {/* Filters + search */}
           <div className="flex gap-2 flex-wrap">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -293,7 +435,7 @@ export default function MarketingPage() {
             <Users size={14} />
             {loading
               ? 'Cargando...'
-              : <>{visible.length} contacto{visible.length !== 1 ? 's' : ''} · <span className="text-foreground font-medium">{sentCount} enviados</span></>
+              : <>{visible.length} contacto{visible.length !== 1 ? 's' : ''} · <span className="text-foreground font-medium">{sentIds.size} enviados</span></>
             }
           </div>
 
@@ -315,6 +457,7 @@ export default function MarketingPage() {
                     key={c.ownerId}
                     contact={c}
                     message={message}
+                    clinicName={clinicName}
                     sent={sentIds.has(c.ownerId)}
                     onMarkSent={() => markSent(c.ownerId)}
                   />
