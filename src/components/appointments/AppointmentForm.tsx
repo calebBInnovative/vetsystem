@@ -47,7 +47,7 @@ export function CitaForm({
 
       {/* ── Patient ─────────────────────────────────────── */}
       <section>
-        <h3 className={seccionLabel}>Patient</h3>
+        <h3 className={seccionLabel}>Paciente</h3>
         <PacienteSelector
           value={watch('patientId')}
           onChange={(id) => setValue('patientId', id, { shouldValidate: true })}
@@ -145,7 +145,6 @@ export function CitaForm({
               {...register('reason')}
               placeholder="¿Por qué viene la mascota?"
               className={field(!!errors.reason)}
-              autoFocus
             />
             {errors.reason && <Err>{errors.reason.message}</Err>}
           </div>
