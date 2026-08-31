@@ -50,7 +50,7 @@ export const PAYMENT_STATUSES: Record<PaymentStatus, { label: string; color: str
 };
 
 export const INCOME_TYPES: Record<IncomeType, { label: string; emoji: string }> = {
-  consultation: { label: 'Consultation',   emoji: '🩺' },
+  consultation: { label: 'Consulta',   emoji: '🩺' },
   vaccination:  { label: 'Vacunación', emoji: '💉' },
   surgery:      { label: 'Cirugía',    emoji: '🔬' },
   product:      { label: 'Producto',   emoji: '📦' },
