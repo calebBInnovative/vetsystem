@@ -10,6 +10,9 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Plus, Pencil, Trash2, Check, X, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { ExportMenu } from '@/components/common/ExportMenu';
+import { getServicesExportData } from '@/lib/export/modules';
+import { useAuth } from '@/contexts/AuthContext';
 
 function fmt(n: number) {
   return new Intl.NumberFormat('es-NI', { style: 'currency', currency: 'NIO', maximumFractionDigits: 0 }).format(n);
@@ -284,6 +287,7 @@ function ServicioRow({ servicio, onEditar }: ServicioRowProps) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function ServicesPage() {
+  const { session } = useAuth();
   const { services, loading } = useServices();
 
   // Normal-mode state
@@ -370,6 +374,12 @@ export default function ServicesPage() {
         </div>
         {!editMode && (
           <div className="flex items-center gap-2 shrink-0">
+            <ExportMenu
+              label="Servicios"
+              filename="servicios"
+              getData={getServicesExportData}
+              clinicName={session?.clinicName}
+            />
             <Button variant="outline" className="gap-1.5" onClick={enterEditMode} disabled={loading || services.length === 0}>
               <Pencil size={15} /> Editar lista
             </Button>

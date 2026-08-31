@@ -6,6 +6,9 @@ import { useInvoices } from '@/hooks/useInvoices';
 import { INVOICE_STATUSES, INVOICE_PAYMENT_METHODS, type InvoiceStatus, type InvoiceWithDetails } from '@/types/invoice';
 import { cn } from '@/lib/utils';
 import { Receipt, Search } from 'lucide-react';
+import { ExportMenu } from '@/components/common/ExportMenu';
+import { getInvoicesExportData } from '@/lib/export/modules';
+import { useAuth } from '@/contexts/AuthContext';
 
 const FILTROS_ESTADO: { key: InvoiceStatus | 'todas'; label: string }[] = [
   { key: 'todas',           label: 'Todas'    },
@@ -68,6 +71,7 @@ function FacturaRow({ factura }: { factura: InvoiceWithDetails }) {
 }
 
 export default function InvoicesPage() {
+  const { session } = useAuth();
   const [filtroEstado, setFiltroEstado] = useState<InvoiceStatus | 'todas'>('todas');
   const [searchQuery, setSearchQuery]   = useState('');
 
@@ -95,11 +99,17 @@ export default function InvoicesPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Facturas</h1>
           <p className="text-sm text-muted-foreground">Historial de cobros y cuentas por cobrar</p>
         </div>
+        <ExportMenu
+          label="Facturas"
+          filename="facturas"
+          getData={getInvoicesExportData}
+          clinicName={session?.clinicName}
+        />
       </div>
 
       {/* Resumen */}

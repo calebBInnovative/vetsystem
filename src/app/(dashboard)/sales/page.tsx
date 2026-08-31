@@ -19,6 +19,9 @@ import {
   CheckCircle2, X, Loader2, ChevronRight, Tag, ChevronDown,
   LayoutList, LayoutGrid, Pencil,
 } from 'lucide-react';
+import { ExportMenu } from '@/components/common/ExportMenu';
+import { getSalesExportData } from '@/lib/export/modules';
+import { useAuth } from '@/contexts/AuthContext';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -330,6 +333,7 @@ type Step       = 'cart' | 'cobrar' | 'exito';
 type CatalogView = 'grid' | 'list';
 
 export default function SalesPage() {
+  const { session } = useAuth();
   const [searchQuery,  setSearchQuery]  = useState('');
   const [categoria,    setCategoria]    = useState<ProductCategory | undefined>();
   const [catOpen,      setCatOpen]      = useState(false);
@@ -920,6 +924,12 @@ export default function SalesPage() {
           <h1 className="font-bold text-base">Venta rápida</h1>
           <p className="text-xs text-muted-foreground">Productos · Sin necesidad de paciente</p>
         </div>
+        <ExportMenu
+          label="Ventas"
+          filename="ventas"
+          getData={getSalesExportData}
+          clinicName={session?.clinicName}
+        />
         {/* Mobile: toggle carrito */}
         <button
           type="button"

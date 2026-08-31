@@ -17,6 +17,8 @@ import {
   Tag,
   Trash2,
 } from 'lucide-react';
+import { ExportMenu } from '@/components/common/ExportMenu';
+import { getPromotionsExportData } from '@/lib/export/modules';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -238,13 +240,21 @@ export default function PromotionsPage() {
             </p>
           )}
         </div>
-        <Link href="/promotions/new">
-          <Button className="gap-2">
-            <Plus size={17} />
-            <span className="hidden sm:inline">Nueva Promoción</span>
-            <span className="sm:hidden">Nueva</span>
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <ExportMenu
+            label="Promociones"
+            filename="promociones"
+            getData={getPromotionsExportData}
+            clinicName={session?.clinicName}
+          />
+          <Link href="/promotions/new">
+            <Button className="gap-2">
+              <Plus size={17} />
+              <span className="hidden sm:inline">Nueva Promoción</span>
+              <span className="sm:hidden">Nueva</span>
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Loading skeletons */}

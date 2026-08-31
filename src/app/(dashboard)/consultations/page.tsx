@@ -8,6 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Plus, Search, Activity } from 'lucide-react';
 import type { ConsultationStatus } from '@/types/consultation';
 import { cn } from '@/lib/utils';
+import { ExportMenu } from '@/components/common/ExportMenu';
+import { getConsultationsExportData } from '@/lib/export/modules';
+import { useAuth } from '@/contexts/AuthContext';
 
 const FILTROS: { label: string; valor: ConsultationStatus | 'todas' }[] = [
   { label: 'Todas',       valor: 'todas'       },
@@ -17,6 +20,7 @@ const FILTROS: { label: string; valor: ConsultationStatus | 'todas' }[] = [
 ];
 
 export default function ConsultationsPage() {
+  const { session } = useAuth();
   const [filtro, setFiltro]           = useState<ConsultationStatus | 'todas'>('todas');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -44,11 +48,19 @@ export default function ConsultationsPage() {
           <h1 className="text-2xl font-bold">Consultas</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Historial de atenciones</p>
         </div>
-        <Link href="/consultations/new">
-          <Button size="sm" className="gap-1.5">
-            <Plus size={14} /> Nueva consulta
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <ExportMenu
+            label="Consultas"
+            filename="consultas"
+            getData={getConsultationsExportData}
+            clinicName={session?.clinicName}
+          />
+          <Link href="/consultations/new">
+            <Button size="sm" className="gap-1.5">
+              <Plus size={14} /> Nueva consulta
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Consultas en proceso */}

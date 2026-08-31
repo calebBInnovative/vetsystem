@@ -8,6 +8,9 @@ import { PagoCard } from '@/components/finances/PaymentCard';
 import { FinancesAnalytics } from '@/components/finances/FinancesAnalytics';
 import { Button } from '@/components/ui/button';
 import { Plus, Search, Filter, BarChart3, ListOrdered } from 'lucide-react';
+import { ExportMenu } from '@/components/common/ExportMenu';
+import { getFinancesExportData } from '@/lib/export/modules';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import type { PaymentStatus } from '@/types/finances';
 
@@ -22,6 +25,7 @@ const FILTROS_ESTADO: { label: string; valor: PaymentStatus | 'todos' }[] = [
 type PageTab = 'movimientos' | 'analitica';
 
 export default function FinancesPage() {
+  const { session } = useAuth();
   const [tab,          setTab]          = useState<PageTab>('movimientos');
   const [filtroEstado, setFiltroEstado] = useState<PaymentStatus | 'todos'>('todos');
   const [searchQuery,  setSearchQuery]  = useState('');
@@ -49,11 +53,19 @@ export default function FinancesPage() {
           <h1 className="text-2xl font-bold">Finanzas</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Ingresos, egresos y análisis de rendimiento</p>
         </div>
-        <Link href="/finances/new">
-          <Button size="sm" className="gap-1.5">
-            <Plus size={14} /> Registrar pago
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <ExportMenu
+            label="Finanzas"
+            filename="finanzas"
+            getData={getFinancesExportData}
+            clinicName={session?.clinicName}
+          />
+          <Link href="/finances/new">
+            <Button size="sm" className="gap-1.5">
+              <Plus size={14} /> Registrar pago
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* ── Tab selector ──────────────────────────────────────────────── */}

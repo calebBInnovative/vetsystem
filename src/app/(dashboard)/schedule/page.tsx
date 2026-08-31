@@ -9,8 +9,12 @@ import { Button } from '@/components/ui/button';
 import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, addDays, subDays, isToday, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { ExportMenu } from '@/components/common/ExportMenu';
+import { getAppointmentsExportData } from '@/lib/export/modules';
+import { useAuth } from '@/contexts/AuthContext';
 
 function AgendaContent() {
+  const { session } = useAuth();
   const searchParams = useSearchParams();
   const hoy          = new Date().toISOString().slice(0, 10);
   const fechaInicial = searchParams.get('fecha') ?? hoy;
@@ -38,11 +42,19 @@ function AgendaContent() {
               : format(fechaObj, "EEEE d 'de' MMMM 'de' yyyy", { locale: es })}
           </p>
         </div>
-        <Link href={`/schedule/new?fecha=${fecha}`}>
-          <Button className="gap-2">
-            <Plus size={16} /> Nueva cita
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <ExportMenu
+            label="Agenda"
+            filename="agenda"
+            getData={getAppointmentsExportData}
+            clinicName={session?.clinicName}
+          />
+          <Link href={`/schedule/new?fecha=${fecha}`}>
+            <Button className="gap-2">
+              <Plus size={16} /> Nueva cita
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Layout: calendario + vista del día */}

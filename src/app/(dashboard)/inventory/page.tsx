@@ -22,6 +22,9 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { ExportMenu } from '@/components/common/ExportMenu';
+import { getInventoryExportData } from '@/lib/export/modules';
+import { useAuth } from '@/contexts/AuthContext';
 
 // ─── Draft types ──────────────────────────────────────────────────────────────
 
@@ -189,6 +192,7 @@ function ProductEditTable({ drafts, onChange }: { drafts: ProductDraft[]; onChan
 type View = 'lista' | 'cards';
 
 export default function InventoryPage() {
+  const { session } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [categoria,   setCategoria]   = useState<ProductCategory | undefined>();
   const [view,        setView]        = useState<View>('lista');
@@ -291,6 +295,12 @@ export default function InventoryPage() {
         <div className="flex items-center gap-2">
           {!editMode && (
             <>
+              <ExportMenu
+                label="Inventario"
+                filename="inventario"
+                getData={getInventoryExportData}
+                clinicName={session?.clinicName}
+              />
               <Button variant="outline" className="gap-2" onClick={enterEditMode} disabled={loading || products.length === 0}>
                 <Pencil size={15} /> Editar lista
               </Button>

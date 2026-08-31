@@ -7,10 +7,14 @@ import { PacienteCard } from '@/components/patients/PatientCard';
 import { BuscadorPacientes } from '@/components/patients/PatientSearch';
 import { Button } from '@/components/ui/button';
 import { Plus, Users, Loader2 } from 'lucide-react';
+import { ExportMenu } from '@/components/common/ExportMenu';
+import { getPatientsExportData } from '@/lib/export/modules';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function PatientsPage() {
   const [busqueda, setBusqueda] = useState('');
   const { patients, loading } = usePatients(busqueda);
+  const { session } = useAuth();
 
   return (
     <div className="space-y-6">
@@ -25,13 +29,21 @@ export default function PatientsPage() {
               : `${patients.length} paciente${patients.length !== 1 ? 's' : ''} registrado${patients.length !== 1 ? 's' : ''}`}
           </p>
         </div>
-        <Link href="/patients/new">
-          <Button className="gap-2">
-            <Plus size={17} />
-            <span className="hidden sm:inline">Nuevo Paciente</span>
-            <span className="sm:hidden">Nuevo</span>
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <ExportMenu
+            label="Pacientes"
+            filename="pacientes"
+            getData={getPatientsExportData}
+            clinicName={session?.clinicName}
+          />
+          <Link href="/patients/new">
+            <Button className="gap-2">
+              <Plus size={17} />
+              <span className="hidden sm:inline">Nuevo Paciente</span>
+              <span className="sm:hidden">Nuevo</span>
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Buscador */}

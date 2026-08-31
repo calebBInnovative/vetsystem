@@ -16,6 +16,9 @@ import { GastoFijoForm, GastoEventualForm } from '@/components/expenses/ExpenseF
 import { useFixedExpenses, useOneTimeExpenses, useDailyExpenses, createDailyExpense, deleteDailyExpense } from '@/hooks/useExpenses';
 import { markAsPaid, deleteFixedExpense, toggleExpenseActive, deleteOneTimeExpense } from '@/hooks/useExpenses';
 import { PendingExpensesAlert } from '@/components/finances/PendingExpensesAlert';
+import { ExportMenu } from '@/components/common/ExportMenu';
+import { getExpensesExportData, getCollaboratorsExportData } from '@/lib/export/modules';
+import { useAuth } from '@/contexts/AuthContext';
 import type { FixedExpense } from '@/types/expense';
 import {
   daysUntilDue,
@@ -858,6 +861,7 @@ function TabDaily() {
 type EgresosTab = 'recurring' | 'one_time' | 'collaborators' | 'daily';
 
 export function EgresosView() {
+  const { session } = useAuth();
   const [tab, setTab] = useState<EgresosTab>('recurring');
 
   const tabs: { value: EgresosTab; label: string }[] = [
@@ -869,9 +873,25 @@ export function EgresosView() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Egresos</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Recurrentes, eventuales, diarios y nómina</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Egresos</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Recurrentes, eventuales, diarios y nómina</p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <ExportMenu
+            label="Egresos"
+            filename="egresos"
+            getData={getExpensesExportData}
+            clinicName={session?.clinicName}
+          />
+          <ExportMenu
+            label="Colaboradores"
+            filename="colaboradores"
+            getData={getCollaboratorsExportData}
+            clinicName={session?.clinicName}
+          />
+        </div>
       </div>
 
       <div className="flex gap-1 border-b border-border overflow-x-auto">
