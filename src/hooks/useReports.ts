@@ -52,6 +52,24 @@ export interface ReportPaymentRow {
   status:        string;
 }
 
+export interface ReportExpenseRow {
+  id:       string;
+  date:     string;
+  name:     string;
+  category: string;
+  amount:   number;
+  notes?:   string;
+}
+
+export interface ReportCollaboratorRow {
+  id:     string;
+  date:   string;
+  name:   string;
+  role:   string;
+  amount: number;
+  notes?: string;
+}
+
 export interface ReportSummary {
   // KPIs
   totalRevenue:        number;
@@ -68,6 +86,10 @@ export interface ReportSummary {
   timeSeries:          ReportDayStat[];
   // Payment detail
   paymentRows:         ReportPaymentRow[];
+  // Expense detail
+  expenseRows:         ReportExpenseRow[];
+  collaboratorRows:    ReportCollaboratorRow[];
+  byExpenseCategory:   Record<string, number>;
   // Method breakdown
   byMethod:            Record<string, number>;
   byType:              Record<string, number>;
@@ -81,7 +103,7 @@ export function useReportData(from: string, to: string) {
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
 
-    const [sales, payments, expensePayments, collaboratorPayments, allProducts, allServices] =
+    const [sales, payments, expensePayments, collaboratorPayments, allProducts, allServices, allFixedExpenses, allCollaborators] =
       await Promise.all([
         db.sales
           .where('clinicId').equals(clinicId)
@@ -101,7 +123,12 @@ export function useReportData(from: string, to: string) {
           .toArray(),
         db.products.where('clinicId').equals(clinicId).filter(p => !p.deletedAt).toArray(),
         db.services.where('clinicId').equals(clinicId).filter(s => !s.deletedAt).toArray(),
+        db.fixedExpenses.where('clinicId').equals(clinicId).filter(e => !e.deletedAt).toArray(),
+        db.collaborators.where('clinicId').equals(clinicId).filter(c => !c.deletedAt).toArray(),
       ]);
+
+    const fixedExpenseMap = new Map(allFixedExpenses.map(e => [e.id, e]));
+    const collaboratorMap = new Map(allCollaborators.map(c => [c.id, c]));
 
     const productMap = new Map(allProducts.map(p => [p.id, p]));
     const serviceMap = new Map(allServices.map(s => [s.id, s]));
@@ -181,6 +208,27 @@ export function useReportData(from: string, to: string) {
     const totalRevenue       = sales.reduce((s, sale) => s + sale.total, 0);
     const totalExpenses      = expensePayments.reduce((s, ep) => s + ep.amount, 0);
     const totalCollaborators = collaboratorPayments.reduce((s, cp) => s + cp.amount, 0);
+
+    // Expense detail rows
+    const expenseRows: ReportExpenseRow[] = expensePayments
+      .sort((a, b) => b.paymentDate.localeCompare(a.paymentDate))
+      .map(ep => {
+        const parent = fixedExpenseMap.get(ep.fixedExpenseId);
+        return { id: ep.id, date: ep.paymentDate, name: parent?.name ?? '—', category: parent?.category ?? 'other', amount: ep.amount, notes: ep.notes };
+      });
+
+    const collaboratorRows: ReportCollaboratorRow[] = collaboratorPayments
+      .sort((a, b) => b.paymentDate.localeCompare(a.paymentDate))
+      .map(cp => {
+        const collab = collaboratorMap.get(cp.collaboratorId);
+        return { id: cp.id, date: cp.paymentDate, name: collab?.name ?? '—', role: collab?.role ?? '—', amount: cp.amount, notes: cp.notes };
+      });
+
+    const byExpenseCategory = expensePayments.reduce<Record<string, number>>((acc, ep) => {
+      const cat = fixedExpenseMap.get(ep.fixedExpenseId)?.category ?? 'other';
+      acc[cat] = (acc[cat] ?? 0) + ep.amount;
+      return acc;
+    }, {});
 
     // Payment method + type breakdown from payments table
     const byMethod: Record<string, number> = {};
@@ -273,6 +321,9 @@ export function useReportData(from: string, to: string) {
       categoryStats:      sortedCategories,
       timeSeries,
       paymentRows,
+      expenseRows,
+      collaboratorRows,
+      byExpenseCategory,
       byMethod,
       byType,
       from,

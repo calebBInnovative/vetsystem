@@ -2,15 +2,28 @@
 
 import { useFinancialSummary } from '@/hooks/useFinances';
 import { PAYMENT_METHODS, INCOME_TYPES } from '@/types/finances';
-import { TrendingUp, TrendingDown, Clock, DollarSign, Wallet } from 'lucide-react';
+import { EXPENSE_CATEGORIES } from '@/types/expense';
+import { TrendingUp, TrendingDown, Clock, DollarSign, Wallet, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useState } from 'react';
 
 function formatMonto(monto: number) {
   return new Intl.NumberFormat('es-NI', { style: 'currency', currency: 'NIO', maximumFractionDigits: 0 }).format(monto);
 }
 
+function fmtDate(iso: string) {
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+const EXPENSE_CATEGORY_EMOJIS: Record<string, string> = {
+  rent: '🏠', services: '💡', payroll: '👥', insurance: '🛡️',
+  maintenance: '🔧', supplies: '📦', equipment: '🖥️', marketing: '📢', other: '💰',
+};
+
 export function ResumenIngresos() {
   const { summary, loading } = useFinancialSummary();
+  const [showExpenseDetail, setShowExpenseDetail] = useState(false);
 
   if (loading) {
     return (
@@ -27,27 +40,9 @@ export function ResumenIngresos() {
   }
 
   const kpis = [
-    {
-      label:    'Hoy',
-      valor:    summary?.totalToday ?? 0,
-      icon:     DollarSign,
-      color:    'text-green-600',
-      bg:       'bg-green-500/10',
-    },
-    {
-      label:    'Esta semana',
-      valor:    summary?.totalWeek ?? 0,
-      icon:     TrendingUp,
-      color:    'text-blue-600',
-      bg:       'bg-blue-500/10',
-    },
-    {
-      label:    'Este mes',
-      valor:    summary?.totalMonth ?? 0,
-      icon:     TrendingUp,
-      color:    'text-primary',
-      bg:       'bg-primary/10',
-    },
+    { label: 'Hoy',              valor: summary?.totalToday   ?? 0, icon: DollarSign, color: 'text-green-600', bg: 'bg-green-500/10' },
+    { label: 'Esta semana',      valor: summary?.totalWeek    ?? 0, icon: TrendingUp,  color: 'text-blue-600',  bg: 'bg-blue-500/10'  },
+    { label: 'Este mes',         valor: summary?.totalMonth   ?? 0, icon: TrendingUp,  color: 'text-primary',   bg: 'bg-primary/10'   },
     {
       label:    'Pagos pendientes',
       valor:    summary?.pendingCount ?? 0,
@@ -58,15 +53,21 @@ export function ResumenIngresos() {
     },
   ];
 
-  const balanceNeto         = summary?.netBalance ?? 0;
-  const totalMes            = summary?.totalMonth ?? 0;
-  const totalEgresos        = summary?.totalOutgoing ?? 0;
-  const totalGastos         = summary?.totalExpenses ?? 0;
-  const totalColaboradores  = summary?.totalCollaborators ?? 0;
-  const balancePositivo     = balanceNeto >= 0;
+  const balanceNeto        = summary?.netBalance        ?? 0;
+  const totalMes           = summary?.totalMonth        ?? 0;
+  const totalEgresos       = summary?.totalOutgoing     ?? 0;
+  const totalGastos        = summary?.totalExpenses     ?? 0;
+  const totalColaboradores = summary?.totalCollaborators ?? 0;
+  const balancePositivo    = balanceNeto >= 0;
+
+  const byExpenseCategory = summary?.byExpenseCategory ?? {};
+  const expenseRows       = summary?.expenseRows       ?? [];
+  const collaboratorRows  = summary?.collaboratorRows  ?? [];
+  const hasExpenseDetail  = expenseRows.length > 0 || collaboratorRows.length > 0;
 
   return (
     <div className="space-y-4">
+
       {/* KPI row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {kpis.map(({ label, valor, icon: Icon, color, bg, esConteo }) => (
@@ -106,7 +107,7 @@ export function ResumenIngresos() {
             <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-red-500/10 shrink-0 mt-0.5">
               <Wallet className="h-4 w-4 text-red-500" />
             </div>
-            <div>
+            <div className="flex-1">
               <p className="text-xs text-muted-foreground">Egresos</p>
               <p className="text-xl font-bold text-red-500">{formatMonto(totalEgresos)}</p>
               <div className="mt-1 space-y-0.5">
@@ -149,8 +150,125 @@ export function ResumenIngresos() {
         </div>
       </div>
 
-      {/* Desglose: tipos + métodos */}
-      {summary && (summary.countMonth > 0) && (
+      {/* Desglose de egresos */}
+      {totalEgresos > 0 && (
+        <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">Desglose de egresos del mes</p>
+            {hasExpenseDetail && (
+              <button
+                type="button"
+                onClick={() => setShowExpenseDetail((v) => !v)}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showExpenseDetail ? <><ChevronUp size={13} /> Ocultar detalle</> : <><ChevronDown size={13} /> Ver detalle</>}
+              </button>
+            )}
+          </div>
+
+          {/* Category bars */}
+          {Object.keys(byExpenseCategory).length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Por categoría</p>
+              {Object.entries(byExpenseCategory)
+                .sort(([, a], [, b]) => b - a)
+                .map(([cat, amount]) => {
+                  const pct = totalGastos > 0 ? Math.round((amount / totalGastos) * 100) : 0;
+                  return (
+                    <div key={cat} className="flex items-center gap-2">
+                      <span className="text-base w-5">{EXPENSE_CATEGORY_EMOJIS[cat] ?? '💰'}</span>
+                      <span className="text-xs text-muted-foreground flex-1">
+                        {EXPENSE_CATEGORIES[cat as keyof typeof EXPENSE_CATEGORIES] ?? cat}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div className="h-full bg-red-400 rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-xs font-medium w-20 text-right tabular-nums">{formatMonto(amount)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              {totalColaboradores > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-base w-5">👥</span>
+                  <span className="text-xs text-muted-foreground flex-1">Colaboradores</span>
+                  <div className="flex items-center gap-2">
+                    <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-orange-400 rounded-full"
+                        style={{ width: `${totalEgresos > 0 ? Math.round((totalColaboradores / totalEgresos) * 100) : 0}%` }}
+                      />
+                    </div>
+                    <span className="text-xs font-medium w-20 text-right tabular-nums">{formatMonto(totalColaboradores)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Expense detail rows */}
+          {showExpenseDetail && (
+            <div className="space-y-3 pt-2 border-t border-border">
+
+              {/* Gastos fijos */}
+              {expenseRows.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Gastos fijos pagados</p>
+                  <div className="rounded-xl border border-border overflow-hidden">
+                    {expenseRows.map((row, i) => (
+                      <div
+                        key={row.id}
+                        className={cn(
+                          'flex items-center gap-3 px-3 py-2 text-sm',
+                          i < expenseRows.length - 1 && 'border-b border-border/50',
+                        )}
+                      >
+                        <span className="text-base shrink-0">{EXPENSE_CATEGORY_EMOJIS[row.category] ?? '💰'}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{row.name}</p>
+                          {row.notes && <p className="text-xs text-muted-foreground truncate">{row.notes}</p>}
+                        </div>
+                        <p className="text-xs text-muted-foreground shrink-0">{fmtDate(row.date)}</p>
+                        <p className="font-semibold text-red-500 shrink-0 tabular-nums">{formatMonto(row.amount)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Colaboradores */}
+              {collaboratorRows.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Pagos a colaboradores</p>
+                  <div className="rounded-xl border border-border overflow-hidden">
+                    {collaboratorRows.map((row, i) => (
+                      <div
+                        key={row.id}
+                        className={cn(
+                          'flex items-center gap-3 px-3 py-2 text-sm',
+                          i < collaboratorRows.length - 1 && 'border-b border-border/50',
+                        )}
+                      >
+                        <span className="text-base shrink-0">👤</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{row.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{row.role}</p>
+                        </div>
+                        <p className="text-xs text-muted-foreground shrink-0">{fmtDate(row.date)}</p>
+                        <p className="font-semibold text-orange-500 shrink-0 tabular-nums">{formatMonto(row.amount)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Desglose de ingresos: tipos + métodos */}
+      {summary && summary.countMonth > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {/* Por tipo de ingreso */}
           <div className="bg-card rounded-2xl border border-border p-4">
@@ -169,7 +287,7 @@ export function ResumenIngresos() {
                         <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
                           <div className="h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
                         </div>
-                        <span className="text-xs font-medium w-16 text-right">{formatMonto(monto)}</span>
+                        <span className="text-xs font-medium w-16 text-right tabular-nums">{formatMonto(monto)}</span>
                       </div>
                     </div>
                   );
@@ -194,7 +312,7 @@ export function ResumenIngresos() {
                         <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
                           <div className="h-full bg-blue-500 rounded-full" style={{ width: `${pct}%` }} />
                         </div>
-                        <span className="text-xs font-medium w-16 text-right">{formatMonto(monto)}</span>
+                        <span className="text-xs font-medium w-16 text-right tabular-nums">{formatMonto(monto)}</span>
                       </div>
                     </div>
                   );

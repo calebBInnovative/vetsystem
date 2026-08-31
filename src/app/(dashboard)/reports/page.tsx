@@ -12,8 +12,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import {
   FileText, Printer, Sheet, ShoppingBag, Stethoscope, CreditCard, ListCollapse,
-  CalendarDays, ChevronDown, ChevronUp,
+  CalendarDays, ChevronDown, ChevronUp, Wallet,
 } from 'lucide-react';
+import { EXPENSE_CATEGORIES } from '@/types/expense';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -52,11 +53,11 @@ function KpiCard({ label, value, sub, positive }: { label: string; value: string
   );
 }
 
-function RankBar({ value, max }: { value: number; max: number }) {
+function RankBar({ value, max, color = 'bg-primary' }: { value: number; max: number; color?: string }) {
   const pct = max > 0 ? (value / max) * 100 : 0;
   return (
     <div className="h-1 rounded-full bg-muted overflow-hidden flex-1">
-      <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+      <div className={cn('h-full rounded-full', color)} style={{ width: `${pct}%` }} />
     </div>
   );
 }
@@ -138,6 +139,9 @@ export default function ReportsPage() {
   const INCOME_TYPE_LABELS: Record<string, string> = {
     consultation: 'Consulta', vaccination: 'Vacuna', surgery: 'Cirugía', product: 'Producto', grooming: 'Estética', other: 'Otro',
   };
+  const EXPENSE_CAT_LABELS: Record<string, string> = Object.fromEntries(
+    Object.entries(EXPENSE_CATEGORIES).map(([k, v]) => [k, v])
+  );
 
   return (
     <div className="space-y-5 pb-10">
@@ -329,6 +333,119 @@ export default function ReportsPage() {
             })}
           </div>
         </div>
+      )}
+
+      {/* ── Egresos ─────────────────────────────────────────────────── */}
+      {!loading && report && (report.totalExpenses + report.totalCollaborators) > 0 && (
+        <CollapsibleSection
+          title={`Egresos — ${fmtCurrency(report.totalExpenses + report.totalCollaborators)}`}
+          icon={<Wallet size={13} />}
+        >
+          <div className="space-y-4">
+
+            {/* Category bars */}
+            {Object.keys(report.byExpenseCategory).length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Gastos fijos por categoría</p>
+                {Object.entries(report.byExpenseCategory).sort(([,a],[,b]) => b-a).map(([cat, amount]) => {
+                  const pct = report.totalExpenses > 0 ? (amount / report.totalExpenses) * 100 : 0;
+                  return (
+                    <div key={cat} className="flex items-center gap-2 mb-2">
+                      <p className="text-xs text-muted-foreground w-28 shrink-0">
+                        {EXPENSE_CAT_LABELS[cat] ?? cat}
+                      </p>
+                      <RankBar value={amount} max={report.totalExpenses} color="bg-red-400" />
+                      <p className="text-xs font-bold tabular-nums w-20 text-right shrink-0">{fmtCurrency(amount)}</p>
+                      <p className="text-[10px] text-muted-foreground w-8 text-right shrink-0">{pct.toFixed(0)}%</p>
+                    </div>
+                  );
+                })}
+                {report.totalCollaborators > 0 && (
+                  <div className="flex items-center gap-2 mb-2">
+                    <p className="text-xs text-muted-foreground w-28 shrink-0">👥 Colaboradores</p>
+                    <RankBar value={report.totalCollaborators} max={report.totalExpenses + report.totalCollaborators} color="bg-orange-400" />
+                    <p className="text-xs font-bold tabular-nums w-20 text-right shrink-0">{fmtCurrency(report.totalCollaborators)}</p>
+                    <p className="text-[10px] text-muted-foreground w-8 text-right shrink-0">
+                      {((report.totalCollaborators / (report.totalExpenses + report.totalCollaborators)) * 100).toFixed(0)}%
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Expense rows table */}
+            {report.expenseRows.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">
+                  Gastos fijos pagados ({report.expenseRows.length})
+                </p>
+                <div className="overflow-x-auto rounded-xl border border-border">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/30">
+                        <th className="py-2 px-3 text-left font-medium text-muted-foreground">Fecha</th>
+                        <th className="py-2 px-3 text-left font-medium text-muted-foreground">Gasto</th>
+                        <th className="py-2 px-3 text-left font-medium text-muted-foreground hidden sm:table-cell">Categoría</th>
+                        <th className="py-2 px-3 text-right font-medium text-muted-foreground">Monto</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {report.expenseRows.map((row) => (
+                        <tr key={row.id} className="border-b border-border/50 last:border-0 hover:bg-muted/20">
+                          <td className="py-2 px-3 text-muted-foreground tabular-nums">{row.date}</td>
+                          <td className="py-2 px-3 font-medium max-w-[160px] truncate">{row.name}</td>
+                          <td className="py-2 px-3 text-muted-foreground hidden sm:table-cell">
+                            {EXPENSE_CAT_LABELS[row.category] ?? row.category}
+                          </td>
+                          <td className="py-2 px-3 text-right font-bold text-red-500 tabular-nums">{fmtCurrency(row.amount)}</td>
+                        </tr>
+                      ))}
+                      <tr className="bg-muted/20 font-bold">
+                        <td colSpan={3} className="py-2 px-3">Total gastos fijos</td>
+                        <td className="py-2 px-3 text-right text-red-500 tabular-nums">{fmtCurrency(report.totalExpenses)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Collaborator rows table */}
+            {report.collaboratorRows.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">
+                  Pagos a colaboradores ({report.collaboratorRows.length})
+                </p>
+                <div className="overflow-x-auto rounded-xl border border-border">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/30">
+                        <th className="py-2 px-3 text-left font-medium text-muted-foreground">Fecha</th>
+                        <th className="py-2 px-3 text-left font-medium text-muted-foreground">Colaborador</th>
+                        <th className="py-2 px-3 text-left font-medium text-muted-foreground hidden sm:table-cell">Cargo</th>
+                        <th className="py-2 px-3 text-right font-medium text-muted-foreground">Monto</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {report.collaboratorRows.map((row) => (
+                        <tr key={row.id} className="border-b border-border/50 last:border-0 hover:bg-muted/20">
+                          <td className="py-2 px-3 text-muted-foreground tabular-nums">{row.date}</td>
+                          <td className="py-2 px-3 font-medium">{row.name}</td>
+                          <td className="py-2 px-3 text-muted-foreground hidden sm:table-cell">{row.role}</td>
+                          <td className="py-2 px-3 text-right font-bold text-orange-500 tabular-nums">{fmtCurrency(row.amount)}</td>
+                        </tr>
+                      ))}
+                      <tr className="bg-muted/20 font-bold">
+                        <td colSpan={3} className="py-2 px-3">Total colaboradores</td>
+                        <td className="py-2 px-3 text-right text-orange-500 tabular-nums">{fmtCurrency(report.totalCollaborators)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        </CollapsibleSection>
       )}
 
       {/* ── Products ───────────────────────────────────────────────── */}

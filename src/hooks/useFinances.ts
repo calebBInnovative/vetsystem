@@ -107,7 +107,35 @@ export function useFinancialSummary() {
       .between(monthStr, monthEndStr, true, true)
       .filter((g) => g.clinicId === clinicId && !g.deletedAt)
       .toArray();
+
+    // Enrich with parent fixedExpense name + category
+    const fixedExpenses = await db.fixedExpenses
+      .where('clinicId').equals(clinicId)
+      .filter((e) => !e.deletedAt)
+      .toArray();
+    const fixedExpenseMap = new Map(fixedExpenses.map((e) => [e.id, e]));
+
     const totalExpenses = expensePaymentsMonth.reduce((s, g) => s + g.amount, 0);
+
+    const byExpenseCategory = expensePaymentsMonth.reduce<Record<string, number>>((acc, ep) => {
+      const cat = fixedExpenseMap.get(ep.fixedExpenseId)?.category ?? 'other';
+      acc[cat] = (acc[cat] ?? 0) + ep.amount;
+      return acc;
+    }, {});
+
+    const expenseRows = expensePaymentsMonth
+      .sort((a, b) => b.paymentDate.localeCompare(a.paymentDate))
+      .map((ep) => {
+        const parent = fixedExpenseMap.get(ep.fixedExpenseId);
+        return {
+          id:       ep.id,
+          date:     ep.paymentDate,
+          name:     parent?.name ?? '—',
+          category: parent?.category ?? 'other',
+          amount:   ep.amount,
+          notes:    ep.notes,
+        };
+      });
 
     // ── Expenses: collaborators paid this month ────────────────────────────────
     const collaboratorPaymentsMonth = await db.collaboratorPayments
@@ -115,7 +143,28 @@ export function useFinancialSummary() {
       .between(monthStr, monthEndStr, true, true)
       .filter((c) => c.clinicId === clinicId && !c.deletedAt)
       .toArray();
+
+    const collaborators = await db.collaborators
+      .where('clinicId').equals(clinicId)
+      .filter((c) => !c.deletedAt)
+      .toArray();
+    const collaboratorMap = new Map(collaborators.map((c) => [c.id, c]));
+
     const totalCollaborators = collaboratorPaymentsMonth.reduce((s, c) => s + c.amount, 0);
+
+    const collaboratorRows = collaboratorPaymentsMonth
+      .sort((a, b) => b.paymentDate.localeCompare(a.paymentDate))
+      .map((cp) => {
+        const collab = collaboratorMap.get(cp.collaboratorId);
+        return {
+          id:     cp.id,
+          date:   cp.paymentDate,
+          name:   collab?.name ?? '—',
+          role:   collab?.role ?? '—',
+          amount: cp.amount,
+          notes:  cp.notes,
+        };
+      });
 
     const totalOutgoing = totalExpenses + totalCollaborators;
     const netBalance    = totalMonth - totalOutgoing;
@@ -124,6 +173,7 @@ export function useFinancialSummary() {
       totalToday, totalWeek, totalMonth, pendingCount,
       byType, byMethod, countMonth: monthPayments.length,
       totalExpenses, totalCollaborators, totalOutgoing, netBalance,
+      byExpenseCategory, expenseRows, collaboratorRows,
     };
   }, [todayStr, monthStr, weekStr]);
 
