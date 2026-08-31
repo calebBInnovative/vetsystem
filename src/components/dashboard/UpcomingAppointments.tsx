@@ -16,7 +16,7 @@ export function ProximasCitasDia() {
     <div className="bg-card rounded-2xl border border-border p-5">
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-semibold">Citas de hoy</h2>
-        <Link href="/agenda">
+        <Link href="/schedule">
           <Button variant="ghost" size="sm" className="gap-1 text-xs h-7">
             Ver agenda <ArrowRight size={13} />
           </Button>
@@ -32,7 +32,7 @@ export function ProximasCitasDia() {
       ) : appointments.length === 0 ? (
         <div className="text-center py-8 space-y-2">
           <CalendarDays className="h-8 w-8 text-muted-foreground/30 mx-auto" />
-          <p className="text-sm text-muted-foreground">No quedan appointments pendientes hoy</p>
+          <p className="text-sm text-muted-foreground">No quedan citas pendientes hoy</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -46,7 +46,7 @@ export function ProximasCitasDia() {
             return (
               <Link
                 key={cita.id}
-                href="/agenda"
+                href="/schedule"
                 className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 transition-colors group"
               >
                 {/* Hora */}

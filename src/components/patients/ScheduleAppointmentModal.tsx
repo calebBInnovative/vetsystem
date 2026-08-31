@@ -45,7 +45,7 @@ export function AgendarCitaModal({ open, onClose, paciente }: Props) {
         startTime:       hora,
         durationMinutes: duracion,
         type:            tipo,
-        reason:          motivo.trim() || 'Appointment agendada',
+        reason:          motivo.trim() || 'Cita agendada',
       });
       setGuardada(true);
     } catch (e) {
@@ -77,7 +77,7 @@ export function AgendarCitaModal({ open, onClose, paciente }: Props) {
           /* ── Confirmación ── */
           <div className="px-6 py-10 flex flex-col items-center text-center gap-3">
             <CheckCircle2 size={48} className="text-green-500" />
-            <p className="font-semibold text-lg">¡Appointment agendada!</p>
+            <p className="font-semibold text-lg">¡Cita agendada!</p>
             <p className="text-sm text-muted-foreground">
               {paciente.name} · {fecha.split('-').reverse().join('/')} a las {hora}
             </p>
@@ -87,7 +87,7 @@ export function AgendarCitaModal({ open, onClose, paciente }: Props) {
               </Button>
               <Button
                 className="flex-1 gap-2"
-                onClick={() => { handleCerrar(); router.push(`/agenda?fecha=${fecha}`); }}
+                onClick={() => { handleCerrar(); router.push(`/schedule?fecha=${fecha}`); }}
               >
                 <CalendarDays size={14} />
                 Ver en agenda

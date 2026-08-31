@@ -22,10 +22,10 @@ export function NewConsultationView() {
     setCargando(true);
     try {
       await createHistoryEntry(id ?? '', datos);
-      toast.success('Consultation registrada', {
+      toast.success('Consulta registrada', {
         description: paciente
-          ? `Consultation de ${paciente.name} guardada correctamente.`
-          : 'Consultation guardada correctamente.',
+          ? `Consulta de ${paciente.name} guardada correctamente.`
+          : 'Consulta guardada correctamente.',
       });
       router.push(`/patients/${id ?? ''}/history`);
     } catch {
@@ -46,7 +46,7 @@ export function NewConsultationView() {
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-bold">Nueva Consultation</h1>
+          <h1 className="text-2xl font-bold">Nueva Consulta</h1>
           {paciente && (
             <p className="text-sm text-muted-foreground mt-0.5">
               {paciente.name} · {paciente.species}

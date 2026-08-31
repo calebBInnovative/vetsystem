@@ -21,10 +21,10 @@ function NuevaCitaContent() {
     setCargando(true);
     try {
       await createAppointment(datos);
-      toast.success('Appointment agendada', {
-        description: `Appointment registrada para el ${datos.date} a las ${datos.startTime}.`,
+      toast.success('Cita agendada', {
+        description: `Cita registrada para el ${datos.date} a las ${datos.startTime}.`,
       });
-      router.push(`/agenda`);
+      router.push(`/schedule`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error desconocido';
       toast.error('No se pudo agendar', { description: msg });
@@ -35,13 +35,13 @@ function NuevaCitaContent() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
-        <Link href="/agenda">
+        <Link href="/schedule">
           <Button variant="ghost" size="icon">
             <ArrowLeft size={18} />
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-bold">Nueva Appointment</h1>
+          <h1 className="text-2xl font-bold">Nueva Cita</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Completa los datos para agendar la cita
           </p>

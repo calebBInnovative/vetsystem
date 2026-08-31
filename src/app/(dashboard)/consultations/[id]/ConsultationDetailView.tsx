@@ -39,7 +39,7 @@ export function ConsultationDetailView() {
   if (!consulta) {
     return (
       <div className="text-center py-16">
-        <p className="text-muted-foreground">Consultation no encontrada</p>
+        <p className="text-muted-foreground">Consulta no encontrada</p>
         <Button variant="ghost" onClick={() => router.push('/consultations')} className="mt-3">
           <ArrowLeft size={14} className="mr-2" /> Volver
         </Button>
@@ -67,7 +67,7 @@ export function ConsultationDetailView() {
               <ArrowLeft size={18} />
             </Button>
             <div>
-              <h1 className="text-xl font-bold">Consultation</h1>
+              <h1 className="text-xl font-bold">Consulta</h1>
               <p className="text-sm text-muted-foreground">{formatTs(consulta.date)}</p>
             </div>
           </div>
