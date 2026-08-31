@@ -22,7 +22,7 @@ export function PacienteForm({
   onSubmit,
   loading = false,
   defaultValues,
-  textoBoton = 'Registrar Patient',
+  textoBoton = 'Registrar Paciente',
 }: PacienteFormProps) {
   const {
     register,

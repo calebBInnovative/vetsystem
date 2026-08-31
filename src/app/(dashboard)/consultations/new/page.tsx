@@ -58,7 +58,7 @@ function NewConsultationContent() {
 
         {/* Patient */}
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">Patient *</label>
+          <label className="text-sm font-medium">Paciente *</label>
           <PacienteSelector
             value={patientId || undefined}
             onChange={setPatientId}
