@@ -6,6 +6,7 @@ import { EXPENSE_CATEGORIES } from '@/types/expense';
 import { TrendingUp, TrendingDown, Clock, DollarSign, Wallet, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
+import { PendingExpensesAlert } from '@/components/finances/PendingExpensesAlert';
 
 function formatMonto(monto: number) {
   return new Intl.NumberFormat('es-NI', { style: 'currency', currency: 'NIO', maximumFractionDigits: 0 }).format(monto);
@@ -68,6 +69,9 @@ export function ResumenIngresos() {
   return (
     <div className="space-y-4">
 
+      {/* Pending expenses alert */}
+      <PendingExpensesAlert />
+
       {/* KPI row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {kpis.map(({ label, valor, icon: Icon, color, bg, esConteo }) => (
@@ -113,7 +117,7 @@ export function ResumenIngresos() {
               <div className="mt-1 space-y-0.5">
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
-                  Gastos fijos: {formatMonto(totalGastos)}
+                  Egresos: {formatMonto(totalGastos)}
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <span className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />
@@ -214,7 +218,7 @@ export function ResumenIngresos() {
               {/* Gastos fijos */}
               {expenseRows.length > 0 && (
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-2">Gastos fijos pagados</p>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Egresos pagados</p>
                   <div className="rounded-xl border border-border overflow-hidden">
                     {expenseRows.map((row, i) => (
                       <div

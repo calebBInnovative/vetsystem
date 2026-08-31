@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { GastoFijoForm, GastoEventualForm } from '@/components/expenses/ExpenseForm';
 import { useFixedExpenses, useOneTimeExpenses, useDailyExpenses, createDailyExpense, deleteDailyExpense } from '@/hooks/useExpenses';
 import { markAsPaid, deleteFixedExpense, toggleExpenseActive, deleteOneTimeExpense } from '@/hooks/useExpenses';
+import { PendingExpensesAlert } from '@/components/finances/PendingExpensesAlert';
 import type { FixedExpense } from '@/types/expense';
 import {
   daysUntilDue,
@@ -247,7 +248,7 @@ function TabExpenses() {
   function closeForm() { setFormOpen(false); setEditExpense(undefined); }
 
   async function handleDelete(id: string) {
-    if (!confirm('¿Eliminar este gasto fijo?')) return;
+    if (!confirm('¿Eliminar este gasto?')) return;
     setDeleting(id);
     try { await deleteFixedExpense(id); } finally { setDeleting(null); }
   }
@@ -269,8 +270,8 @@ function TabExpenses() {
           <Wallet size={32} className="text-muted-foreground" />
         </div>
         <div>
-          <p className="text-lg font-semibold">Sin gastos fijos</p>
-          <p className="text-sm text-muted-foreground mt-1 max-w-xs">Agrega tus gastos fijos para recibir recordatorios de pago</p>
+          <p className="text-lg font-semibold">Sin gastos recurrentes</p>
+          <p className="text-sm text-muted-foreground mt-1 max-w-xs">Agrega tus gastos recurrentes para recibir recordatorios de pago</p>
         </div>
         <Button onClick={() => setFormOpen(true)} className="gap-2 mt-2"><Plus size={14} /> Agregar gasto</Button>
         <GastoFijoForm open={formOpen} onClose={closeForm} gasto={editExpense} />
@@ -287,7 +288,7 @@ function TabExpenses() {
 
       {upcomingExpenses.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Próximos payments (30 días)</h2>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Próximos pagos (30 días)</h2>
           <div className="flex gap-3 overflow-x-auto pb-2">
             {upcomingExpenses.map((g) => (
               <div key={g.id} className="shrink-0 w-56 bg-card border border-border rounded-2xl p-4 space-y-3">
@@ -560,7 +561,7 @@ function TabCollaborators() {
 
       {upcomingCollaborators.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Próximos payments de colaboradores (14 días)</h2>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Próximos pagos de colaboradores (14 días)</h2>
           <div className="flex gap-3 overflow-x-auto pb-2">
             {upcomingCollaborators.map((c) => (
               <div key={c.id} className="shrink-0 w-60 bg-card border border-border rounded-2xl p-4 space-y-3">
@@ -860,7 +861,7 @@ export function EgresosView() {
   const [tab, setTab] = useState<EgresosTab>('recurring');
 
   const tabs: { value: EgresosTab; label: string }[] = [
-    { value: 'recurring',     label: 'Gastos Fijos'  },
+    { value: 'recurring',     label: 'Recurrentes'   },
     { value: 'one_time',      label: 'Eventuales'    },
     { value: 'daily',         label: 'Diarios'       },
     { value: 'collaborators', label: 'Colaboradores' },
@@ -870,7 +871,7 @@ export function EgresosView() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Egresos</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Gastos fijos, eventuales, diarios y nómina</p>
+        <p className="text-sm text-muted-foreground mt-0.5">Recurrentes, eventuales, diarios y nómina</p>
       </div>
 
       <div className="flex gap-1 border-b border-border overflow-x-auto">
@@ -884,6 +885,8 @@ export function EgresosView() {
           </button>
         ))}
       </div>
+
+      <PendingExpensesAlert />
 
       {tab === 'recurring'     && <TabExpenses />}
       {tab === 'one_time'      && <TabOneTime />}

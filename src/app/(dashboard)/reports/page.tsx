@@ -15,6 +15,7 @@ import {
   CalendarDays, ChevronDown, ChevronUp, Wallet,
 } from 'lucide-react';
 import { EXPENSE_CATEGORIES } from '@/types/expense';
+import { PendingExpensesAlert } from '@/components/finances/PendingExpensesAlert';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -258,6 +259,9 @@ export default function ReportsPage() {
         </p>
       </div>
 
+      {/* ── Pending expenses alert ────────────────────────────────── */}
+      <PendingExpensesAlert />
+
       {/* ── KPI strip ─────────────────────────────────────────────── */}
       {loading ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -268,7 +272,7 @@ export default function ReportsPage() {
           <KpiCard label="Ingresos" value={fmtCurrency(report.totalRevenue)} positive={report.totalRevenue > 0} />
           <KpiCard label="Ventas" value={String(report.totalSalesCount)} sub="transacciones" />
           <KpiCard label="Ticket prom." value={fmtCurrency(report.avgTicket)} />
-          <KpiCard label="Gastos fijos" value={fmtCurrency(report.totalExpenses)} sub="período" />
+          <KpiCard label="Egresos" value={fmtCurrency(report.totalExpenses)} sub="período" />
           <KpiCard label="Colaboradores" value={fmtCurrency(report.totalCollaborators)} />
           <KpiCard
             label="Balance neto"
@@ -346,7 +350,7 @@ export default function ReportsPage() {
             {/* Category bars */}
             {Object.keys(report.byExpenseCategory).length > 0 && (
               <div>
-                <p className="text-xs font-medium text-muted-foreground mb-2">Gastos fijos por categoría</p>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Por categoría</p>
                 {Object.entries(report.byExpenseCategory).sort(([,a],[,b]) => b-a).map(([cat, amount]) => {
                   const pct = report.totalExpenses > 0 ? (amount / report.totalExpenses) * 100 : 0;
                   return (
@@ -377,7 +381,7 @@ export default function ReportsPage() {
             {report.expenseRows.length > 0 && (
               <div>
                 <p className="text-xs font-medium text-muted-foreground mb-2">
-                  Gastos fijos pagados ({report.expenseRows.length})
+                  Egresos pagados ({report.expenseRows.length})
                 </p>
                 <div className="overflow-x-auto rounded-xl border border-border">
                   <table className="w-full text-xs">

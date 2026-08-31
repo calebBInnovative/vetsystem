@@ -58,24 +58,41 @@ export function useExpenseAlerts() {
     const expenses = await db.fixedExpenses
       .where('clinicId')
       .equals(clinicId)
-      .filter((g) => !g.deletedAt && g.active)
+      .filter((g) => !g.deletedAt && g.active && g.expenseType !== 'daily')
       .toArray();
 
-    let overdue  = 0;
-    let urgent   = 0;
-    let upcoming = 0;
+    let overdue           = 0;
+    let urgent            = 0;
+    let upcoming          = 0;
+    let totalUnpaidAmount = 0;
+    let unpaidCount       = 0;
 
     for (const g of expenses) {
-      const level = alertLevel(g.nextDueDate);
-      if (level === 'overdue')  overdue++;
-      else if (level === 'urgent')   urgent++;
-      else if (level === 'upcoming') upcoming++;
+      if (g.expenseType === 'one_time') {
+        // active one_time = not yet paid
+        totalUnpaidAmount += g.amount;
+        unpaidCount++;
+        const level = alertLevel(g.nextDueDate);
+        if (level === 'overdue')       overdue++;
+        else if (level === 'urgent')   urgent++;
+        else if (level === 'upcoming') upcoming++;
+      } else {
+        // recurring — count & sum only when actionable (overdue / urgent / upcoming)
+        const level = alertLevel(g.nextDueDate);
+        if (level === 'overdue' || level === 'urgent' || level === 'upcoming') {
+          if (level === 'overdue')       overdue++;
+          else if (level === 'urgent')   urgent++;
+          else if (level === 'upcoming') upcoming++;
+          totalUnpaidAmount += g.amount;
+          unpaidCount++;
+        }
+      }
     }
 
-    return { total: overdue + urgent + upcoming, overdue, urgent, upcoming };
+    return { total: overdue + urgent + upcoming, overdue, urgent, upcoming, totalUnpaidAmount, unpaidCount };
   }, []);
 
-  return result ?? { total: 0, overdue: 0, urgent: 0, upcoming: 0 };
+  return result ?? { total: 0, overdue: 0, urgent: 0, upcoming: 0, totalUnpaidAmount: 0, unpaidCount: 0 };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
