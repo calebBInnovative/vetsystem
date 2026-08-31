@@ -161,7 +161,7 @@ async function _seedDemoData() {
 
   // ── Services ─────────────────────────────────────────────────────────────────
   const servicesRaw: { name: string; category: ServiceLocal['category']; price: number }[] = [
-    { name: 'Consultation general',       category: 'consultation', price: 350  },
+    { name: 'Consulta general',       category: 'consultation', price: 350  },
     { name: 'Consultation de emergencia', category: 'emergency',    price: 600  },
     { name: 'Vacuna antirrábica',         category: 'vaccination',  price: 280  },
     { name: 'Vacuna múltiple',            category: 'vaccination',  price: 450  },

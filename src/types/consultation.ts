@@ -104,7 +104,7 @@ export interface ConsultationWithPatient extends ConsultationLocal {
 // ─── UI Constants ─────────────────────────────────────────────────────────────
 
 export const CONSULTATION_TYPES: Record<ConsultationType, { label: string; emoji: string; color: string }> = {
-  general_consultation: { label: 'Consultation general', emoji: '🩺', color: 'text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-950/40 dark:border-blue-800' },
+  general_consultation: { label: 'Consulta general', emoji: '🩺', color: 'text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-950/40 dark:border-blue-800' },
   vaccination:          { label: 'Vacunación',        emoji: '💉', color: 'text-green-600 bg-green-50 border-green-200 dark:text-green-400 dark:bg-green-950/40 dark:border-green-800' },
   surgery:              { label: 'Cirugía',           emoji: '🔬', color: 'text-purple-600 bg-purple-50 border-purple-200 dark:text-purple-400 dark:bg-purple-950/40 dark:border-purple-800' },
   emergency:            { label: 'Emergencia',        emoji: '🚨', color: 'text-red-600 bg-red-50 border-red-200 dark:text-red-400 dark:bg-red-950/40 dark:border-red-800' },

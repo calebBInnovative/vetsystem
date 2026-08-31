@@ -21,7 +21,7 @@ export function CitaForm({
   onSubmit,
   loading = false,
   defaultValues,
-  textoBoton = 'Agendar Appointment',
+  textoBoton = 'Agendar Cita',
 }: CitaFormProps) {
   const {
     register,
@@ -58,7 +58,7 @@ export function CitaForm({
 
       {/* ── Tipo de cita ─────────────────────────────────── */}
       <section>
-        <h3 className={seccionLabel}>Tipo de Appointment</h3>
+        <h3 className={seccionLabel}>Tipo de cita</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {(Object.entries(APPOINTMENT_TYPES) as [keyof typeof APPOINTMENT_TYPES, { label: string; emoji: string }][]).map(
             ([valor, { label, emoji }]) => (

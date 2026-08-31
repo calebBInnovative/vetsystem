@@ -84,7 +84,7 @@ export const APPOINTMENT_STATUSES: Record<AppointmentStatus, { label: string; co
 };
 
 export const APPOINTMENT_TYPES: Record<AppointmentType, { label: string; emoji: string }> = {
-  consultation: { label: 'Consultation general',  emoji: '🩺' },
+  consultation: { label: 'Consulta general',  emoji: '🩺' },
   vaccination:  { label: 'Vacunación',        emoji: '💉' },
   surgery:      { label: 'Cirugía',           emoji: '🔬' },
   checkup:      { label: 'Control',           emoji: '📋' },

@@ -81,7 +81,7 @@ export function PagoForm({ pacienteIdInicial, onExito, onCancelar }: PagoFormPro
         <label className="text-sm font-medium">Concepto *</label>
         <input
           {...register('concept')}
-          placeholder="Ej: Consultation general, Vacuna antirrábica…"
+          placeholder="Ej: Consulta general, Vacuna antirrábica…"
           className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />
         {errors.concept && <p className="text-xs text-destructive">{errors.concept.message}</p>}

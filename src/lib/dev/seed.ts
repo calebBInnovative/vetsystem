@@ -154,7 +154,7 @@ const VISIT_REASONS = [
 ] as const;
 
 const CONCEPTS_BY_TYPE: Record<string, string[]> = {
-  consultation: ['Consultation general', 'Consultation de urgencia', 'Revisión dermatológica', 'Revisión dental'],
+  consultation: ['Consulta general', 'Consultation de urgencia', 'Revisión dermatológica', 'Revisión dental'],
   vaccination:  ['Vacuna antirrábica', 'Vacuna DHPP', 'Vacuna triple felina', 'Vacuna bordetella'],
   surgery:      ['Castración', 'Esterilización', 'Extracción dental', 'Limpieza dental profunda'],
   product:      ['Alimento Royal Canin', 'Ivermectina', 'Shampoo medicado', 'Collar antipulgas'],

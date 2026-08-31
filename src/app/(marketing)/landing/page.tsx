@@ -335,7 +335,7 @@ function AgendaMockup() {
 
 function FacturaMockup() {
   const items = [
-    { desc: 'Consultation general',   qty: 1, precio: 350 },
+    { desc: 'Consulta general',   qty: 1, precio: 350 },
     { desc: 'Vacuna antirrábica', qty: 1, precio: 280 },
     { desc: 'Desparasitante',     qty: 2, precio: 85  },
   ];
