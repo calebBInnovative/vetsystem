@@ -393,7 +393,7 @@ function TabExpenses() {
 function TabOneTime() {
   const { expenses, loading } = useOneTimeExpenses();
   const [formOpen,   setFormOpen]   = useState(false);
-  const [showPaid,   setShowPaid]   = useState(false);
+  const [showPaid,   setShowPaid]   = useState(true);
   const [deleting,   setDeleting]   = useState<string | null>(null);
   const [payExpense, setPayExpense] = useState<FixedExpense | null>(null);
   const [payingAll,  setPayingAll]  = useState(false);
@@ -504,13 +504,15 @@ function TabOneTime() {
           <button
             type="button"
             onClick={() => setShowPaid(v => !v)}
-            className="flex items-center gap-2 w-full text-left"
+            className="flex items-center gap-2 w-full text-left group"
           >
             <CheckCircle2 size={13} className="text-green-500" />
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
               Historial de pagados ({paid.length})
             </h2>
-            {showPaid ? <ChevronUp size={13} className="text-muted-foreground ml-auto" /> : <ChevronDown size={13} className="text-muted-foreground ml-auto" />}
+            <span className="ml-auto flex items-center justify-center w-6 h-6 rounded-full bg-muted group-hover:bg-muted/80 transition-colors">
+              {showPaid ? <ChevronUp size={14} className="text-foreground" /> : <ChevronDown size={14} className="text-foreground" />}
+            </span>
           </button>
           {showPaid && (
             <div className="space-y-2">
