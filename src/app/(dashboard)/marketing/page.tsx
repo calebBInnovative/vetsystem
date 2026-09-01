@@ -81,15 +81,15 @@ function SourcePicker({
     sourceType === 'product'   ? products   :
     services.filter((s) => s.category === 'vaccination' || sourceType === 'service');
 
-  const icon =
-    sourceType === 'promotion' ? <Tag size={14} /> :
-    sourceType === 'product'   ? <Package size={14} /> :
-    <Stethoscope size={14} />;
+  const typeIcon =
+    sourceType === 'promotion' ? <Tag size={18} /> :
+    sourceType === 'product'   ? <Package size={18} /> :
+    <Stethoscope size={18} />;
 
-  const placeholder =
-    sourceType === 'promotion' ? 'Seleccionar promoción...' :
-    sourceType === 'product'   ? 'Seleccionar producto...' :
-    'Seleccionar servicio...';
+  const typeLabel =
+    sourceType === 'promotion' ? 'promoción' :
+    sourceType === 'product'   ? 'producto' :
+    'servicio';
 
   const selectedLabel =
     selected?.type === 'promotion' ? selected.data.name :
@@ -97,72 +97,95 @@ function SourcePicker({
     selected?.type === 'service'   ? selected.data.name :
     null;
 
-  return (
-    <div className="space-y-1.5">
-      <p className="text-xs font-medium text-muted-foreground">
-        {sourceType === 'promotion' ? 'Promoción a enviar' :
-         sourceType === 'product'   ? 'Producto a promover' :
-         'Servicio a promover'}
-      </p>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            size="sm"
-            className={cn(
-              'w-full justify-between gap-2 h-9',
-              !selectedLabel && 'text-muted-foreground',
-            )}
-          >
-            <span className="flex items-center gap-1.5">
-              {icon}
-              {selectedLabel ?? placeholder}
-            </span>
-            <ChevronRight size={13} className="opacity-50" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-72 max-h-64 overflow-y-auto">
-          {items.length === 0 ? (
-            <div className="px-3 py-4 text-sm text-muted-foreground text-center">
-              No hay {sourceType === 'promotion' ? 'promociones activas' :
-                      sourceType === 'product'   ? 'productos con precio' :
-                      'servicios activos'}
-            </div>
-          ) : (
-            items.map((item) => {
-              const isPromo   = sourceType === 'promotion';
-              const isProduct = sourceType === 'product';
-              const name      = item.name;
-              const sub       = isPromo   ? `${fmt((item as PromotionLocal).total)} · ${(item as PromotionLocal).items.length} item(s)` :
-                                isProduct ? (item as ProductLocal).salePrice ? fmt((item as ProductLocal).salePrice!) : 'Sin precio' :
-                                fmt((item as ServiceLocal).price);
-              const active =
-                (selected?.type === 'promotion' && selected.data.id === item.id) ||
-                (selected?.type === 'product'   && selected.data.id === item.id) ||
-                (selected?.type === 'service'   && selected.data.id === item.id);
+  const selectedSub =
+    selected?.type === 'promotion' ? `${fmt(selected.data.total)} · ${selected.data.items.length} item(s)` :
+    selected?.type === 'product'   ? (selected.data.salePrice ? fmt(selected.data.salePrice) : 'Sin precio') :
+    selected?.type === 'service'   ? fmt(selected.data.price) :
+    null;
 
-              return (
-                <DropdownMenuItem
-                  key={item.id}
-                  onClick={() => {
-                    if (isPromo)   onSelect({ type: 'promotion', data: item as PromotionLocal });
-                    else if (isProduct) onSelect({ type: 'product', data: item as ProductLocal });
-                    else           onSelect({ type: 'service',   data: item as ServiceLocal });
-                  }}
-                  className={cn('gap-2 cursor-pointer flex-col items-start', active && 'bg-accent')}
-                >
-                  <div className="flex items-center justify-between w-full">
-                    <span className="font-medium text-sm">{name}</span>
-                    {active && <Check size={13} />}
-                  </div>
-                  <span className="text-xs text-muted-foreground">{sub}</span>
-                </DropdownMenuItem>
-              );
-            })
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        {selected ? (
+          /* ── Selected state: shows the chosen item clearly ── */
+          <button
+            type="button"
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-primary bg-primary/5 hover:bg-primary/10 transition-colors text-left group"
+          >
+            <span className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary/15 text-primary shrink-0">
+              {typeIcon}
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-foreground truncate">{selectedLabel}</p>
+              {selectedSub && <p className="text-xs text-muted-foreground mt-0.5">{selectedSub}</p>}
+            </div>
+            <span className="text-xs text-primary font-medium shrink-0 opacity-70 group-hover:opacity-100">
+              Cambiar
+            </span>
+            <ChevronDown size={15} className="text-primary shrink-0" />
+          </button>
+        ) : (
+          /* ── Empty state: obvious call-to-action ── */
+          <button
+            type="button"
+            className="w-full flex flex-col items-center justify-center gap-2 px-4 py-5 rounded-xl border-2 border-dashed border-primary/50 bg-primary/5 hover:bg-primary/10 hover:border-primary transition-colors text-center group"
+          >
+            <span className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors">
+              {typeIcon}
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-primary">
+                Elegir {typeLabel}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Toca aquí para seleccionar — el mensaje se llenará automáticamente
+              </p>
+            </div>
+            <ChevronDown size={16} className="text-primary/70" />
+          </button>
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-72 max-h-64 overflow-y-auto">
+        {items.length === 0 ? (
+          <div className="px-3 py-4 text-sm text-muted-foreground text-center">
+            No hay {sourceType === 'promotion' ? 'promociones activas' :
+                    sourceType === 'product'   ? 'productos con precio' :
+                    'servicios activos'}
+          </div>
+        ) : (
+          items.map((item) => {
+            const isPromo   = sourceType === 'promotion';
+            const isProduct = sourceType === 'product';
+            const name      = item.name;
+            const sub       = isPromo   ? `${fmt((item as PromotionLocal).total)} · ${(item as PromotionLocal).items.length} item(s)` :
+                              isProduct ? ((item as ProductLocal).salePrice ? fmt((item as ProductLocal).salePrice!) : 'Sin precio') :
+                              fmt((item as ServiceLocal).price);
+            const active =
+              (selected?.type === 'promotion' && selected.data.id === item.id) ||
+              (selected?.type === 'product'   && selected.data.id === item.id) ||
+              (selected?.type === 'service'   && selected.data.id === item.id);
+
+            return (
+              <DropdownMenuItem
+                key={item.id}
+                onClick={() => {
+                  if (isPromo)        onSelect({ type: 'promotion', data: item as PromotionLocal });
+                  else if (isProduct) onSelect({ type: 'product',   data: item as ProductLocal });
+                  else                onSelect({ type: 'service',   data: item as ServiceLocal });
+                }}
+                className={cn('gap-2 cursor-pointer flex-col items-start', active && 'bg-accent')}
+              >
+                <div className="flex items-center justify-between w-full">
+                  <span className="font-medium text-sm">{name}</span>
+                  {active && <Check size={13} className="text-primary shrink-0" />}
+                </div>
+                <span className="text-xs text-muted-foreground">{sub}</span>
+              </DropdownMenuItem>
+            );
+          })
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -338,7 +361,17 @@ export default function MarketingPage() {
 
           {/* Data source picker (only for promo / product / vaccine) */}
           {sourceType && !srcLoading && (
-            <div className="bg-card border border-border rounded-2xl p-4">
+            <div className={cn(
+              'rounded-2xl p-4 border transition-colors',
+              !dataSource
+                ? 'bg-primary/5 border-primary/30'
+                : 'bg-card border-border',
+            )}>
+              {!dataSource && (
+                <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-3">
+                  Paso requerido
+                </p>
+              )}
               <SourcePicker
                 sourceType={sourceType}
                 promotions={promotions}
@@ -347,11 +380,6 @@ export default function MarketingPage() {
                 selected={dataSource}
                 onSelect={handleSourceSelect}
               />
-              {!dataSource && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  Selecciona uno para que el mensaje se complete automáticamente con sus detalles.
-                </p>
-              )}
             </div>
           )}
 
