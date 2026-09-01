@@ -5,14 +5,13 @@ import { format, subDays, subMonths, startOfMonth, endOfMonth, startOfYear, endO
 import { useReportData } from '@/hooks/useReports';
 import { openPdfReport, printPdfReport } from '@/lib/reports/exportPdf';
 import { downloadCsv } from '@/lib/reports/exportCsv';
-import { RevenueChart } from '@/components/finances/RevenueChart';
 import { PRODUCT_CATEGORIES } from '@/types/inventory';
 import { SERVICE_CATEGORIES } from '@/types/service';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import {
   FileText, Printer, Sheet, ShoppingBag, Stethoscope, CreditCard, ListCollapse,
-  CalendarDays, ChevronDown, ChevronUp, Wallet,
+  CalendarDays, ChevronDown, ChevronUp, Wallet, Lightbulb,
 } from 'lucide-react';
 import { EXPENSE_CATEGORIES } from '@/types/expense';
 import { PendingExpensesAlert } from '@/components/finances/PendingExpensesAlert';
@@ -42,6 +41,33 @@ const PRESETS: { label: string; from: () => string; to: () => string }[] = [
 
 function Skeleton({ className }: { className?: string }) {
   return <div className={cn('animate-pulse rounded-xl bg-muted', className)} />;
+}
+
+function ReportSparkline({ data }: { data: Array<{ revenue: number; isCurrent?: boolean }> }) {
+  if (data.length < 2) return null;
+  const W = 240, H = 44;
+  const max = Math.max(...data.map(d => d.revenue), 1);
+  const pts = data.map((d, i) => ({
+    x: (i / (data.length - 1)) * W,
+    y: H - (d.revenue / max) * (H - 6) - 3,
+  }));
+  const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+  const areaPath = `${linePath} L${W},${H} L0,${H}Z`;
+  const last = pts[pts.length - 1];
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full text-primary" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="rptSpkGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor="currentColor" stopOpacity="0.25" />
+          <stop offset="100%" stopColor="currentColor" stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+      <line x1="0" y1={H / 2} x2={W} y2={H / 2} stroke="currentColor" strokeOpacity="0.06" strokeWidth="0.5" />
+      <path d={areaPath} fill="url(#rptSpkGrad)" />
+      <path d={linePath} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={last.x} cy={last.y} r="3" fill="currentColor" opacity="0.9" />
+    </svg>
+  );
 }
 
 function KpiCard({ label, value, sub, positive }: { label: string; value: string; sub?: string; positive?: boolean }) {
@@ -137,6 +163,59 @@ export default function ReportsPage() {
   const METHOD_LABELS: Record<string, string> = {
     cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia', check: 'Cheque', mixed: 'Mixto', other: 'Otro',
   };
+
+  const keyInsights = useMemo(() => {
+    if (!report || report.totalRevenue === 0) return [];
+    const insights: { icon: string; title: string; body: string; kind: 'success' | 'warning' | 'info' | 'tip' }[] = [];
+
+    // Net balance health
+    if (report.netBalance < 0) {
+      insights.push({ icon: '🔴', title: 'Período con déficit', body: `Los egresos superaron los ingresos en ${fmtCurrency(Math.abs(report.netBalance))}. Revisa gastos fijos y nómina.`, kind: 'warning' });
+    } else if (report.netBalance > 0) {
+      const pct = ((report.netBalance / report.totalRevenue) * 100).toFixed(0);
+      insights.push({ icon: '✅', title: `Período rentable — margen ${pct}%`, body: `Balance neto positivo de ${fmtCurrency(report.netBalance)} sobre ${fmtCurrency(report.totalRevenue)} en ingresos.`, kind: 'success' });
+    }
+
+    // Expense ratio
+    const totalOut = report.totalExpenses + report.totalCollaborators;
+    if (totalOut > 0 && report.totalRevenue > 0) {
+      const ratio = (totalOut / report.totalRevenue) * 100;
+      if (ratio > 80) {
+        insights.push({ icon: '⚠️', title: `Egresos en ${ratio.toFixed(0)}% de ingresos`, body: 'Una tasa alta — considera reducir gastos o aumentar precios para mejorar el margen.', kind: 'warning' });
+      } else {
+        insights.push({ icon: '💡', title: `Ratio de gastos: ${ratio.toFixed(0)}%`, body: `Por cada córdoba que entra, ${(ratio / 100).toFixed(2)} se destina a egresos y nómina.`, kind: 'info' });
+      }
+    }
+
+    // Top product
+    if (report.productStats.length > 0) {
+      const top = report.productStats[0];
+      const pct = ((top.totalRevenue / report.totalRevenue) * 100).toFixed(0);
+      insights.push({ icon: '📦', title: `Producto estrella: ${top.name}`, body: `Generó ${fmtCurrency(top.totalRevenue)} (${pct}% del ingreso total) con ${top.totalQty} ${top.unit} vendidas.`, kind: 'tip' });
+    }
+
+    // Top service
+    if (report.serviceStats.length > 0) {
+      const top = report.serviceStats[0];
+      const pct = ((top.totalRevenue / report.totalRevenue) * 100).toFixed(0);
+      insights.push({ icon: '🩺', title: `Servicio más demandado: ${top.name}`, body: `Aplicado ${top.totalCount} veces, representa el ${pct}% de los ingresos del período.`, kind: 'tip' });
+    }
+
+    // Top payment method
+    const topMethod = Object.entries(report.byMethod).sort(([, a], [, b]) => b - a)[0];
+    if (topMethod) {
+      const pct = ((topMethod[1] / report.totalRevenue) * 100).toFixed(0);
+      insights.push({ icon: '💳', title: `Principal método: ${METHOD_LABELS[topMethod[0]] ?? topMethod[0]}`, body: `El ${pct}% de los pagos del período se recibieron en ${(METHOD_LABELS[topMethod[0]] ?? topMethod[0]).toLowerCase()}.`, kind: 'info' });
+    }
+
+    // Low-margin products
+    const lowMargin = report.productStats.filter(p => p.margin !== undefined && p.margin < 20);
+    if (lowMargin.length > 0) {
+      insights.push({ icon: '📉', title: `${lowMargin.length} producto${lowMargin.length > 1 ? 's' : ''} con margen bajo (<20%)`, body: `${lowMargin.slice(0, 3).map(p => p.name).join(', ')}. Considera ajustar precios de compra o venta.`, kind: 'warning' });
+    }
+
+    return insights;
+  }, [report]);
   const INCOME_TYPE_LABELS: Record<string, string> = {
     consultation: 'Consulta', vaccination: 'Vacuna', surgery: 'Cirugía', product: 'Producto', grooming: 'Estética', other: 'Otro',
   };
@@ -262,17 +341,39 @@ export default function ReportsPage() {
       {/* ── Pending expenses alert ────────────────────────────────── */}
       <PendingExpensesAlert />
 
+      {/* ── Revenue card + inline sparkline ───────────────────────── */}
+      {loading ? (
+        <Skeleton className="h-24 w-full" />
+      ) : report ? (
+        <div className="bg-card rounded-2xl border border-border px-4 py-3">
+          <div className="flex items-end gap-3">
+            <div className="shrink-0 space-y-0.5">
+              <p className="text-xs text-muted-foreground font-medium">Ingresos del período</p>
+              <p className="text-2xl font-bold tabular-nums text-primary leading-tight">{fmtCurrency(report.totalRevenue)}</p>
+              <p className="text-xs text-muted-foreground">{report.totalSalesCount} venta{report.totalSalesCount !== 1 ? 's' : ''} · ticket {fmtCurrency(report.avgTicket)}</p>
+              {report.timeSeries.length > 1 && (
+                <p className="text-[10px] text-muted-foreground">
+                  {report.timeSeries.filter(d => d.revenue > 0).length} días con actividad
+                </p>
+              )}
+            </div>
+            {report.timeSeries.length > 1 && (
+              <div className="flex-1 min-w-0">
+                <ReportSparkline data={report.timeSeries} />
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+
       {/* ── KPI strip ─────────────────────────────────────────────── */}
       {loading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-20" />)}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-20" />)}
         </div>
       ) : report ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <KpiCard label="Ingresos" value={fmtCurrency(report.totalRevenue)} positive={report.totalRevenue > 0} />
-          <KpiCard label="Ventas" value={String(report.totalSalesCount)} sub="transacciones" />
-          <KpiCard label="Ticket prom." value={fmtCurrency(report.avgTicket)} />
-          <KpiCard label="Egresos" value={fmtCurrency(report.totalExpenses)} sub="período" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <KpiCard label="Egresos fijos" value={fmtCurrency(report.totalExpenses)} sub="período" />
           <KpiCard label="Colaboradores" value={fmtCurrency(report.totalCollaborators)} />
           <KpiCard
             label="Balance neto"
@@ -280,24 +381,34 @@ export default function ReportsPage() {
             positive={report.netBalance > 0}
             sub={report.netBalance >= 0 ? 'superávit' : 'déficit'}
           />
+          <KpiCard label="Productos" value={String(report.productStats.length)} sub="distintos vendidos" />
+          <KpiCard label="Servicios" value={String(report.serviceStats.length)} sub="distintos aplicados" />
         </div>
       ) : null}
 
-      {/* ── Revenue trend chart ────────────────────────────────────── */}
-      {!loading && report && report.timeSeries.length > 1 && (
-        <div className="bg-card rounded-2xl border border-border px-4 py-3">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-semibold">Tendencia de ingresos</p>
-            <p className="text-xs text-muted-foreground">
-              {report.timeSeries.filter(d => d.revenue > 0).length} días con ventas
-            </p>
+      {/* ── Key insights ──────────────────────────────────────────── */}
+      {!loading && keyInsights.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5">
+            <Lightbulb size={13} className="text-primary" />
+            <p className="text-sm font-semibold">Puntos clave del período</p>
           </div>
-          <div className="text-primary">
-            <RevenueChart
-              data={report.timeSeries}
-              period={report.timeSeries.length <= 7 ? 'week' : report.timeSeries.length <= 93 ? 'month' : 'year'}
-              height={80}
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {keyInsights.map((ins, i) => (
+              <div key={i} className={cn(
+                'rounded-xl border p-3 flex gap-2.5',
+                ins.kind === 'success' ? 'border-green-200 bg-green-50 dark:bg-green-900/15 dark:border-green-800/40' :
+                ins.kind === 'warning' ? 'border-amber-200 bg-amber-50 dark:bg-amber-900/15 dark:border-amber-800/40' :
+                ins.kind === 'tip'     ? 'border-primary/20 bg-primary/5' :
+                'border-blue-200 bg-blue-50 dark:bg-blue-900/15 dark:border-blue-800/40',
+              )}>
+                <span className="text-base shrink-0 leading-none mt-0.5">{ins.icon}</span>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold leading-snug">{ins.title}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{ins.body}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

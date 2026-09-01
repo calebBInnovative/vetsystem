@@ -245,7 +245,7 @@ function ServiceRanking({ services, totalRevenue }: { services: ServiceStat[]; t
   );
 }
 
-// ─── Insight pill (horizontal scroll) ────────────────────────────────────────
+// ─── Insight card (always-visible) ───────────────────────────────────────────
 
 const INSIGHT_STYLES: Record<AnalyticsInsight['type'], string> = {
   success: 'border-green-200 bg-green-50 dark:bg-green-900/15 dark:border-green-800/40',
@@ -254,29 +254,15 @@ const INSIGHT_STYLES: Record<AnalyticsInsight['type'], string> = {
   tip:     'border-primary/20 bg-primary/5',
 };
 
-function InsightPill({ insight }: { insight: AnalyticsInsight }) {
-  const [open, setOpen] = useState(false);
+function InsightCard({ insight }: { insight: AnalyticsInsight }) {
   return (
-    <button
-      type="button"
-      onClick={() => setOpen(v => !v)}
-      className={cn(
-        'text-left rounded-xl border p-3 flex gap-2.5 w-64 shrink-0 snap-start transition-all',
-        INSIGHT_STYLES[insight.type],
-        open && 'w-80',
-      )}
-    >
-      <span className="text-lg shrink-0 leading-none mt-0.5">{insight.icon}</span>
+    <div className={cn('rounded-xl border p-3 flex gap-2.5', INSIGHT_STYLES[insight.type])}>
+      <span className="text-base shrink-0 leading-none mt-0.5">{insight.icon}</span>
       <div className="min-w-0">
         <p className="text-xs font-semibold leading-snug">{insight.title}</p>
-        {open && (
-          <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">{insight.description}</p>
-        )}
-        {!open && (
-          <p className="text-[10px] text-muted-foreground mt-0.5 opacity-60">Toca para ver más</p>
-        )}
+        <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{insight.description}</p>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -412,6 +398,32 @@ export function FinancesAnalytics() {
         )}
       </div>
 
+      {/* ── Mini KPI strip ──────────────────────────────────────────── */}
+      {loading ? (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14" />)}
+        </div>
+      ) : analytics && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="bg-card rounded-xl border border-border px-3 py-2">
+            <p className="text-[10px] text-muted-foreground font-medium">Mejor día</p>
+            <p className="text-sm font-bold capitalize truncate">{analytics.bestDayName ?? '—'}</p>
+          </div>
+          <div className="bg-card rounded-xl border border-border px-3 py-2">
+            <p className="text-[10px] text-muted-foreground font-medium">Ticket promedio</p>
+            <p className="text-sm font-bold tabular-nums">{analytics.avgPerSale > 0 ? fmt(analytics.avgPerSale) : '—'}</p>
+          </div>
+          <div className="bg-card rounded-xl border border-border px-3 py-2">
+            <p className="text-[10px] text-muted-foreground font-medium">Top producto</p>
+            <p className="text-xs font-bold truncate">{analytics.topProducts[0]?.name ?? '—'}</p>
+          </div>
+          <div className="bg-card rounded-xl border border-border px-3 py-2">
+            <p className="text-[10px] text-muted-foreground font-medium">Top servicio</p>
+            <p className="text-xs font-bold truncate">{analytics.topServices[0]?.name ?? '—'}</p>
+          </div>
+        </div>
+      )}
+
       {/* ── Products + Services ───────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
 
@@ -465,17 +477,16 @@ export function FinancesAnalytics() {
         </div>
       </div>
 
-      {/* ── Insights — horizontal scroll ──────────────────────────────── */}
+      {/* ── Insights — always-visible grid ────────────────────────────── */}
       {(!loading && (analytics?.insights.length ?? 0) > 0) && (
         <div className="space-y-2">
           <div className="flex items-center gap-1.5">
             <Lightbulb size={13} className="text-primary" />
             <p className="text-sm font-semibold">Análisis y recomendaciones</p>
-            <span className="text-[10px] text-muted-foreground ml-auto">Toca cada tarjeta para expandir</span>
           </div>
-          <div className="flex gap-2.5 overflow-x-auto pb-1 snap-x" style={{ scrollbarWidth: 'none' }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {analytics!.insights.map((insight, i) => (
-              <InsightPill key={i} insight={insight} />
+              <InsightCard key={i} insight={insight} />
             ))}
           </div>
         </div>
@@ -484,9 +495,9 @@ export function FinancesAnalytics() {
       {loading && (
         <div className="space-y-2">
           <Skeleton className="h-4 w-40" />
-          <div className="flex gap-2.5 overflow-x-auto pb-1">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-20 w-64 shrink-0" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-16" />
             ))}
           </div>
         </div>
