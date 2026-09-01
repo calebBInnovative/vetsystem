@@ -12,7 +12,7 @@ import { Loader2 } from 'lucide-react';
 const selectClass = 'w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
 import type { FixedExpense, ExpenseCategory, ExpenseFrequency } from '@/types/expense';
 import { EXPENSE_CATEGORIES, EXPENSE_FREQUENCIES } from '@/types/expense';
-import { createFixedExpense, updateFixedExpense, createOneTimeExpense } from '@/hooks/useExpenses';
+import { createFixedExpense, updateFixedExpense, createOneTimeExpense, markOneTimePaid } from '@/hooks/useExpenses';
 
 interface Props {
   open:     boolean;
@@ -214,8 +214,7 @@ export function GastoEventualForm({ open, onClose }: OneTimeFormProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit(payNow: boolean) {
     setError('');
     const montoNum = parseFloat(monto);
     if (!nombre.trim()) { setError('El nombre es requerido.'); return; }
@@ -223,10 +222,13 @@ export function GastoEventualForm({ open, onClose }: OneTimeFormProps) {
     if (!fecha) { setError('Selecciona una fecha.'); return; }
     setGuardando(true);
     try {
-      await createOneTimeExpense({
+      const id = await createOneTimeExpense({
         name: nombre.trim(), amount: montoNum, category: categoria, date: fecha,
         notes: notas.trim() || undefined,
       });
+      if (payNow && id) {
+        await markOneTimePaid(id, montoNum, fecha, notas.trim() || undefined);
+      }
       onClose();
     } catch {
       setError('Error al guardar. Intenta de nuevo.');
@@ -242,11 +244,11 @@ export function GastoEventualForm({ open, onClose }: OneTimeFormProps) {
           <DialogTitle>Registrar egreso eventual</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+        <div className="space-y-4 pt-1">
           <div className="space-y-1.5">
             <Label htmlFor="ge-nombre">Descripción</Label>
             <Input id="ge-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)}
-              placeholder="Ej: Compra de vacunas" required />
+              placeholder="Ej: Compra de vacunas" />
           </div>
 
           <div className="space-y-1.5">
@@ -265,13 +267,13 @@ export function GastoEventualForm({ open, onClose }: OneTimeFormProps) {
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">C$</span>
                 <Input id="ge-monto" type="text" inputMode="numeric" value={monto}
-                  onChange={(e) => setMonto(e.target.value)} placeholder="0.00" className="pl-9" required />
+                  onChange={(e) => setMonto(e.target.value)} placeholder="0.00" className="pl-9" />
               </div>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="ge-fecha">Fecha</Label>
               <Input id="ge-fecha" type="date" value={fecha} max={today}
-                onChange={(e) => setFecha(e.target.value)} required />
+                onChange={(e) => setFecha(e.target.value)} />
             </div>
           </div>
 
@@ -283,14 +285,20 @@ export function GastoEventualForm({ open, onClose }: OneTimeFormProps) {
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose} disabled={guardando}>Cancelar</Button>
-            <Button type="submit" disabled={guardando} className="gap-2">
+          <DialogFooter className="flex-col sm:flex-row gap-2 pt-2 border-t border-border">
+            <Button type="button" variant="outline" onClick={onClose} disabled={guardando} className="sm:mr-auto">
+              Cancelar
+            </Button>
+            <Button type="button" variant="outline" onClick={() => handleSubmit(false)} disabled={guardando} className="gap-2">
               {guardando && <Loader2 size={13} className="animate-spin" />}
-              Registrar egreso
+              Dejar pendiente
+            </Button>
+            <Button type="button" onClick={() => handleSubmit(true)} disabled={guardando} className="gap-2">
+              {guardando && <Loader2 size={13} className="animate-spin" />}
+              Pagar ahora
             </Button>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

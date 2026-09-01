@@ -11,7 +11,9 @@ import { cn } from '@/lib/utils';
 import { Plus, Pencil, Trash2, Check, X, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { ExportMenu } from '@/components/common/ExportMenu';
+import { ModuleImportButton } from '@/components/common/ModuleImportButton';
 import { getServicesExportData } from '@/lib/export/modules';
+import { importServicesFromFile } from '@/lib/import/modules';
 import { useAuth } from '@/contexts/AuthContext';
 
 function fmt(n: number) {
@@ -374,6 +376,7 @@ export default function ServicesPage() {
         </div>
         {!editMode && (
           <div className="flex items-center gap-2 shrink-0">
+            <ModuleImportButton moduleName="Servicios" onImport={importServicesFromFile} />
             <ExportMenu
               label="Servicios"
               filename="servicios"

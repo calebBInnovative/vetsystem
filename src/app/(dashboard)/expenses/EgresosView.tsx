@@ -16,7 +16,9 @@ import { useFixedExpenses, useOneTimeExpenses } from '@/hooks/useExpenses';
 import { markAsPaid, markOneTimePaid, deleteFixedExpense, toggleExpenseActive, deleteOneTimeExpense } from '@/hooks/useExpenses';
 import { PendingExpensesAlert } from '@/components/finances/PendingExpensesAlert';
 import { ExportMenu } from '@/components/common/ExportMenu';
+import { ModuleImportButton } from '@/components/common/ModuleImportButton';
 import { getExpensesExportData, getCollaboratorsExportData } from '@/lib/export/modules';
+import { importExpensesFromFile } from '@/lib/import/modules';
 import { useAuth } from '@/contexts/AuthContext';
 import type { FixedExpense } from '@/types/expense';
 import {
@@ -477,7 +479,7 @@ function TabOneTime() {
                     </div>
                   </div>
                   <p className="text-sm font-bold tabular-nums shrink-0">{formatAmount(g.amount)}</p>
-                  <Button size="sm" variant="outline" onClick={() => setPayExpense(g)} className="gap-1 shrink-0 h-7 px-2 text-xs">
+                  <Button size="sm" onClick={() => setPayExpense(g)} className="gap-1 shrink-0 h-7 px-2.5 text-xs bg-primary text-primary-foreground hover:bg-primary/90">
                     <Wallet size={12} /> Pagar
                   </Button>
                   <button
@@ -740,6 +742,9 @@ export function EgresosView() {
           <p className="text-sm text-muted-foreground mt-0.5">Recurrentes, eventuales y nómina</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {tab === 'recurring' && (
+            <ModuleImportButton moduleName="Egresos recurrentes" onImport={importExpensesFromFile} />
+          )}
           <ExportMenu
             label="Egresos"
             filename="egresos"

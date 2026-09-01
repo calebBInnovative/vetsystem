@@ -23,7 +23,9 @@ import {
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { ExportMenu } from '@/components/common/ExportMenu';
+import { ModuleImportButton } from '@/components/common/ModuleImportButton';
 import { getInventoryExportData } from '@/lib/export/modules';
+import { importProductsFromFile } from '@/lib/import/modules';
 import { useAuth } from '@/contexts/AuthContext';
 
 // ─── Draft types ──────────────────────────────────────────────────────────────
@@ -295,6 +297,7 @@ export default function InventoryPage() {
         <div className="flex items-center gap-2">
           {!editMode && (
             <>
+              <ModuleImportButton moduleName="Inventario" onImport={importProductsFromFile} />
               <ExportMenu
                 label="Inventario"
                 filename="inventario"
