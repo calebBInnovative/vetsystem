@@ -731,8 +731,8 @@ export function EgresosView() {
   const [tab, setTab] = useState<EgresosTab>('recurring');
 
   const tabs: { value: EgresosTab; label: string }[] = [
-    { value: 'recurring',     label: 'Recurrentes'   },
     { value: 'one_time',      label: 'Eventuales'    },
+    { value: 'recurring',     label: 'Recurrentes'   },
     { value: 'collaborators', label: 'Colaboradores' },
   ];
 

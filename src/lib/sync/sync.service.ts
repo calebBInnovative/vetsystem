@@ -80,11 +80,17 @@ async function upsertRemoteDocs(
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Backoff delays for failed push retries (ms). After each failure the next
+// retry fires after the next delay in the list; the last value repeats.
+const RETRY_BACKOFF_MS = [30_000, 60_000, 120_000, 300_000]; // 30s 1m 2m 5m
+
 class SyncService {
-  private corriendo   = false;
-  private pulling     = false;
-  private hookReg     = false;
+  private corriendo     = false;
+  private pulling       = false;
+  private hookReg       = false;
   private unsubscribers: (() => void)[] = [];
+  private retryTimeout:  ReturnType<typeof setTimeout> | null = null;
+  private retryAttempt   = 0; // index into RETRY_BACKOFF_MS
 
   // ── Start / stop ─────────────────────────────────────────────────────────
 
@@ -100,8 +106,8 @@ class SyncService {
       this.hookReg = true;
     }
 
-    // On reconnect: only flush pending writes. The onSnapshot listeners
-    // reconnect automatically and will deliver any changes we missed.
+    // On reconnect: flush pending writes and clear the backoff so the next
+    // failure starts fresh. onSnapshot listeners reconnect automatically.
     window.addEventListener('online', this.onOnline);
 
     // Step 1 — one-time catch-up pull: fetches everything that changed while
@@ -122,12 +128,41 @@ class SyncService {
     this.unsubscribers.forEach((u) => u());
     this.unsubscribers = [];
     window.removeEventListener('online', this.onOnline);
+    if (this.retryTimeout !== null) {
+      clearTimeout(this.retryTimeout);
+      this.retryTimeout = null;
+    }
   }
 
   private onOnline = () => {
-    // Listeners reconnect on their own — we only need to flush pending writes.
-    this.flush();
+    // Network came back — reset backoff and retry immediately.
+    this.retryAttempt = 0;
+    this.cancelRetry();
+    this.resetDeadQueueItems().then(() => this.flush()).catch(() => undefined);
   };
+
+  // Schedule the next retry only if there are stuck items.
+  // Called by flush() after a batch that had at least one failure.
+  private scheduleRetry(): void {
+    if (this.retryTimeout !== null) return; // already scheduled
+    const delay = RETRY_BACKOFF_MS[Math.min(this.retryAttempt, RETRY_BACKOFF_MS.length - 1)];
+    this.retryAttempt++;
+    console.log(`[sync] retry scheduled in ${delay / 1000}s (attempt ${this.retryAttempt})`);
+    this.retryTimeout = setTimeout(async () => {
+      this.retryTimeout = null;
+      if (navigator.onLine) {
+        await this.resetDeadQueueItems();
+        await this.flush();
+      }
+    }, delay);
+  }
+
+  private cancelRetry(): void {
+    if (this.retryTimeout !== null) {
+      clearTimeout(this.retryTimeout);
+      this.retryTimeout = null;
+    }
+  }
 
   // ── Real-time subscriptions ───────────────────────────────────────────────
 
@@ -238,6 +273,7 @@ class SyncService {
         console.log(`[sync] flush — pushing ${pendientes.length} item(s)`);
       }
 
+      let hadFailure = false;
       for (const item of pendientes) {
         const itemClinicId =
           ((item.data as Record<string, unknown>).clinicId as string | undefined) ??
@@ -245,11 +281,18 @@ class SyncService {
         try {
           await syncProvider.push(item.collection, item.documentId, item.data, itemClinicId);
           await db.syncQueue.delete(item.id!);
+          // Success resets the backoff counter so the next failure starts fresh.
+          this.retryAttempt = 0;
         } catch (err) {
+          hadFailure = true;
           console.warn(`[sync] push failed ${item.collection}/${item.documentId}:`, err);
           await db.syncQueue.update(item.id!, { attempts: item.attempts + 1 });
         }
       }
+
+      // If any item failed, schedule a retry with exponential backoff.
+      // This fires only when there are real failures — zero cost otherwise.
+      if (hadFailure) this.scheduleRetry();
     } finally {
       this.corriendo = false;
     }
@@ -265,6 +308,58 @@ class SyncService {
       console.log(`[sync] resetting ${dead} dead queue item(s) for retry`);
       await db.syncQueue.where('attempts').aboveOrEqual(MAX_INTENTOS).modify({ attempts: 0 });
     }
+  }
+
+  // ── Force full re-pull (clears cursor, fetches all from Firestore) ───────
+
+  /**
+   * Clears the local pull cursor and runs a full pull from the beginning of
+   * Firestore history. Use this when a device is missing data that other
+   * devices have already synced.
+   * Returns the number of documents written to local Dexie.
+   */
+  async forcePull(): Promise<number> {
+    if (!navigator.onLine) throw new Error('Sin conexión a internet');
+    const session = await db.session.get('singleton');
+    if (!session || session.isDemo) throw new Error('Sesión no válida');
+
+    const { clinicId, uid } = session;
+    const LAST_PULL_KEY = `vetsystem_last_pull_${clinicId}_${uid}`;
+
+    // Reset cursor → next pullAll() fetches from epoch (all docs ever synced)
+    localStorage.removeItem(LAST_PULL_KEY);
+
+    // Run the pull — it reads the now-absent cursor as 0 (epoch)
+    let docsWritten = 0;
+    const { clinicId: cid } = session;
+
+    for (const { nombre } of TABLAS_SYNC) {
+      try {
+        const docs = await syncProvider.pull(nombre, 0, cid);
+        if (docs.length > 0) {
+          console.log(`[sync] forcePull ${nombre} — ${docs.length} doc(s)`);
+          await upsertRemoteDocs(nombre, docs);
+          docsWritten += docs.length;
+        }
+      } catch (err) {
+        console.error(`[sync] forcePull ${nombre} failed:`, err);
+      }
+    }
+
+    // Advance cursor to now so normal sync resumes from this point
+    localStorage.setItem(LAST_PULL_KEY, Date.now().toString());
+    console.log(`[sync] forcePull complete — ${docsWritten} doc(s) written`);
+    return docsWritten;
+  }
+
+  // ── Inspect queue errors ──────────────────────────────────────────────────
+
+  async queueErrors(): Promise<{ collection: string; documentId: string; error?: string }[]> {
+    const dead = await db.syncQueue.where('attempts').aboveOrEqual(MAX_INTENTOS).toArray();
+    return dead.map((item) => ({
+      collection: item.collection,
+      documentId: item.documentId,
+    }));
   }
 
   // ── Dev-only: force-push everything from Dexie to Firestore ──────────────

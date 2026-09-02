@@ -49,6 +49,7 @@ import { daysUntilCollaboratorPayment } from '@/types/collaborator';
 import { useStockAlerts } from '@/hooks/useInventory';
 import { AlertasStock } from '@/components/inventory/StockAlerts';
 import { useCitasDelDia } from '@/hooks/useAppointments';
+import { useSyncStatus } from '@/hooks/useSyncStatus';
 import {
   requestNotifPermission,
   getNotifPermission,
@@ -57,6 +58,44 @@ import {
 } from '@/hooks/useNotifications';
 import { PWAInstallBanner } from '@/components/common/PWAInstallBanner';
 import { toast } from 'sonner';
+
+// ── Sync status indicator ─────────────────────────────────────────────────────
+
+function SyncIndicator() {
+  const { pending, stuck, healthy, loading } = useSyncStatus();
+  if (loading || healthy) return null;
+
+  const isStuck = stuck > 0 && pending === 0;
+  const count   = pending + stuck;
+
+  return (
+    <div
+      title={
+        isStuck
+          ? `${stuck} cambio${stuck !== 1 ? 's' : ''} sin sincronizar — reintentando automáticamente`
+          : `Sincronizando ${count} cambio${count !== 1 ? 's' : ''}…`
+      }
+      className={cn(
+        'flex items-center gap-1.5 text-[10px] font-semibold px-2 py-1 rounded-full select-none',
+        isStuck
+          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+          : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+      )}
+    >
+      {isStuck ? (
+        <>
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+          <span className="hidden sm:inline">Sin sync</span>
+        </>
+      ) : (
+        <>
+          <Loader2 size={10} className="animate-spin" />
+          <span className="hidden sm:inline">Sincronizando</span>
+        </>
+      )}
+    </div>
+  );
+}
 
 // nav-id is used by TourGuide to spotlight each item
 const menuItems: {
@@ -588,6 +627,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   Solo lectura
                 </span>
               )}
+              {!isDemo && <SyncIndicator />}
               <ThemeSwitcher />
               <BellNotification />
 

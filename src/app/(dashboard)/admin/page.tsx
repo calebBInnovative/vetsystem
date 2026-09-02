@@ -965,15 +965,22 @@ function TabDatos() {
 // ─── Tab: Firebase sync (master only) ────────────────────────────────────────
 
 function TabFirebase() {
-  const [online,   setOnline]   = useState(true);
-  const [queue,    setQueue]    = useState<QueueEstado | null>(null);
-  const [progress, setProgress] = useState<SyncAllProgress[]>([]);
-  const [accion,   setAccion]   = useState<Accion>('idle');
-  const [mensaje,  setMensaje]  = useState('');
+  const [online,      setOnline]      = useState(true);
+  const [queue,       setQueue]       = useState<QueueEstado | null>(null);
+  const [queueErrors, setQueueErrors] = useState<{ collection: string; documentId: string }[]>([]);
+  const [progress,    setProgress]    = useState<SyncAllProgress[]>([]);
+  const [accion,      setAccion]      = useState<Accion>('idle');
+  const [mensaje,     setMensaje]     = useState('');
 
   const cargarQueue = useCallback(async () => {
     const e = await syncService.estadoQueue();
     setQueue(e);
+    if (e.conError > 0) {
+      const errs = await syncService.queueErrors();
+      setQueueErrors(errs);
+    } else {
+      setQueueErrors([]);
+    }
   }, []);
 
   useEffect(() => {
@@ -989,6 +996,17 @@ function TabFirebase() {
       await syncService.flush();
       await cargarQueue();
       setMensaje('Queue drenada.'); setAccion('ok');
+    } catch (e) { setMensaje((e as Error).message); setAccion('error'); }
+  }
+
+  async function handleForcePull() {
+    if (!online) return;
+    setAccion('loading'); setMensaje('');
+    try {
+      const written = await syncService.forcePull();
+      setMensaje(`Re-pull completo: ${written} documentos escritos en este dispositivo.`);
+      setAccion('ok');
+      await cargarQueue();
     } catch (e) { setMensaje((e as Error).message); setAccion('error'); }
   }
 
@@ -1035,21 +1053,54 @@ function TabFirebase() {
         </div>
       )}
 
-      <Card titulo="Drenar queue" desc="Envía los ítems pendientes en la cola">
+      {/* Queue error details */}
+      {queueErrors.length > 0 && (
+        <div className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800/40 p-3">
+          <p className="text-xs font-semibold text-red-700 dark:text-red-400 mb-2">
+            Ítems atascados en queue (no llegaron a Firebase):
+          </p>
+          <div className="space-y-1 max-h-40 overflow-y-auto">
+            {queueErrors.map((err, i) => (
+              <p key={i} className="text-[11px] font-mono text-red-600 dark:text-red-400">
+                {err.collection} / {err.documentId.slice(0, 12)}…
+              </p>
+            ))}
+          </div>
+          <p className="text-[10px] text-red-500 mt-2">
+            Usa "Sync todo → Firebase" desde este dispositivo para reenviarlos.
+          </p>
+        </div>
+      )}
+
+      {/* Re-pull from Firestore — USE THIS on developer laptop */}
+      <Card
+        titulo="Re-pull desde Firebase → este dispositivo"
+        desc="Borra el cursor local y jala TODOS los documentos de Firestore desde el principio. Úsalo cuando este dispositivo no refleja datos de otras computadoras."
+      >
+        <Advertencia tipo="info">
+          Esto solo <strong>lee</strong> de Firebase y actualiza este dispositivo. No modifica datos en otros dispositivos ni en Firebase.
+        </Advertencia>
+        <Button onClick={handleForcePull} variant="outline" disabled={accion === 'loading' || !online} className="gap-2 w-full">
+          {accion === 'loading' ? <Loader2 size={14} className="animate-spin" /> : <Database size={14} />}
+          Re-pull completo desde Firebase
+        </Button>
+      </Card>
+
+      <Card titulo="Drenar queue" desc="Envía los ítems pendientes en la cola de este dispositivo a Firebase.">
         <Button onClick={handleFlush} variant="outline" disabled={accion === 'loading' || !online} className="gap-2">
           <RefreshCw size={14} /> Flush ahora
         </Button>
       </Card>
 
-      <Card titulo="Sync completo → Firebase" desc="Lee TODAS las tablas de Dexie y las empuja a Firebase.">
-        {!ES_PROD && (
+      <Card titulo="Sync completo → Firebase" desc="Lee TODAS las tablas de Dexie de este dispositivo y las empuja a Firebase. Úsalo desde la compu del cliente si sus datos no llegaron.">
+        {ES_PROD && (
           <Advertencia tipo="riesgo">
-            El proyecto Firebase apunta a <strong>PROD</strong>. Asegúrate de querer sobrescribir datos reales.
+            Esto sobrescribe documentos en <strong>PROD</strong>. Úsalo DESDE la compu con los datos correctos.
           </Advertencia>
         )}
         <Button onClick={handleSyncAll} disabled={accion === 'loading' || !online} className="gap-2 w-full">
           {accion === 'loading' ? <Loader2 size={14} className="animate-spin" /> : <CloudUpload size={14} />}
-          Sync todo a Firebase
+          Sync todo → Firebase
         </Button>
         {progress.length > 0 && (
           <div className="mt-3 space-y-2">
