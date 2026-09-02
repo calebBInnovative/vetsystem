@@ -29,7 +29,6 @@ export class FirebaseSyncProvider implements SyncProvider {
 
   private db: Firestore | null = null;
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   constructor(_clinicId: string) {}
 
   private getDb(): Firestore {

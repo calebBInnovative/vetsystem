@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import {
   MessageSquare, Users, ChevronDown, Check, Search,
-  Phone, RefreshCcw, Tag, Package, Stethoscope, ChevronRight,
+  Phone, RefreshCcw, Tag, Package, Stethoscope,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -32,7 +32,6 @@ import {
 import type { PromotionLocal } from '@/types/promotion';
 import type { ProductLocal } from '@/types/inventory';
 import type { ServiceLocal } from '@/types/service';
-import { SERVICE_CATEGORIES } from '@/types/service';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -264,7 +263,6 @@ export default function MarketingPage() {
   const { contacts, loading }                        = useMarketingContacts(filter);
   const { promotions, products, services, loading: srcLoading } = useMarketingDataSources();
 
-  const activeTemplate = MESSAGE_TEMPLATES.find((t) => t.id === templateId)!;
   const filterInfo     = CONTACT_FILTERS[filter];
   const sourceType     = TEMPLATE_NEEDS_SOURCE[templateId] ?? null;
 

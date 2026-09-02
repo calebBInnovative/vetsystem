@@ -1067,7 +1067,7 @@ function TabFirebase() {
             ))}
           </div>
           <p className="text-[10px] text-red-500 mt-2">
-            Usa "Sync todo → Firebase" desde este dispositivo para reenviarlos.
+            Usa &ldquo;Sync todo → Firebase&rdquo; desde este dispositivo para reenviarlos.
           </p>
         </div>
       )}

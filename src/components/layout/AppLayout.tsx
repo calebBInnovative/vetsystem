@@ -30,7 +30,7 @@ import type { AppModule } from '@/types/license';
 import { useDemoMode } from '@/hooks/useDemoMode';
 import {
   Menu, X, Home, Users, Calendar, Package,
-  BarChart3, Settings, Search, DollarSign, Stethoscope, Receipt,
+  BarChart3, Settings, DollarSign, Stethoscope, Receipt,
   ClipboardList, ShoppingBag, Tag, Shield, Database, LogOut, ChevronDown,
   FlaskConical, PlayCircle, UserCircle, Loader2, CheckCircle2, Phone,
   Wallet, Bell, FileSpreadsheet, MessageCircle,

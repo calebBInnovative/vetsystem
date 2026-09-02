@@ -166,6 +166,9 @@ export default function ReportsPage() {
 
   const keyInsights = useMemo(() => {
     if (!report || report.totalRevenue === 0) return [];
+    const METHOD_LABELS_LOCAL: Record<string, string> = {
+      cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia', check: 'Cheque', mixed: 'Mixto', other: 'Otro',
+    };
     const insights: { icon: string; title: string; body: string; kind: 'success' | 'warning' | 'info' | 'tip' }[] = [];
 
     // Net balance health
@@ -205,7 +208,7 @@ export default function ReportsPage() {
     const topMethod = Object.entries(report.byMethod).sort(([, a], [, b]) => b - a)[0];
     if (topMethod) {
       const pct = ((topMethod[1] / report.totalRevenue) * 100).toFixed(0);
-      insights.push({ icon: '💳', title: `Principal método: ${METHOD_LABELS[topMethod[0]] ?? topMethod[0]}`, body: `El ${pct}% de los pagos del período se recibieron en ${(METHOD_LABELS[topMethod[0]] ?? topMethod[0]).toLowerCase()}.`, kind: 'info' });
+      insights.push({ icon: '💳', title: `Principal método: ${METHOD_LABELS_LOCAL[topMethod[0]] ?? topMethod[0]}`, body: `El ${pct}% de los pagos del período se recibieron en ${(METHOD_LABELS_LOCAL[topMethod[0]] ?? topMethod[0]).toLowerCase()}.`, kind: 'info' });
     }
 
     // Low-margin products
