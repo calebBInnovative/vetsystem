@@ -43,9 +43,11 @@ export interface SyncQueueItem {
   operation: 'create' | 'update' | 'delete';
   /** Full payload. For delete, only { id, deletedAt } needed. */
   data: object;
-  /** Failed attempt count. If it reaches 5, marked as error. */
+  /** Failed attempt count. If it reaches MAX_INTENTOS, item is "stuck". */
   attempts: number;
   createdAt: number;
+  /** Error message from the last failed push attempt (for diagnostics). */
+  lastError?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

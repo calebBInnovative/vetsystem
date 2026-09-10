@@ -967,7 +967,7 @@ function TabDatos() {
 function TabFirebase() {
   const [online,      setOnline]      = useState(true);
   const [queue,       setQueue]       = useState<QueueEstado | null>(null);
-  const [queueErrors, setQueueErrors] = useState<{ collection: string; documentId: string }[]>([]);
+  const [queueErrors, setQueueErrors] = useState<{ collection: string; documentId: string; lastError?: string }[]>([]);
   const [progress,    setProgress]    = useState<SyncAllProgress[]>([]);
   const [accion,      setAccion]      = useState<Accion>('idle');
   const [mensaje,     setMensaje]     = useState('');
@@ -1055,18 +1055,22 @@ function TabFirebase() {
 
       {/* Queue error details */}
       {queueErrors.length > 0 && (
-        <div className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800/40 p-3">
-          <p className="text-xs font-semibold text-red-700 dark:text-red-400 mb-2">
-            Ítems atascados en queue (no llegaron a Firebase):
+        <div className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800/40 p-3 space-y-2">
+          <p className="text-xs font-semibold text-red-700 dark:text-red-400">
+            {queueErrors.length} ítem{queueErrors.length !== 1 ? 's' : ''} atascado{queueErrors.length !== 1 ? 's' : ''} — no llegaron a Firebase:
           </p>
-          <div className="space-y-1 max-h-40 overflow-y-auto">
+          <div className="space-y-1.5 max-h-48 overflow-y-auto">
             {queueErrors.map((err, i) => (
-              <p key={i} className="text-[11px] font-mono text-red-600 dark:text-red-400">
-                {err.collection} / {err.documentId.slice(0, 12)}…
-              </p>
+              <div key={i} className="text-[11px] font-mono text-red-600 dark:text-red-400">
+                <span className="font-semibold">{err.collection}</span>
+                <span className="text-red-400"> / {err.documentId.slice(0, 12)}…</span>
+                {err.lastError && (
+                  <p className="text-[10px] text-red-400/80 truncate pl-2">{err.lastError}</p>
+                )}
+              </div>
             ))}
           </div>
-          <p className="text-[10px] text-red-500 mt-2">
+          <p className="text-[10px] text-red-500">
             Usa &ldquo;Sync todo → Firebase&rdquo; desde este dispositivo para reenviarlos.
           </p>
         </div>

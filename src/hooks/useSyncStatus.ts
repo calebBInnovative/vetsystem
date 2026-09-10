@@ -6,11 +6,12 @@ import { db } from '@/lib/db/database';
 const MAX_ATTEMPTS = 5;
 
 /**
- * Reactive sync status derived directly from the syncQueue table.
- * Updates automatically whenever the queue changes — no polling needed.
+ * Reactive sync status derived from the syncQueue table.
+ * Updates automatically on any queue change — no polling.
  *
- * pending: items waiting to push (attempts < 5), currently syncing or about to
- * stuck:   items that failed 5+ times (awaiting exponential-backoff retry)
+ * pending: items actively queued (attempts < 5)
+ * stuck:   items that hit the attempt ceiling (will be retried with backoff)
+ * healthy: nothing in the queue at all
  */
 export function useSyncStatus() {
   const pending = useLiveQuery(
@@ -21,14 +22,19 @@ export function useSyncStatus() {
     () => db.syncQueue.where('attempts').aboveOrEqual(MAX_ATTEMPTS).count(),
     [],
   );
+  const stuckItems = useLiveQuery(
+    () => db.syncQueue.where('attempts').aboveOrEqual(MAX_ATTEMPTS).toArray(),
+    [],
+  );
 
   const loading = pending === undefined || stuck === undefined;
 
   return {
-    pending: pending ?? 0,
-    stuck:   stuck   ?? 0,
-    total:   (pending ?? 0) + (stuck ?? 0),
+    pending:    pending    ?? 0,
+    stuck:      stuck      ?? 0,
+    stuckItems: stuckItems ?? [],
+    total:      (pending ?? 0) + (stuck ?? 0),
     loading,
-    healthy: !loading && (pending ?? 0) === 0 && (stuck ?? 0) === 0,
+    healthy:    !loading && (pending ?? 0) === 0 && (stuck ?? 0) === 0,
   };
 }

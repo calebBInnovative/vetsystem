@@ -48,16 +48,16 @@ export class FirebaseSyncProvider implements SyncProvider {
   }
 
   async pull(collectionName: string, since: number, clinicId: string): Promise<RemoteDoc[]> {
-    // Query by _syncedAt (server-set timestamp) instead of updatedAt (app-set timestamp).
-    // This ensures documents pushed to Firestore for the first time are visible to all
-    // other clients regardless of when they were originally created — their updatedAt
-    // could be months old and would never be returned by a cursor based on updatedAt.
+    // Query by _syncedAt (server-set timestamp). This guarantees we catch documents
+    // regardless of when they were originally created on the client device.
+    // Rules use 1 get() per list evaluation — well within the 10-read limit.
     const sinceTimestamp = Timestamp.fromMillis(since);
-    // Simplified rules use 1 read per doc evaluation; batch of 9 stays under the 10-read limit.
     const BATCH_SIZE = 9;
     const results: RemoteDoc[] = [];
+    const seen = new Set<string>();
     let lastDoc: QueryDocumentSnapshot | null = null;
 
+    // Primary query: documents with _syncedAt > cursor
     do {
       const constraints: QueryConstraint[] = [
         where('_syncedAt', '>', sinceTimestamp),
@@ -67,10 +67,28 @@ export class FirebaseSyncProvider implements SyncProvider {
       if (lastDoc) constraints.push(startAfter(lastDoc));
 
       const snap = await getDocs(query(this.colRef(collectionName, clinicId), ...constraints));
-      results.push(...snap.docs.map((d) => ({ id: d.id, ...d.data() }) as RemoteDoc));
-
+      for (const d of snap.docs) {
+        seen.add(d.id);
+        results.push({ id: d.id, ...d.data() } as RemoteDoc);
+      }
       lastDoc = snap.size === BATCH_SIZE ? snap.docs[snap.docs.length - 1] : null;
     } while (lastDoc !== null);
+
+    // Fallback for first-ever pull (since === 0): also fetch documents that were
+    // pushed to Firestore before the _syncedAt field was added (legacy data without it).
+    if (since === 0 && results.length === 0) {
+      // Get ALL documents in the collection for this clinic (no _syncedAt filter)
+      let lastFallbackDoc: QueryDocumentSnapshot | null = null;
+      do {
+        const constraints: QueryConstraint[] = [limit(BATCH_SIZE)];
+        if (lastFallbackDoc) constraints.push(startAfter(lastFallbackDoc));
+        const snap = await getDocs(query(this.colRef(collectionName, clinicId), ...constraints));
+        for (const d of snap.docs) {
+          if (!seen.has(d.id)) results.push({ id: d.id, ...d.data() } as RemoteDoc);
+        }
+        lastFallbackDoc = snap.size === BATCH_SIZE ? snap.docs[snap.docs.length - 1] : null;
+      } while (lastFallbackDoc !== null);
+    }
 
     return results;
   }
@@ -80,12 +98,11 @@ export class FirebaseSyncProvider implements SyncProvider {
     since: number,
     clinicId: string,
     onChange: (docs: RemoteDoc[]) => void,
+    onError?: (err: Error) => void,
   ): () => void {
     // Only listen for documents pushed AFTER `since` (the pull cursor).
-    // This means:
-    //   - On open: 1 read (the query itself) + 0 docs if pullAll just ran — FREE
-    //   - Going forward: 1 read per document that actually changes in Firestore
-    //   - Idle with no activity: 0 reads
+    // On open: 1 read + 0 docs if pullAll just ran. Going forward: 1 read per
+    // changed doc. Idle with no activity: 0 reads.
     const sinceTs = Timestamp.fromMillis(since);
     const q = query(
       this.colRef(collectionName, clinicId),
@@ -93,19 +110,23 @@ export class FirebaseSyncProvider implements SyncProvider {
       orderBy('_syncedAt', 'asc'),
     );
 
-    // includeMetadataChanges: false → we skip the hasPendingWrites transient state
-    // and only react to server-confirmed writes (from other devices or our own push).
-    const unsub = onSnapshot(q, { includeMetadataChanges: false }, (snap) => {
-      // docChanges() gives only the delta since the last snapshot — not all docs.
-      // On the very first snapshot this is the docs matching the query (should be 0
-      // because pullAll ran with the same cursor moments before).
-      const changed = snap
-        .docChanges()
-        .filter((c) => c.type === 'added' || c.type === 'modified')
-        .map((c) => ({ id: c.doc.id, ...c.doc.data() }) as RemoteDoc);
-
-      if (changed.length > 0) onChange(changed);
-    });
+    // includeMetadataChanges: false → skip hasPendingWrites transient state,
+    // only react to server-confirmed writes from other devices.
+    const unsub = onSnapshot(
+      q,
+      { includeMetadataChanges: false },
+      (snap) => {
+        const changed = snap
+          .docChanges()
+          .filter((c) => c.type === 'added' || c.type === 'modified')
+          .map((c) => ({ id: c.doc.id, ...c.doc.data() }) as RemoteDoc);
+        if (changed.length > 0) onChange(changed);
+      },
+      (err) => {
+        console.error(`[sync] onSnapshot ${collectionName} error:`, err.message);
+        onError?.(err);
+      },
+    );
 
     return unsub;
   }

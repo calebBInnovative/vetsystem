@@ -39,6 +39,7 @@ export interface SyncProvider {
     since: number,
     clinicId: string,
     onChange: (docs: RemoteDoc[]) => void,
+    onError?: (err: Error) => void,
   ): () => void;
 
   /** Nombre del provider — útil para logs */

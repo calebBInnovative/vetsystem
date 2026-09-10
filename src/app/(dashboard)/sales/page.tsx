@@ -87,6 +87,7 @@ interface CartItem {
   unit:           MeasurementUnit;
   subtotal:       number;
   availableStock: number;
+  itemDiscount:   number;       // per-item discount in C$ (0 = no discount)
   itemType?:      'product' | 'service';
   serviceId?:     string;
 }
@@ -350,7 +351,8 @@ export default function SalesPage() {
   const [invoiceId,    setInvoiceId]    = useState('');
   const [catalogTab,     setCatalogTab]     = useState<'products' | 'services' | 'promos'>('products');
   const [catalogView,    setCatalogView]    = useState<CatalogView>('grid');
-  const [receivedAmount, setReceivedAmount] = useState('');
+  const [receivedAmount,  setReceivedAmount]  = useState('');
+  const [discountOpenId,  setDiscountOpenId]  = useState<string | null>(null);
   const router = useRouter();
 
   const promotions = useLiveQuery(async () => {
@@ -413,7 +415,14 @@ export default function SalesPage() {
       unit:           prod.unit,
       subtotal:       (prod.salePrice ?? 0) * qty,
       availableStock: prod.currentStock,
+      itemDiscount:   0,
     };
+  }
+
+  function itemSubtotal(item: CartItem, qty?: number, price?: number): number {
+    const q = qty ?? item.quantity;
+    const p = price ?? item.unitPrice;
+    return Math.max(0, p * q - item.itemDiscount);
   }
 
   // Adds 1 unit (or 0.5 for fractional) — bumps qty if already in cart
@@ -426,7 +435,7 @@ export default function SalesPage() {
         if (!FRACTIONAL_UNITS.has(item.unit) && item.quantity >= item.availableStock) return prev;
         const step = FRACTIONAL_UNITS.has(item.unit) ? 0.5 : 1;
         const newQty = Math.min(item.availableStock, item.quantity + step);
-        next[idx] = { ...item, quantity: newQty, subtotal: newQty * item.unitPrice };
+        next[idx] = { ...item, quantity: newQty, subtotal: itemSubtotal(item, newQty) };
         return next;
       }
       const initialQty = FRACTIONAL_UNITS.has(prod.unit) ? 0.5 : 1;
@@ -443,7 +452,7 @@ export default function SalesPage() {
       if (idx >= 0) {
         const next = [...prev];
         const item = next[idx];
-        next[idx] = { ...item, quantity: qty, subtotal: qty * item.unitPrice };
+        next[idx] = { ...item, quantity: qty, subtotal: itemSubtotal(item, qty) };
         return next;
       }
       return [...prev, buildCartItem(prod, qty)];
@@ -456,7 +465,7 @@ export default function SalesPage() {
       const stepSize = FRACTIONAL_UNITS.has(i.unit) ? 0.5 : 1;
       const min      = stepSize;
       const newQty   = Math.max(min, Math.min(i.availableStock, i.quantity + (delta > 0 ? stepSize : -stepSize)));
-      return { ...i, quantity: newQty, subtotal: newQty * i.unitPrice };
+      return { ...i, quantity: newQty, subtotal: itemSubtotal(i, newQty) };
     }));
   }
 
@@ -466,7 +475,7 @@ export default function SalesPage() {
     setCart((prev) => prev.map((i) => {
       if (i.productId !== productId) return i;
       const newQty = Math.min(i.availableStock, num);
-      return { ...i, quantity: newQty, subtotal: newQty * i.unitPrice };
+      return { ...i, quantity: newQty, subtotal: itemSubtotal(i, newQty) };
     }));
   }
 
@@ -474,14 +483,14 @@ export default function SalesPage() {
     setCart((prev) => prev.map((i) => {
       if (i.productId !== productId) return i;
       const minQty = FRACTIONAL_UNITS.has(i.unit) ? 0.5 : 1;
-      return { ...i, quantity: minQty, subtotal: minQty * i.unitPrice };
+      return { ...i, quantity: minQty, subtotal: itemSubtotal(i, minQty) };
     }));
   }
 
   function venderTodo(productId: string) {
     setCart((prev) => prev.map((i) => {
       if (i.productId !== productId) return i;
-      return { ...i, quantity: i.availableStock, subtotal: i.availableStock * i.unitPrice };
+      return { ...i, quantity: i.availableStock, subtotal: itemSubtotal(i, i.availableStock) };
     }));
   }
 
@@ -490,7 +499,15 @@ export default function SalesPage() {
     if (isNaN(num) || num < 0) return;
     setCart((prev) => prev.map((i) => {
       if (i.productId !== productId) return i;
-      return { ...i, unitPrice: num, subtotal: num * i.quantity };
+      return { ...i, unitPrice: num, subtotal: itemSubtotal(i, undefined, num) };
+    }));
+  }
+
+  function cambiarDescuentoItem(productId: string, amount: number) {
+    setCart((prev) => prev.map((i) => {
+      if (i.productId !== productId) return i;
+      const discount = Math.max(0, Math.min(amount, i.unitPrice * i.quantity));
+      return { ...i, itemDiscount: discount, subtotal: Math.max(0, i.unitPrice * i.quantity - discount) };
     }));
   }
 
@@ -521,7 +538,7 @@ export default function SalesPage() {
           const c = next[idx];
           const newQty = c.quantity + item.quantity;
           const capped = isService ? newQty : Math.min(c.availableStock, newQty);
-          next[idx] = { ...c, quantity: capped, subtotal: capped * item.finalUnitPrice };
+          next[idx] = { ...c, quantity: capped, subtotal: Math.max(0, capped * item.finalUnitPrice - c.itemDiscount) };
         } else {
           next.push({
             productId:      cartId,
@@ -531,6 +548,7 @@ export default function SalesPage() {
             unit:           'unit' as MeasurementUnit,
             subtotal:       item.finalUnitPrice * item.quantity,
             availableStock: isService ? 9999 : item.quantity,
+            itemDiscount:   0,
             itemType:       item.type,
             serviceId:      isService ? item.refId : undefined,
           });
@@ -547,7 +565,7 @@ export default function SalesPage() {
         const next = [...prev];
         const item = next[idx];
         const newQty = item.quantity + 1;
-        next[idx] = { ...item, quantity: newQty, subtotal: newQty * item.unitPrice };
+        next[idx] = { ...item, quantity: newQty, subtotal: itemSubtotal(item, newQty) };
         return next;
       }
       return [...prev, {
@@ -558,6 +576,7 @@ export default function SalesPage() {
         unit:           'unit' as MeasurementUnit,
         subtotal:       svc.price,
         availableStock: 9999,
+        itemDiscount:   0,
         itemType:       'service',
         serviceId:      svc.id,
       }];
@@ -571,14 +590,15 @@ export default function SalesPage() {
     setProcesando(true);
     try {
       const items: SaleItem[] = cart.map((i) => ({
-        id:          crypto.randomUUID(),
-        productId:   i.itemType === 'service' ? undefined : i.productId,
-        serviceId:   i.serviceId,
-        description: i.description,
-        quantity:    i.quantity,
-        unitPrice:   i.unitPrice,
-        subtotal:    i.quantity * i.unitPrice,
-        itemType:    i.itemType,
+        id:           crypto.randomUUID(),
+        productId:    i.itemType === 'service' ? undefined : i.productId,
+        serviceId:    i.serviceId,
+        description:  i.description,
+        quantity:     i.quantity,
+        unitPrice:    i.unitPrice,
+        itemDiscount: i.itemDiscount > 0 ? i.itemDiscount : undefined,
+        subtotal:     i.subtotal,
+        itemType:     i.itemType,
       }));
       const subtotalAmount = items.reduce((s, i) => s + i.subtotal, 0);
       const ventaId = await createSale({
@@ -632,16 +652,23 @@ export default function SalesPage() {
           {/* Resumen compacto */}
           <div className="rounded-xl bg-muted/40 p-3 space-y-1">
             {cart.map((i) => (
-              <div key={i.productId} className="flex justify-between text-sm">
-                <span className="text-muted-foreground truncate max-w-[60%]">
-                  {i.description} ×{i.quantity} {MEASUREMENT_UNITS[i.unit]}
-                </span>
-                <span className="font-medium">{fmt(i.subtotal)}</span>
+              <div key={i.productId}>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground truncate max-w-[60%]">
+                    {i.description} ×{i.quantity} {MEASUREMENT_UNITS[i.unit]}
+                  </span>
+                  <span className="font-medium">{fmt(i.subtotal)}</span>
+                </div>
+                {i.itemDiscount > 0 && (
+                  <div className="flex justify-between text-xs text-green-600 dark:text-green-400 pl-2">
+                    <span>Descuento prod.</span><span>−{fmt(i.itemDiscount)}</span>
+                  </div>
+                )}
               </div>
             ))}
             {discountN > 0 && (
               <div className="flex justify-between text-sm text-green-600 dark:text-green-400 pt-1 border-t border-border">
-                <span>Descuento</span><span>−{fmt(discountN)}</span>
+                <span>Descuento global</span><span>−{fmt(discountN)}</span>
               </div>
             )}
             <div className="flex justify-between font-bold text-base pt-1 border-t border-border">
@@ -828,11 +855,36 @@ export default function SalesPage() {
                           <span className="text-xs text-muted-foreground">/{unitLabel} · {item.availableStock} disp.</span>
                         </div>
                       </div>
+                      {/* Per-item discount toggle */}
+                      <button
+                        type="button"
+                        onClick={() => setDiscountOpenId(discountOpenId === item.productId ? null : item.productId)}
+                        className={cn(
+                          'shrink-0 mt-0.5 flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold border transition-colors',
+                          item.itemDiscount > 0
+                            ? 'text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/40 border-green-300 dark:border-green-700'
+                            : 'text-muted-foreground hover:text-foreground border-border hover:bg-muted/40'
+                        )}
+                      >
+                        <span>%</span>
+                        <span>{item.itemDiscount > 0 ? `−${fmt(item.itemDiscount)}` : 'Desc.'}</span>
+                      </button>
                       <button type="button" onClick={() => eliminar(item.productId)}
                         className="text-muted-foreground hover:text-destructive transition-colors shrink-0 mt-0.5">
                         <Trash2 size={14} />
                       </button>
                     </div>
+                    {/* Per-item discount input — shown when toggled */}
+                    {discountOpenId === item.productId && (
+                      <div className="border-t border-border pt-2">
+                        <p className="text-[11px] text-muted-foreground mb-1.5">Descuento en este producto</p>
+                        <DescuentoInput
+                          subtotal={item.unitPrice * item.quantity}
+                          value={item.itemDiscount}
+                          onChange={(amount) => cambiarDescuentoItem(item.productId, amount)}
+                        />
+                      </div>
+                    )}
                     {/* Bottom row: qty controls + subtotal — wraps on narrow cart */}
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <button type="button" onClick={() => cambiarCantidad(item.productId, -1)}
@@ -873,9 +925,9 @@ export default function SalesPage() {
               })}
             </div>
 
-            {/* Descuento */}
+            {/* Descuento global */}
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Descuento</label>
+              <label className="text-xs text-muted-foreground">Descuento global</label>
               <DescuentoInput
                 subtotal={subtotal}
                 value={discountN}
@@ -890,7 +942,7 @@ export default function SalesPage() {
               </div>
               {discountN > 0 && (
                 <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
-                  <span>Descuento</span><span>−{fmt(discountN)}</span>
+                  <span>Descuento global</span><span>−{fmt(discountN)}</span>
                 </div>
               )}
               <div className="flex justify-between font-bold text-lg pt-1 border-t border-border">

@@ -14,6 +14,8 @@ export interface SaleItem {
   quantity: number;
   unit?: string;
   unitPrice: number;
+  /** Per-item discount amount in C$ (applied before global discount) */
+  itemDiscount?: number;
   subtotal: number;
 }
 

@@ -63,29 +63,45 @@ import { toast } from 'sonner';
 
 function SyncIndicator() {
   const { pending, stuck, healthy, loading } = useSyncStatus();
+  const [retrying, setRetrying] = useState(false);
+
   if (loading || healthy) return null;
 
   const isStuck = stuck > 0 && pending === 0;
   const count   = pending + stuck;
 
+  const handleRetry = async () => {
+    setRetrying(true);
+    try {
+      await syncService.flushWithReset();
+    } finally {
+      setRetrying(false);
+    }
+  };
+
   return (
-    <div
+    <button
+      onClick={isStuck ? handleRetry : undefined}
+      disabled={retrying}
       title={
         isStuck
-          ? `${stuck} cambio${stuck !== 1 ? 's' : ''} sin sincronizar — reintentando automáticamente`
+          ? `${stuck} cambio${stuck !== 1 ? 's' : ''} sin sincronizar. Clic para reintentar.`
           : `Sincronizando ${count} cambio${count !== 1 ? 's' : ''}…`
       }
       className={cn(
         'flex items-center gap-1.5 text-[10px] font-semibold px-2 py-1 rounded-full select-none',
         isStuck
-          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-          : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 cursor-pointer hover:bg-amber-200'
+          : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 cursor-default',
       )}
     >
       {isStuck ? (
         <>
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-          <span className="hidden sm:inline">Sin sync</span>
+          {retrying
+            ? <Loader2 size={10} className="animate-spin" />
+            : <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+          }
+          <span className="hidden sm:inline">{retrying ? 'Reintentando…' : 'Sin sync'}</span>
         </>
       ) : (
         <>
@@ -93,7 +109,7 @@ function SyncIndicator() {
           <span className="hidden sm:inline">Sincronizando</span>
         </>
       )}
-    </div>
+    </button>
   );
 }
 

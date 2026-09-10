@@ -1,16 +1,20 @@
 'use client';
 
 /**
- * SyncService — zero-polling, event-driven sync.
+ * SyncService — event-driven, zero-polling offline-first sync.
  *
  * Read cost model:
- *   start()         → 1 pull (catch-up from cursor) + 15 onSnapshot opens (1 read each, 0 docs if cursor is fresh)
- *   idle            → 0 reads (Firestore pushes changes to listeners, never polled)
- *   remote change   → 1 read per changed document, pushed by Firestore
- *   local mutation  → 1 write (flush), 0 reads
- *   reconnect       → flush() only, no re-pull (listeners auto-reconnect)
+ *   start()        → pullAll (cursor-based, cheap) + 15 onSnapshot opens (0 docs if cursor fresh)
+ *   idle           → 0 reads (Firestore pushes changes to listeners)
+ *   remote change  → 1 read per changed document, pushed by Firestore
+ *   local mutation → 1 write (flush), 0 reads
+ *   reconnect      → flush() only; listeners auto-reconnect
  *
- * There are NO setInterval calls in this file.
+ * Retry model:
+ *   Push failures use exponential backoff (30s→60s→120s→300s).
+ *   Backoff fires whether items are new-failed OR already stuck (attempts≥MAX).
+ *   Tab focus / visibility-change also triggers a retry pass.
+ *   No setInterval anywhere in this file.
  */
 
 import { db } from '@/lib/db/database';
@@ -25,6 +29,10 @@ async function isDemoSession(): Promise<boolean> {
 
 const MAX_INTENTOS = 5;
 const BATCH_SIZE   = 20;
+
+// Backoff delays (ms) for failed push retries. The last value repeats forever.
+// Fast at first (5 s, 15 s) so brief network blips resolve quickly, then slower.
+const RETRY_BACKOFF_MS = [5_000, 15_000, 30_000, 60_000, 300_000];
 
 const TABLAS_SYNC = [
   { nombre: 'owners',               tabla: () => db.owners               },
@@ -52,21 +60,16 @@ export type SyncAllProgress = {
   mensajesError: string[];
 };
 
-// ─── Dexie upsert helper (shared by pullAll and subscribeAll) ─────────────────
+// ─── Dexie upsert helper ──────────────────────────────────────────────────────
 
-async function upsertRemoteDocs(
-  nombre: string,
-  remoteDocs: RemoteDoc[],
-): Promise<void> {
+async function upsertRemoteDocs(nombre: string, remoteDocs: RemoteDoc[]): Promise<void> {
   if (remoteDocs.length === 0) return;
 
   type LocalTable = {
     get(id: string): Promise<{ updatedAt: number } | undefined>;
     put(item: object): Promise<unknown>;
   };
-  const t = (
-    TABLAS_SYNC.find((x) => x.nombre === nombre)!.tabla()
-  ) as unknown as LocalTable;
+  const t = (TABLAS_SYNC.find((x) => x.nombre === nombre)!.tabla()) as unknown as LocalTable;
 
   for (const remoteDoc of remoteDocs) {
     const { _syncedAt, ...clean } = remoteDoc as Record<string, unknown>;
@@ -80,25 +83,19 @@ async function upsertRemoteDocs(
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Backoff delays for failed push retries (ms). After each failure the next
-// retry fires after the next delay in the list; the last value repeats.
-const RETRY_BACKOFF_MS = [30_000, 60_000, 120_000, 300_000]; // 30s 1m 2m 5m
-
 class SyncService {
   private corriendo     = false;
   private pulling       = false;
   private hookReg       = false;
   private unsubscribers: (() => void)[] = [];
   private retryTimeout:  ReturnType<typeof setTimeout> | null = null;
-  private retryAttempt   = 0; // index into RETRY_BACKOFF_MS
+  private retryAttempt   = 0;
 
-  // ── Start / stop ─────────────────────────────────────────────────────────
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   async start(): Promise<void> {
-    // Prevent double-start (e.g., React StrictMode double-effect)
     if (this.unsubscribers.length > 0) return;
 
-    // Immediately push any queued items whenever a new one is added
     if (!this.hookReg) {
       db.syncQueue.hook('creating', () => {
         setTimeout(() => this.flush(), 0);
@@ -106,54 +103,53 @@ class SyncService {
       this.hookReg = true;
     }
 
-    // On reconnect: flush pending writes and clear the backoff so the next
-    // failure starts fresh. onSnapshot listeners reconnect automatically.
-    window.addEventListener('online', this.onOnline);
+    window.addEventListener('online',            this.onOnline);
+    document.addEventListener('visibilitychange', this.onVisibility);
+    window.addEventListener('focus',             this.onFocus);
 
-    // Step 1 — one-time catch-up pull: fetches everything that changed while
-    // this device was offline (or since the last session). Advances the cursor.
     const cursor = await this.pullAll();
-
-    // Step 2 — push anything queued from the offline period
-    await this.resetDeadQueueItems();
-    await this.flush();
-
-    // Step 3 — open real-time listeners starting from the cursor we just set.
-    // Any document pushed to Firestore after this point will arrive here without
-    // us having to ask. Zero reads until something actually changes.
+    await this.flushWithReset();
     await this.subscribeAll(cursor);
   }
 
   stop(): void {
     this.unsubscribers.forEach((u) => u());
     this.unsubscribers = [];
-    window.removeEventListener('online', this.onOnline);
-    if (this.retryTimeout !== null) {
-      clearTimeout(this.retryTimeout);
-      this.retryTimeout = null;
-    }
+    window.removeEventListener('online',            this.onOnline);
+    document.removeEventListener('visibilitychange', this.onVisibility);
+    window.removeEventListener('focus',             this.onFocus);
+    this.cancelRetry();
   }
 
+  // ── Event handlers ────────────────────────────────────────────────────────
+
   private onOnline = () => {
-    // Network came back — reset backoff and retry immediately.
+    console.log('[sync] network online — flushing');
     this.retryAttempt = 0;
     this.cancelRetry();
-    this.resetDeadQueueItems().then(() => this.flush()).catch(() => undefined);
+    this.flushWithReset().catch(() => undefined);
   };
 
-  // Schedule the next retry only if there are stuck items.
-  // Called by flush() after a batch that had at least one failure.
+  private onVisibility = () => {
+    if (document.visibilityState === 'visible') {
+      this.flushWithReset().catch(() => undefined);
+    }
+  };
+
+  private onFocus = () => {
+    this.flushWithReset().catch(() => undefined);
+  };
+
+  // ── Retry scheduling ──────────────────────────────────────────────────────
+
   private scheduleRetry(): void {
-    if (this.retryTimeout !== null) return; // already scheduled
+    if (this.retryTimeout !== null) return;
     const delay = RETRY_BACKOFF_MS[Math.min(this.retryAttempt, RETRY_BACKOFF_MS.length - 1)];
     this.retryAttempt++;
-    console.log(`[sync] retry scheduled in ${delay / 1000}s (attempt ${this.retryAttempt})`);
+    console.log(`[sync] retry in ${delay / 1000}s (attempt ${this.retryAttempt})`);
     this.retryTimeout = setTimeout(async () => {
       this.retryTimeout = null;
-      if (navigator.onLine) {
-        await this.resetDeadQueueItems();
-        await this.flush();
-      }
+      if (navigator.onLine) await this.flushWithReset();
     }, delay);
   }
 
@@ -164,40 +160,141 @@ class SyncService {
     }
   }
 
+  // ── Flush helpers ─────────────────────────────────────────────────────────
+
+  /**
+   * Reset dead items (attempts ≥ MAX_INTENTOS) back to 0, then flush.
+   * Always call this instead of flush() when recovering from failures.
+   */
+  async flushWithReset(): Promise<void> {
+    await this.resetDeadQueueItems();
+    await this.flush();
+  }
+
+  private async resetDeadQueueItems(): Promise<void> {
+    const session = await db.session.get('singleton');
+    if (!session || session.isDemo) return;
+    const dead = await db.syncQueue.where('attempts').aboveOrEqual(MAX_INTENTOS).count();
+    if (dead > 0) {
+      console.log(`[sync] resetting ${dead} dead queue item(s) for retry`);
+      await db.syncQueue.where('attempts').aboveOrEqual(MAX_INTENTOS).modify({ attempts: 0 });
+    }
+  }
+
+  // ── Flush (push local syncQueue → Firestore) ─────────────────────────────
+
+  async flush(): Promise<void> {
+    if (this.corriendo || !navigator.onLine) return;
+    const session = await db.session.get('singleton');
+    if (!session || session.isDemo) return;
+    this.corriendo = true;
+
+    try {
+      const pendientes = await db.syncQueue
+        .where('attempts').below(MAX_INTENTOS)
+        .limit(BATCH_SIZE)
+        .sortBy('createdAt');
+
+      if (pendientes.length > 0) {
+        console.log(`[sync] flush — pushing ${pendientes.length} item(s)`);
+      }
+
+      let hadFailure = false;
+      for (const item of pendientes) {
+        // Prefer clinicId from the payload; fall back to looking it up from the
+        // actual Dexie record (important for update/delete ops that omit clinicId
+        // in their partial payload). Only use the session as a last resort.
+        let itemClinicId = (item.data as Record<string, unknown>).clinicId as string | undefined;
+        if (!itemClinicId) {
+          type Rec = { clinicId?: string } | undefined;
+          const tableEntry = TABLAS_SYNC.find((t) => t.nombre === item.collection);
+          if (tableEntry) {
+            const record = await (tableEntry.tabla() as unknown as { get(id: string): Promise<Rec> })
+              .get(item.documentId);
+            itemClinicId = record?.clinicId;
+          }
+        }
+        itemClinicId ??= session.clinicId;
+
+        try {
+          await syncProvider.push(item.collection, item.documentId, item.data, itemClinicId);
+          await db.syncQueue.delete(item.id!);
+          this.retryAttempt = 0;
+        } catch (err) {
+          hadFailure = true;
+          const errMsg = err instanceof Error ? err.message : String(err);
+          console.warn(`[sync] push failed ${item.collection}/${item.documentId}:`, errMsg);
+
+          const newAttempts = item.attempts + 1;
+          await db.syncQueue.update(item.id!, { attempts: newAttempts, lastError: errMsg });
+
+          // Notify user when an item officially gets stuck (hits the attempt ceiling)
+          if (newAttempts >= MAX_INTENTOS) {
+            toast.error(
+              'Datos sin sincronizar. Revisa tu conexión o ve a Admin → Sync.',
+              { id: 'sync-stuck', duration: 10_000 },
+            );
+          }
+        }
+      }
+
+      // Schedule a retry if there are already-stuck items not in the current batch
+      // (accumulated failures from a previous session that weren't reset yet).
+      if (!hadFailure) {
+        const stuck = await db.syncQueue.where('attempts').aboveOrEqual(MAX_INTENTOS).count();
+        if (stuck > 0) hadFailure = true;
+      }
+
+      if (hadFailure) this.scheduleRetry();
+    } finally {
+      this.corriendo = false;
+    }
+  }
+
   // ── Real-time subscriptions ───────────────────────────────────────────────
 
   private async subscribeAll(since: number): Promise<void> {
     const session = await db.session.get('singleton');
     if (!session || session.isDemo) return;
-
     const { clinicId } = session;
 
     for (const { nombre } of TABLAS_SYNC) {
-      const unsub = syncProvider.subscribe(
-        nombre,
-        since,
-        clinicId,
-        async (docs) => {
-          console.log(`[sync] realtime — ${docs.length} doc(s) from ${nombre}`);
-          try {
-            await upsertRemoteDocs(nombre, docs);
-          } catch (err) {
-            console.error(`[sync] realtime upsert ${nombre}:`, err);
-          }
-        },
-      );
-      this.unsubscribers.push(unsub);
+      this.openSubscription(nombre, clinicId, since);
     }
 
-    console.log(`[sync] subscribed to ${TABLAS_SYNC.length} collections (since ${new Date(since).toISOString()})`);
+    console.log(`[sync] ${TABLAS_SYNC.length} subscriptions open (since ${new Date(since).toISOString()})`);
   }
 
-  // ── Catch-up pull (called ONCE on start) ─────────────────────────────────
+  private openSubscription(nombre: string, clinicId: string, since: number): void {
+    const unsub = syncProvider.subscribe(
+      nombre,
+      since,
+      clinicId,
+      async (docs) => {
+        console.log(`[sync] realtime — ${docs.length} doc(s) from ${nombre}`);
+        try {
+          await upsertRemoteDocs(nombre, docs);
+        } catch (err) {
+          console.error(`[sync] realtime upsert ${nombre}:`, err);
+        }
+      },
+      (err) => {
+        // Subscription failed (network drop, auth expiry, etc.).
+        // Remove the dead unsub from our list and reopen after a delay.
+        console.warn(`[sync] subscription ${nombre} failed — will reopen:`, err.message);
+        const idx = this.unsubscribers.indexOf(unsub);
+        if (idx !== -1) this.unsubscribers.splice(idx, 1);
+        if (this.unsubscribers.length > 0) {
+          // Still active (not stopped) — reopen in 10 s
+          setTimeout(() => this.openSubscription(nombre, clinicId, since), 10_000);
+        }
+      },
+    );
+    this.unsubscribers.push(unsub);
+  }
 
-  /**
-   * Fetches all documents changed since the last known cursor.
-   * Returns the cursor timestamp to pass to subscribeAll().
-   */
+  // ── Catch-up pull (called once on start) ─────────────────────────────────
+
   async pullAll(): Promise<number> {
     if (this.pulling || !navigator.onLine) return Date.now();
     const session = await db.session.get('singleton');
@@ -219,7 +316,7 @@ class SyncService {
     let   pullErrored   = false;
     let   totalReads    = 0;
 
-    console.log(`[sync] pull start — since ${lastPull ? new Date(lastPull).toISOString() : 'beginning'}`);
+    console.log(`[sync] pull start — since ${lastPull ? new Date(lastPull).toISOString() : 'epoch'}`);
 
     try {
       for (const { nombre } of TABLAS_SYNC) {
@@ -232,7 +329,13 @@ class SyncService {
           }
         } catch (err) {
           pullErrored = true;
-          console.error(`[sync] pull ${nombre} failed:`, err);
+          const errMsg = err instanceof Error ? err.message : String(err);
+          console.error(`[sync] pull ${nombre} failed:`, errMsg);
+          // Show a toast so the user knows something went wrong
+          toast.error(`Error al sincronizar "${nombre}". Revisa conexión.`, {
+            id:       `sync-pull-${nombre}`,
+            duration: 8_000,
+          });
         }
       }
 
@@ -242,12 +345,6 @@ class SyncService {
         localStorage.setItem(LAST_PULL_KEY, pullStartedAt.toString());
         return pullStartedAt;
       } else {
-        if (lastPull === 0) {
-          toast.error(
-            'Error al sincronizar datos de la clínica. Revisa la consola del navegador.',
-            { duration: 8000, id: 'sync-pull-error' },
-          );
-        }
         return lastPull; // keep old cursor so next pull retries from same point
       }
     } finally {
@@ -255,69 +352,8 @@ class SyncService {
     }
   }
 
-  // ── Flush (push local queue → Firestore) ─────────────────────────────────
+  // ── Force full re-pull (clears cursor, fetches ALL from Firestore) ────────
 
-  async flush(): Promise<void> {
-    if (this.corriendo || !navigator.onLine) return;
-    const session = await db.session.get('singleton');
-    if (!session || session.isDemo) return;
-    this.corriendo = true;
-
-    try {
-      const pendientes = await db.syncQueue
-        .where('attempts').below(MAX_INTENTOS)
-        .limit(BATCH_SIZE)
-        .sortBy('createdAt');
-
-      if (pendientes.length > 0) {
-        console.log(`[sync] flush — pushing ${pendientes.length} item(s)`);
-      }
-
-      let hadFailure = false;
-      for (const item of pendientes) {
-        const itemClinicId =
-          ((item.data as Record<string, unknown>).clinicId as string | undefined) ??
-          session.clinicId;
-        try {
-          await syncProvider.push(item.collection, item.documentId, item.data, itemClinicId);
-          await db.syncQueue.delete(item.id!);
-          // Success resets the backoff counter so the next failure starts fresh.
-          this.retryAttempt = 0;
-        } catch (err) {
-          hadFailure = true;
-          console.warn(`[sync] push failed ${item.collection}/${item.documentId}:`, err);
-          await db.syncQueue.update(item.id!, { attempts: item.attempts + 1 });
-        }
-      }
-
-      // If any item failed, schedule a retry with exponential backoff.
-      // This fires only when there are real failures — zero cost otherwise.
-      if (hadFailure) this.scheduleRetry();
-    } finally {
-      this.corriendo = false;
-    }
-  }
-
-  // ── Helpers ───────────────────────────────────────────────────────────────
-
-  private async resetDeadQueueItems(): Promise<void> {
-    const session = await db.session.get('singleton');
-    if (!session || session.isDemo) return;
-    const dead = await db.syncQueue.where('attempts').aboveOrEqual(MAX_INTENTOS).count();
-    if (dead > 0) {
-      console.log(`[sync] resetting ${dead} dead queue item(s) for retry`);
-      await db.syncQueue.where('attempts').aboveOrEqual(MAX_INTENTOS).modify({ attempts: 0 });
-    }
-  }
-
-  // ── Force full re-pull (clears cursor, fetches all from Firestore) ───────
-
-  /**
-   * Clears the local pull cursor and runs a full pull from the beginning of
-   * Firestore history. Use this when a device is missing data that other
-   * devices have already synced.
-   * Returns the number of documents written to local Dexie.
-   */
   async forcePull(): Promise<number> {
     if (!navigator.onLine) throw new Error('Sin conexión a internet');
     const session = await db.session.get('singleton');
@@ -325,17 +361,12 @@ class SyncService {
 
     const { clinicId, uid } = session;
     const LAST_PULL_KEY = `vetsystem_last_pull_${clinicId}_${uid}`;
-
-    // Reset cursor → next pullAll() fetches from epoch (all docs ever synced)
     localStorage.removeItem(LAST_PULL_KEY);
 
-    // Run the pull — it reads the now-absent cursor as 0 (epoch)
     let docsWritten = 0;
-    const { clinicId: cid } = session;
-
     for (const { nombre } of TABLAS_SYNC) {
       try {
-        const docs = await syncProvider.pull(nombre, 0, cid);
+        const docs = await syncProvider.pull(nombre, 0, clinicId);
         if (docs.length > 0) {
           console.log(`[sync] forcePull ${nombre} — ${docs.length} doc(s)`);
           await upsertRemoteDocs(nombre, docs);
@@ -346,23 +377,29 @@ class SyncService {
       }
     }
 
-    // Advance cursor to now so normal sync resumes from this point
     localStorage.setItem(LAST_PULL_KEY, Date.now().toString());
     console.log(`[sync] forcePull complete — ${docsWritten} doc(s) written`);
     return docsWritten;
   }
 
-  // ── Inspect queue errors ──────────────────────────────────────────────────
+  // ── Queue diagnostics ─────────────────────────────────────────────────────
 
-  async queueErrors(): Promise<{ collection: string; documentId: string; error?: string }[]> {
+  async queueErrors(): Promise<{ collection: string; documentId: string; lastError?: string }[]> {
     const dead = await db.syncQueue.where('attempts').aboveOrEqual(MAX_INTENTOS).toArray();
     return dead.map((item) => ({
-      collection: item.collection,
-      documentId: item.documentId,
+      collection:  item.collection,
+      documentId:  item.documentId,
+      lastError:   (item as { lastError?: string }).lastError,
     }));
   }
 
-  // ── Dev-only: force-push everything from Dexie to Firestore ──────────────
+  async estadoQueue() {
+    const pendientes = await db.syncQueue.where('attempts').below(MAX_INTENTOS).count();
+    const conError   = await db.syncQueue.where('attempts').aboveOrEqual(MAX_INTENTOS).count();
+    return { pendientes, conError };
+  }
+
+  // ── Force-push ALL local data to Firestore (bypass queue) ────────────────
 
   async syncAll(
     onProgress?: (p: SyncAllProgress) => void,
@@ -399,14 +436,6 @@ class SyncService {
     }
 
     return { total: totalGlobal, errores: erroresGlobal, detalles };
-  }
-
-  // ── Queue status (for UI display) ─────────────────────────────────────────
-
-  async estadoQueue() {
-    const pendientes = await db.syncQueue.where('attempts').below(MAX_INTENTOS).count();
-    const conError   = await db.syncQueue.where('attempts').aboveOrEqual(MAX_INTENTOS).count();
-    return { pendientes, conError };
   }
 
   async conteoTablas(): Promise<Record<string, number>> {
