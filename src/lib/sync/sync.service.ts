@@ -205,16 +205,39 @@ class SyncService {
         // actual Dexie record (important for update/delete ops that omit clinicId
         // in their partial payload). Only use the session as a last resort.
         let itemClinicId = (item.data as Record<string, unknown>).clinicId as string | undefined;
+        const tableEntry = TABLAS_SYNC.find((t) => t.nombre === item.collection);
         if (!itemClinicId) {
           type Rec = { clinicId?: string } | undefined;
-          const tableEntry = TABLAS_SYNC.find((t) => t.nombre === item.collection);
           if (tableEntry) {
             const record = await (tableEntry.tabla() as unknown as { get(id: string): Promise<Rec> })
               .get(item.documentId);
             itemClinicId = record?.clinicId;
+            // Known collection, partial payload, and the row is physically gone:
+            // only clearDemo() removes rows outright (real deletes are soft), so
+            // this item belongs to data that no longer exists. Nothing can resolve
+            // its owner, and pushing it under the current session would leak a
+            // foreign record into this clinic.
+            if (!itemClinicId) {
+              console.warn(
+                `[sync] dropping ${item.collection}/${item.documentId} — local record gone, owner unknown`,
+              );
+              await db.syncQueue.delete(item.id!);
+              continue;
+            }
           }
         }
         itemClinicId ??= session.clinicId;
+
+        // Dead letter: an item addressed to another clinic can never succeed —
+        // the rules deny it, so retrying only loops forever and hides real sync
+        // failures behind a permanent "unsynced data" warning.
+        if (itemClinicId !== session.clinicId) {
+          console.warn(
+            `[sync] dropping ${item.collection}/${item.documentId} — belongs to clinic "${itemClinicId}", session is "${session.clinicId}"`,
+          );
+          await db.syncQueue.delete(item.id!);
+          continue;
+        }
 
         try {
           await syncProvider.push(item.collection, item.documentId, item.data, itemClinicId);
