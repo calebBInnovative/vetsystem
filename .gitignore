@@ -46,3 +46,8 @@ next-env.d.ts
 
 # Claude Code agent worktrees
 .claude/worktrees/
+
+# Cloud Functions
+functions/lib/
+functions/node_modules/
+functions/.env

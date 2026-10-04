@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { LICENSE_MESSAGES, estaBloquada } from '@/lib/license/license.service';
-import { WifiOff, AlertTriangle, Lock, CreditCard, X } from 'lucide-react';
+import { useSubscription } from '@/hooks/useSubscription';
+import { WifiOff, AlertTriangle, Lock, CreditCard, X, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LicenseMode } from '@/types/license';
 
@@ -19,6 +20,7 @@ const ICONS: Partial<Record<LicenseMode, React.FC<{ size?: number; className?: s
 export function LicenseBanner() {
   const { license } = useAuth();
   const [closed, setClosed] = useState(false);
+  const { startCheckout, loading: checkoutLoading } = useSubscription();
 
   const { mode, daysOffline } = license;
 
@@ -50,23 +52,30 @@ export function LicenseBanner() {
               Se detectó una modificación en la fecha del sistema.
             </p>
           )}
-          {mode === 'expired' && (
-            <a
-              href="mailto:soporte@vetsystem.app"
-              className="inline-block mt-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-medium"
-            >
-              Renovar suscripción
-            </a>
+          <button
+            type="button"
+            onClick={startCheckout}
+            disabled={checkoutLoading}
+            className="inline-flex items-center gap-2 mt-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-medium disabled:opacity-70 transition-opacity"
+          >
+            {checkoutLoading
+              ? <><Loader2 size={14} className="animate-spin" /> Redirigiendo…</>
+              : <><CreditCard size={14} /> Activar suscripción</>
+            }
+          </button>
+          {mode !== 'expired' && (
+            <p className="text-xs text-muted-foreground">
+              Conéctate a internet para continuar.
+            </p>
           )}
-          <p className="text-xs text-muted-foreground">
-            Conéctate a internet para continuar.
-          </p>
         </div>
       </div>
     );
   }
 
   // Warning banner — top strip
+  const showCheckout = mode === 'read_only' || mode === 'hard_warning';
+
   return (
     <div className={cn(
       'flex items-center gap-3 px-4 py-2.5 border-b text-sm',
@@ -81,6 +90,20 @@ export function LicenseBanner() {
           <span className="ml-2 text-xs opacity-60">({daysOffline} días offline)</span>
         )}
       </div>
+      {showCheckout && (
+        <button
+          type="button"
+          onClick={startCheckout}
+          disabled={checkoutLoading}
+          className="shrink-0 flex items-center gap-1 px-3 py-1 rounded-lg bg-current/10 hover:bg-current/20 font-medium text-xs transition-colors disabled:opacity-60"
+        >
+          {checkoutLoading
+            ? <Loader2 size={11} className="animate-spin" />
+            : <CreditCard size={11} />
+          }
+          {checkoutLoading ? 'Redirigiendo…' : 'Renovar'}
+        </button>
+      )}
       <button
         type="button"
         onClick={() => setClosed(true)}
