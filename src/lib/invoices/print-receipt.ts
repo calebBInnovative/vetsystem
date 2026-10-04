@@ -23,12 +23,32 @@ const ROLE_LABEL: Record<string, string> = {
 
 // ── HTML builder ──────────────────────────────────────────────────────────────
 
-function buildHtml(factura: InvoiceWithDetails, session: SessionLocal | null): string {
+/**
+ * Lets a non-invoice document (a quote) reuse this exact layout: same clinic
+ * header, same item list, same paper size. Only the wording changes, so the
+ * client never mistakes a quote for a receipt of something already paid.
+ */
+export interface ReceiptOptions {
+  /** Printed above the order number, e.g. "COTIZACIÓN" */
+  documentLabel?: string;
+  /** Hide the payment-method row — a quote collects nothing */
+  hidePaymentRow?: boolean;
+  /** Printed as "Válida hasta DD/MM/YYYY" */
+  validUntil?: string;
+  /** Replaces the "Atendido por" line */
+  attendedLabel?: string;
+}
+
+function buildHtml(
+  factura: InvoiceWithDetails,
+  session: SessionLocal | null,
+  options: ReceiptOptions = {},
+): string {
   const clinicName   = session?.clinicName ?? 'House of Pets';
   const roleLabel    = ROLE_LABEL[session?.role ?? ''] ?? '';
   // Only the part before @ — e.g. "caleb" from "caleb@example.com"
   const emailAlias   = session?.email?.split('@')[0] ?? '';
-  const atendidoPor  = [roleLabel, emailAlias].filter(Boolean).join(' ');
+  const atendidoPor  = options.attendedLabel ?? [roleLabel, emailAlias].filter(Boolean).join(' ');
 
   const metodos: Record<string, string> = {
     cash:     'Efectivo',
@@ -76,7 +96,7 @@ function buildHtml(factura: InvoiceWithDetails, session: SessionLocal | null): s
 <html lang="es">
 <head>
 <meta charset="UTF-8" />
-<title>Recibo ${escHtml(factura.number)}</title>
+<title>${escHtml(options.documentLabel ?? 'Recibo')} ${escHtml(factura.number)}</title>
 <style>
   @page { size: 80mm auto; margin: 4mm 5mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -149,6 +169,12 @@ function buildHtml(factura: InvoiceWithDetails, session: SessionLocal | null): s
   }
   .orden-num  { font-weight: bold; font-size: 11px; letter-spacing: 0.4px; }
   .orden-date { font-size: 10px; color: #444; margin-top: 2px; }
+  .doc-label  {
+    font-weight: bold;
+    font-size: 12px;
+    letter-spacing: 1.5px;
+    margin-bottom: 3px;
+  }
 
   /* ── Notas ── */
   .notas { font-size: 10px; white-space: pre-wrap; color: #333; }
@@ -199,18 +225,21 @@ function buildHtml(factura: InvoiceWithDetails, session: SessionLocal | null): s
     <span>TOTAL</span>
     <span>${fmtR(factura.total)}</span>
   </div>
+  ${options.hidePaymentRow ? '' : `
   <div class="row metodo">
     <span>${escHtml(metodos[factura.paymentMethod] ?? factura.paymentMethod)}</span>
     <span>${fmtR(montoCobrado)}</span>
-  </div>
+  </div>`}
   ${saldoHtml}
 
   <div class="dash"></div>
 
   <!-- 6. Orden y fecha -->
   <div class="orden-block">
-    <div class="orden-num">Orden&nbsp;#&nbsp;${escHtml(factura.number)}</div>
+    ${options.documentLabel ? `<div class="doc-label">${escHtml(options.documentLabel)}</div>` : ''}
+    <div class="orden-num">${options.documentLabel ? '' : 'Orden&nbsp;#&nbsp;'}${escHtml(factura.number)}</div>
     <div class="orden-date">${fmtFecha(factura.date)}</div>
+    ${options.validUntil ? `<div class="orden-date">V&aacute;lida hasta ${fmtFecha(options.validUntil)}</div>` : ''}
   </div>
 
   ${notasHtml}
@@ -234,12 +263,16 @@ function escHtml(s: string): string {
 
 // ── Exportado ─────────────────────────────────────────────────────────────────
 
-export function printRecibo(factura: InvoiceWithDetails, session: SessionLocal | null): void {
+export function printRecibo(
+  factura: InvoiceWithDetails,
+  session: SessionLocal | null,
+  options: ReceiptOptions = {},
+): void {
   const win = window.open('', '_blank');
   if (!win) {
     window.print();
     return;
   }
-  win.document.write(buildHtml(factura, session));
+  win.document.write(buildHtml(factura, session, options));
   win.document.close();
 }

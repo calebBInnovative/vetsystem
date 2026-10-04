@@ -25,6 +25,7 @@ import type { SessionLocal }  from '@/types/license';
 import type { FixedExpense, ExpensePayment } from '@/types/expense';
 import type { Collaborator, CollaboratorPayment } from '@/types/collaborator';
 import type { PromotionLocal } from '@/types/promotion';
+import type { QuoteLocal }     from '@/types/quote';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TIPOS INTERNOS
@@ -92,6 +93,9 @@ class VetSystemDB extends Dexie {
 
   // Promotions / bundles module
   promotions!: EntityTable<PromotionLocal, 'id'>;
+
+  // Quotes — priced documents that only become sales when accepted
+  quotes!: EntityTable<QuoteLocal, 'id'>;
 
   // Sync infrastructure
   syncQueue!:     EntityTable<SyncQueueItem,         'id'>;
@@ -377,6 +381,11 @@ class VetSystemDB extends Dexie {
       promotions:           'id, clinicId, active, validFrom, validUntil, syncStatus, updatedAt, deletedAt',
       syncQueue:            '++id, collection, documentId, createdAt, attempts',
     }).upgrade(() => {});
+
+    // v23: quotes module
+    this.version(24).stores({
+      quotes: 'id, number, clinicId, date, status, patientId, syncStatus, updatedAt, deletedAt',
+    });
   }
 }
 

@@ -17,7 +17,7 @@ const DEMO_TABLES = [
   'owners', 'patients', 'services', 'products', 'movements',
   'appointments', 'consultations', 'payments', 'invoices', 'sales',
   'fixedExpenses', 'expensePayments', 'collaborators', 'collaboratorPayments',
-  'promotions',
+  'promotions', 'quotes',
 ] as const;
 
 type DemoTable = typeof DEMO_TABLES[number];
@@ -58,6 +58,7 @@ async function readTable(table: DemoTable, clinicId: string): Promise<any[]> {
     case 'collaborators':       return db.collaborators.where('clinicId').equals(clinicId).toArray();
     case 'collaboratorPayments':return db.collaboratorPayments.where('clinicId').equals(clinicId).toArray();
     case 'promotions':          return db.promotions.where('clinicId').equals(clinicId).toArray();
+    case 'quotes':              return db.quotes.where('clinicId').equals(clinicId).toArray();
   }
 }
 
@@ -78,6 +79,7 @@ async function clearDemoTable(table: DemoTable): Promise<void> {
     case 'collaborators':       await db.collaborators.where('clinicId').equals(DEMO_CLINIC_ID).delete(); break;
     case 'collaboratorPayments':await db.collaboratorPayments.where('clinicId').equals(DEMO_CLINIC_ID).delete(); break;
     case 'promotions':          await db.promotions.where('clinicId').equals(DEMO_CLINIC_ID).delete(); break;
+    case 'quotes':              await db.quotes.where('clinicId').equals(DEMO_CLINIC_ID).delete(); break;
   }
 }
 
@@ -100,6 +102,7 @@ async function bulkWriteToTable(table: DemoTable, items: any[]): Promise<void> {
     case 'collaborators':       await db.collaborators.bulkPut(items); break;
     case 'collaboratorPayments':await db.collaboratorPayments.bulkPut(items); break;
     case 'promotions':          await db.promotions.bulkPut(items); break;
+    case 'quotes':              await db.quotes.bulkPut(items); break;
   }
 }
 
@@ -201,7 +204,7 @@ export async function tryLoadDemoSnapshot(): Promise<boolean> {
     db.owners, db.patients, db.services, db.products, db.movements,
     db.appointments, db.consultations, db.payments, db.invoices, db.sales,
     db.fixedExpenses, db.expensePayments, db.collaborators, db.collaboratorPayments,
-    db.promotions,
+    db.promotions, db.quotes,
   ], async () => {
     for (const table of DEMO_TABLES) await clearDemoTable(table);
     for (const table of DEMO_TABLES) await bulkWriteToTable(table, allData[table]);

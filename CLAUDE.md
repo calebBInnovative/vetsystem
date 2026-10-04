@@ -204,7 +204,7 @@ Demo mode is a fully isolated, no-Firebase sandbox:
 
 ## 9. Database Schema (Dexie)
 
-Current version: **22**. Schema is in `src/lib/db/database.ts`.
+Current version: **23**. Schema is in `src/lib/db/database.ts`.
 
 Tables and their primary key + indexed fields:
 ```
@@ -224,6 +224,7 @@ expensePayments:      id, expenseId, clinicId, syncStatus, updatedAt
 collaborators:        id, clinicId, syncStatus, updatedAt, deletedAt
 collaboratorPayments: id, collaboratorId, clinicId, syncStatus, updatedAt
 promotions:           id, clinicId, active, syncStatus, updatedAt, deletedAt
+quotes:               id, number, clinicId, date, status, patientId, syncStatus, updatedAt, deletedAt
 syncQueue:            id, table, operation, payload, clinicId, createdAt, attempts, status
 ```
 
@@ -250,14 +251,34 @@ All modules live under `src/app/(dashboard)/`. Feature logic is in `src/hooks/us
 | `/consultations`, `/consultations/[id]`, `/consultations/new` | `useConsultations` | ✓ Built |
 | `/inventory`, `/inventory/[id]`, `/inventory/new` | `useInventory` | ✓ Built |
 | `/sales` | `useSales` | ✓ Built |
+
 | `/invoices`, `/invoices/[id]` | `useInvoices` | ✓ Built |
 | `/services` | `useServices` | ✓ Built |
 | `/finances`, `/finances/new` | `useFinances` | ✓ Built |
 | `/expenses` | `useExpenses` | ✓ Built |
 | `/promotions`, `/promotions/[id]`, `/promotions/new` | `usePromotions` | ✓ Built |
+| `/quotes` | `useQuotes` | ✓ Built |
 | `/admin` | - | ✓ Built (user/clinic management) |
 | `/import` | - | ✓ Built (CSV bulk import) |
 | `/dev/seed` | - | Dev only (seed data) |
+
+---
+
+## 10b. Quotes Module
+
+A quote (`cotización`) is a priced document for the client that deliberately touches nothing else:
+no stock movement, no invoice, no payment, no revenue. Only `convertQuoteToSale()` does that,
+by handing the quote's items to `createSale()` — which is the single place where a transaction
+is recorded. A converted quote keeps its own number and stores the resulting `saleId`.
+
+- Created from the POS (`/sales`): same cart, button **"Guardar cotización"** instead of **Cobrar**.
+- Listed and managed at `/quotes` (print, convert, void, delete). No `[id]` route, so
+  `firebase.json` rewrites do not change.
+- Numbering: `COT-YYYY-NNNN`, independent of invoice numbering.
+- Printing reuses `printRecibo()` via `src/lib/quotes/print-quote.ts`, passing `ReceiptOptions`
+  (`documentLabel: 'COTIZACIÓN'`, `hidePaymentRow`, `validUntil`) — same paper layout, different
+  wording, so a quote is never mistaken for a paid receipt.
+- Prices are frozen at quote time: conversion uses the quoted amounts even if the catalog changed.
 
 ---
 

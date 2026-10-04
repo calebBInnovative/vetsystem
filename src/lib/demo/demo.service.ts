@@ -77,7 +77,7 @@ export async function clearDemo(): Promise<void> {
     db.patients, db.owners, db.consultations, db.appointments,
     db.products, db.movements, db.payments, db.invoices, db.services, db.sales,
     db.fixedExpenses, db.expensePayments, db.collaborators, db.collaboratorPayments,
-    db.promotions, db.syncQueue,
+    db.promotions, db.quotes, db.syncQueue,
   ], async () => {
     await Promise.all([
       db.patients.where('clinicId').equals(DEMO_CLINIC_ID).delete(),
@@ -95,6 +95,7 @@ export async function clearDemo(): Promise<void> {
       db.collaborators.where('clinicId').equals(DEMO_CLINIC_ID).delete(),
       db.collaboratorPayments.where('clinicId').equals(DEMO_CLINIC_ID).delete(),
       db.promotions.where('clinicId').equals(DEMO_CLINIC_ID).delete(),
+      db.quotes.where('clinicId').equals(DEMO_CLINIC_ID).delete(),
       // Anything the visitor created while exploring the demo is queued for push.
       // It must go with the data: once the demo session is gone, those items would
       // be retried forever against clinics/demo, which the real user cannot write.

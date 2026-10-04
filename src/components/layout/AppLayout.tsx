@@ -33,7 +33,7 @@ import {
   BarChart3, Settings, DollarSign, Stethoscope, Receipt,
   ClipboardList, ShoppingBag, Tag, Shield, Database, LogOut, ChevronDown,
   FlaskConical, PlayCircle, UserCircle, Loader2, CheckCircle2, Phone,
-  Wallet, Bell, FileSpreadsheet, MessageCircle,
+  Wallet, Bell, FileSpreadsheet, MessageCircle, FileText,
 } from 'lucide-react';
 import {
   Popover, PopoverContent, PopoverTrigger,
@@ -126,6 +126,7 @@ const menuItems: {
   { icon: Users,         label: 'Pacientes',     href: '/patients',     disponible: true,  modulo: 'patients', navId: 'nav-patients'  },
   { icon: Calendar,      label: 'Agenda',        href: '/schedule',        disponible: true,  modulo: 'schedule',    navId: 'nav-schedule'     },
   { icon: ShoppingBag,   label: 'Vender',        href: '/sales',        disponible: true,  modulo: 'sales'                            },
+  { icon: FileText,      label: 'Cotizaciones',  href: '/quotes',       disponible: true,  modulo: 'quotes'                           },
   { icon: Stethoscope,   label: 'Consultas',     href: '/consultations',     disponible: true,  modulo: 'consultations', navId: 'nav-consultations'  },
   { icon: Package,       label: 'Inventario',    href: '/inventory',    disponible: true,  modulo: 'inventory',navId: 'nav-inventory' },
   { icon: ClipboardList,    label: 'Servicios',        href: '/services',     disponible: true,  modulo: 'services'                         },

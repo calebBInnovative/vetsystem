@@ -31,6 +31,7 @@ const MODULOS: { key: AppModule; label: string }[] = [
   { key: 'schedule',     label: 'Agenda'       },
   { key: 'consultations',label: 'Consultas'    },
   { key: 'sales',        label: 'Ventas'       },
+  { key: 'quotes',       label: 'Cotizaciones' },
   { key: 'inventory',    label: 'Inventario'   },
   { key: 'finances',     label: 'Finanzas'     },
   { key: 'invoices',     label: 'Facturas'     },
@@ -40,7 +41,7 @@ const MODULOS: { key: AppModule; label: string }[] = [
 ];
 
 const DEFAULT_PERMISSIONS: Permissions = {
-  patients: true, schedule: true, consultations: true, sales: true,
+  patients: true, schedule: true, consultations: true, sales: true, quotes: true,
   inventory: false, finances: false, invoices: false, services: false,
   promotions: false, import: false,
 };

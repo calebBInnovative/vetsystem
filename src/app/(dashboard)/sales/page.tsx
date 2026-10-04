@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, getClinicaId } from '@/lib/db/database';
 import { createSale } from '@/hooks/useSales';
+import { createQuote } from '@/hooks/useQuotes';
 import { DescuentoInput } from '@/components/common/DiscountInput';
 import { PRODUCT_CATEGORIES, MEASUREMENT_UNITS, FRACTIONAL_UNITS, type ProductCategory, type MeasurementUnit, type ProductLocal } from '@/types/inventory';
 import { SALE_PAYMENT_METHODS, type SalePaymentMethod, type SaleItem } from '@/types/sale';
@@ -17,7 +18,7 @@ import { type PromotionLocal } from '@/types/promotion';
 import {
   Search, Plus, Minus, Trash2, ShoppingCart,
   CheckCircle2, X, Loader2, ChevronRight, Tag, ChevronDown,
-  LayoutList, LayoutGrid, Pencil,
+  LayoutList, LayoutGrid, Pencil, FileText,
 } from 'lucide-react';
 import { ExportMenu } from '@/components/common/ExportMenu';
 import { getSalesExportData } from '@/lib/export/modules';
@@ -349,6 +350,7 @@ export default function SalesPage() {
   const [notes,        setNotes]        = useState('');
   const [procesando,   setProcesando]   = useState(false);
   const [invoiceId,    setInvoiceId]    = useState('');
+  const [quoteNumber,  setQuoteNumber]  = useState('');
   const [catalogTab,     setCatalogTab]     = useState<'products' | 'services' | 'promos'>('products');
   const [catalogView,    setCatalogView]    = useState<CatalogView>('grid');
   const [receivedAmount,  setReceivedAmount]  = useState('');
@@ -524,6 +526,7 @@ export default function SalesPage() {
     setStep('cart');
     setView('products');
     setInvoiceId('');
+    setQuoteNumber('');
     setReceivedAmount('');
   }
 
@@ -583,23 +586,53 @@ export default function SalesPage() {
     });
   }
 
+  // ── Items del carrito ───────────────────────────────────────────────────────
+
+  function buildSaleItems(): SaleItem[] {
+    return cart.map((i) => ({
+      id:           crypto.randomUUID(),
+      productId:    i.itemType === 'service' ? undefined : i.productId,
+      serviceId:    i.serviceId,
+      description:  i.description,
+      quantity:     i.quantity,
+      unitPrice:    i.unitPrice,
+      itemDiscount: i.itemDiscount > 0 ? i.itemDiscount : undefined,
+      subtotal:     i.subtotal,
+      itemType:     i.itemType,
+    }));
+  }
+
+  // ── Guardar como cotización ─────────────────────────────────────────────────
+
+  async function handleCotizar() {
+    if (cart.length === 0 || procesando) return;
+    setProcesando(true);
+    try {
+      const items          = buildSaleItems();
+      const subtotalAmount = items.reduce((s, i) => s + i.subtotal, 0);
+      const quoteId = await createQuote({
+        items,
+        subtotal:  subtotalAmount,
+        discount:  discountN,
+        total:     Math.max(0, subtotalAmount - discountN),
+        patientId: patientId || undefined,
+        notes:     notes     || undefined,
+      });
+      const quote = await db.quotes.get(quoteId);
+      setQuoteNumber(quote?.number ?? '');
+      setStep('exito');
+    } finally {
+      setProcesando(false);
+    }
+  }
+
   // ── Cobrar ──────────────────────────────────────────────────────────────────
 
   async function handleCobrar() {
     if (cart.length === 0 || procesando) return;
     setProcesando(true);
     try {
-      const items: SaleItem[] = cart.map((i) => ({
-        id:           crypto.randomUUID(),
-        productId:    i.itemType === 'service' ? undefined : i.productId,
-        serviceId:    i.serviceId,
-        description:  i.description,
-        quantity:     i.quantity,
-        unitPrice:    i.unitPrice,
-        itemDiscount: i.itemDiscount > 0 ? i.itemDiscount : undefined,
-        subtotal:     i.subtotal,
-        itemType:     i.itemType,
-      }));
+      const items: SaleItem[] = buildSaleItems();
       const subtotalAmount = items.reduce((s, i) => s + i.subtotal, 0);
       const ventaId = await createSale({
         items,
@@ -621,6 +654,27 @@ export default function SalesPage() {
   // ── Panel carrito ────────────────────────────────────────────────────────────
 
   function PanelCarrito() {
+    if (step === 'exito' && quoteNumber) {
+      return (
+        <div className="flex flex-col items-center justify-center gap-4 py-8 text-center">
+          <FileText size={56} className="text-blue-500" />
+          <p className="text-xl font-bold">Cotización guardada</p>
+          <p className="text-sm text-muted-foreground">{quoteNumber} · {fmt(total)}</p>
+          <p className="text-xs text-muted-foreground max-w-[18rem]">
+            No afecta ventas ni inventario. Cuando el cliente acepte, conviértela en venta desde Cotizaciones.
+          </p>
+          <div className="flex flex-col gap-2 w-full mt-2">
+            <Button variant="outline" className="w-full gap-2" onClick={() => router.push('/quotes')}>
+              Ver cotizaciones
+            </Button>
+            <Button className="w-full" onClick={limpiarVenta}>
+              Nueva cotización
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
     if (step === 'exito') {
       return (
         <div className="flex flex-col items-center justify-center gap-4 py-8 text-center">
@@ -953,6 +1007,17 @@ export default function SalesPage() {
 
             <Button className="w-full gap-2 h-11 text-base" onClick={() => setStep('cobrar')}>
               Cobrar <ChevronRight size={16} />
+            </Button>
+
+            {/* Same cart, no transaction: hands the client a priced document */}
+            <Button
+              variant="outline"
+              className="w-full gap-2 h-10"
+              onClick={handleCotizar}
+              disabled={procesando || cart.length === 0}
+            >
+              {procesando ? <Loader2 size={14} className="animate-spin" /> : <FileText size={15} />}
+              Guardar cotización
             </Button>
 
             <button type="button" onClick={limpiarVenta}

@@ -8,7 +8,7 @@
  *   idle           → 0 reads (Firestore pushes changes to listeners)
  *   remote change  → 1 read per changed document, pushed by Firestore
  *   local mutation → 1 write (flush), 0 reads
- *   reconnect      → flush() only; listeners auto-reconnect
+ *   reconnect      → catch-up pull (from the stored cursor) + flush(); listeners auto-reconnect
  *
  * Retry model:
  *   Push failures use exponential backoff (30s→60s→120s→300s).
@@ -34,6 +34,17 @@ const BATCH_SIZE   = 20;
 // Fast at first (5 s, 15 s) so brief network blips resolve quickly, then slower.
 const RETRY_BACKOFF_MS = [5_000, 15_000, 30_000, 60_000, 300_000];
 
+// The pull cursor is a client clock value, but the backend filters on a
+// server-set timestamp. Rewind the cursor by this margin on every query so a
+// device clock that runs ahead of the server cannot skip documents.
+// Re-reading a few docs is harmless: upsertRemoteDocs ignores non-newer data.
+const CURSOR_SAFETY_MS = 5 * 60_000;
+
+function rewindCursor(cursor: number): number {
+  // 0 means "never pulled" — keep it so providers can run their full-fetch path.
+  return cursor > 0 ? Math.max(1, cursor - CURSOR_SAFETY_MS) : 0;
+}
+
 const TABLAS_SYNC = [
   { nombre: 'owners',               tabla: () => db.owners               },
   { nombre: 'patients',             tabla: () => db.patients             },
@@ -50,6 +61,7 @@ const TABLAS_SYNC = [
   { nombre: 'collaborators',        tabla: () => db.collaborators        },
   { nombre: 'collaboratorPayments', tabla: () => db.collaboratorPayments },
   { nombre: 'promotions',           tabla: () => db.promotions           },
+  { nombre: 'quotes',               tabla: () => db.quotes               },
 ] as const;
 
 export type SyncAllProgress = {
@@ -85,6 +97,8 @@ async function upsertRemoteDocs(nombre: string, remoteDocs: RemoteDoc[]): Promis
 
 class SyncService {
   private corriendo     = false;
+  private flushRequested = false;
+  private started       = false;
   private pulling       = false;
   private hookReg       = false;
   private unsubscribers: (() => void)[] = [];
@@ -94,7 +108,10 @@ class SyncService {
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   async start(): Promise<void> {
-    if (this.unsubscribers.length > 0) return;
+    // Guard against concurrent start() calls (e.g. React StrictMode double
+    // effects) which would otherwise open duplicate listeners.
+    if (this.started) return;
+    this.started = true;
 
     if (!this.hookReg) {
       db.syncQueue.hook('creating', () => {
@@ -109,10 +126,12 @@ class SyncService {
 
     const cursor = await this.pullAll();
     await this.flushWithReset();
+    if (!this.started) return; // stop() was called while we were pulling
     await this.subscribeAll(cursor);
   }
 
   stop(): void {
+    this.started = false;
     this.unsubscribers.forEach((u) => u());
     this.unsubscribers = [];
     window.removeEventListener('online',            this.onOnline);
@@ -124,10 +143,16 @@ class SyncService {
   // ── Event handlers ────────────────────────────────────────────────────────
 
   private onOnline = () => {
-    console.log('[sync] network online — flushing');
+    console.log('[sync] network online — catch-up pull + flush');
     this.retryAttempt = 0;
     this.cancelRetry();
-    this.flushWithReset().catch(() => undefined);
+    // If the app started offline (or the initial pull failed), remote changes
+    // made before the listeners opened were never fetched. Pull from the stored
+    // cursor to close that gap, then push local changes.
+    this.pullAll()
+      .catch(() => undefined)
+      .then(() => this.flushWithReset())
+      .catch(() => undefined);
   };
 
   private onVisibility = () => {
@@ -184,81 +209,101 @@ class SyncService {
   // ── Flush (push local syncQueue → Firestore) ─────────────────────────────
 
   async flush(): Promise<void> {
-    if (this.corriendo || !navigator.onLine) return;
+    if (this.corriendo) {
+      // A flush is already running — remember to run again once it finishes so
+      // items enqueued mid-flush are not left waiting for the next event.
+      this.flushRequested = true;
+      return;
+    }
+    if (!navigator.onLine) return;
     const session = await db.session.get('singleton');
     if (!session || session.isDemo) return;
     this.corriendo = true;
 
     try {
-      const pendientes = await db.syncQueue
-        .where('attempts').below(MAX_INTENTOS)
-        .limit(BATCH_SIZE)
-        .sortBy('createdAt');
-
-      if (pendientes.length > 0) {
-        console.log(`[sync] flush — pushing ${pendientes.length} item(s)`);
-      }
-
       let hadFailure = false;
-      for (const item of pendientes) {
-        // Prefer clinicId from the payload; fall back to looking it up from the
-        // actual Dexie record (important for update/delete ops that omit clinicId
-        // in their partial payload). Only use the session as a last resort.
-        let itemClinicId = (item.data as Record<string, unknown>).clinicId as string | undefined;
-        const tableEntry = TABLAS_SYNC.find((t) => t.nombre === item.collection);
-        if (!itemClinicId) {
-          type Rec = { clinicId?: string } | undefined;
-          if (tableEntry) {
-            const record = await (tableEntry.tabla() as unknown as { get(id: string): Promise<Rec> })
-              .get(item.documentId);
-            itemClinicId = record?.clinicId;
-            // Known collection, partial payload, and the row is physically gone:
-            // only clearDemo() removes rows outright (real deletes are soft), so
-            // this item belongs to data that no longer exists. Nothing can resolve
-            // its owner, and pushing it under the current session would leak a
-            // foreign record into this clinic.
-            if (!itemClinicId) {
-              console.warn(
-                `[sync] dropping ${item.collection}/${item.documentId} — local record gone, owner unknown`,
+
+      // Drain the queue in batches until it is empty, a push fails (then the
+      // backoff takes over), or nothing new was requested.
+      for (;;) {
+        this.flushRequested = false;
+
+        // Oldest first: order by the createdAt index, then limit.
+        const pendientes = await db.syncQueue
+          .orderBy('createdAt')
+          .filter((i) => i.attempts < MAX_INTENTOS)
+          .limit(BATCH_SIZE)
+          .toArray();
+
+        if (pendientes.length > 0) {
+          console.log(`[sync] flush — pushing ${pendientes.length} item(s)`);
+        }
+
+        for (const item of pendientes) {
+          // Prefer clinicId from the payload; fall back to looking it up from the
+          // actual Dexie record (important for update/delete ops that omit clinicId
+          // in their partial payload). Only use the session as a last resort.
+          let itemClinicId = (item.data as Record<string, unknown>).clinicId as string | undefined;
+          const tableEntry = TABLAS_SYNC.find((t) => t.nombre === item.collection);
+          if (!itemClinicId) {
+            type Rec = { clinicId?: string } | undefined;
+            if (tableEntry) {
+              const record = await (tableEntry.tabla() as unknown as { get(id: string): Promise<Rec> })
+                .get(item.documentId);
+              itemClinicId = record?.clinicId;
+              // Known collection, partial payload, and the row is physically gone:
+              // only clearDemo() removes rows outright (real deletes are soft), so
+              // this item belongs to data that no longer exists. Nothing can resolve
+              // its owner, and pushing it under the current session would leak a
+              // foreign record into this clinic.
+              if (!itemClinicId) {
+                console.warn(
+                  `[sync] dropping ${item.collection}/${item.documentId} — local record gone, owner unknown`,
+                );
+                await db.syncQueue.delete(item.id!);
+                continue;
+              }
+            }
+          }
+          itemClinicId ??= session.clinicId;
+
+          // Dead letter: an item addressed to another clinic can never succeed —
+          // the rules deny it, so retrying only loops forever and hides real sync
+          // failures behind a permanent "unsynced data" warning.
+          if (itemClinicId !== session.clinicId) {
+            console.warn(
+              `[sync] dropping ${item.collection}/${item.documentId} — belongs to clinic "${itemClinicId}", session is "${session.clinicId}"`,
+            );
+            await db.syncQueue.delete(item.id!);
+            continue;
+          }
+
+          try {
+            await syncProvider.push(item.collection, item.documentId, item.data, itemClinicId);
+            await db.syncQueue.delete(item.id!);
+            this.retryAttempt = 0;
+          } catch (err) {
+            hadFailure = true;
+            const errMsg = err instanceof Error ? err.message : String(err);
+            console.warn(`[sync] push failed ${item.collection}/${item.documentId}:`, errMsg);
+
+            const newAttempts = item.attempts + 1;
+            await db.syncQueue.update(item.id!, { attempts: newAttempts, lastError: errMsg });
+
+            // Notify user when an item officially gets stuck (hits the attempt ceiling)
+            if (newAttempts >= MAX_INTENTOS) {
+              toast.error(
+                'Datos sin sincronizar. Revisa tu conexión o ve a Admin → Sync.',
+                { id: 'sync-stuck', duration: 10_000 },
               );
-              await db.syncQueue.delete(item.id!);
-              continue;
             }
           }
         }
-        itemClinicId ??= session.clinicId;
 
-        // Dead letter: an item addressed to another clinic can never succeed —
-        // the rules deny it, so retrying only loops forever and hides real sync
-        // failures behind a permanent "unsynced data" warning.
-        if (itemClinicId !== session.clinicId) {
-          console.warn(
-            `[sync] dropping ${item.collection}/${item.documentId} — belongs to clinic "${itemClinicId}", session is "${session.clinicId}"`,
-          );
-          await db.syncQueue.delete(item.id!);
-          continue;
-        }
-
-        try {
-          await syncProvider.push(item.collection, item.documentId, item.data, itemClinicId);
-          await db.syncQueue.delete(item.id!);
-          this.retryAttempt = 0;
-        } catch (err) {
-          hadFailure = true;
-          const errMsg = err instanceof Error ? err.message : String(err);
-          console.warn(`[sync] push failed ${item.collection}/${item.documentId}:`, errMsg);
-
-          const newAttempts = item.attempts + 1;
-          await db.syncQueue.update(item.id!, { attempts: newAttempts, lastError: errMsg });
-
-          // Notify user when an item officially gets stuck (hits the attempt ceiling)
-          if (newAttempts >= MAX_INTENTOS) {
-            toast.error(
-              'Datos sin sincronizar. Revisa tu conexión o ve a Admin → Sync.',
-              { id: 'sync-stuck', duration: 10_000 },
-            );
-          }
-        }
+        // Stop on failure (backoff retries later) or when offline; otherwise keep
+        // going while the batch was full or new items arrived mid-flush.
+        if (hadFailure || !navigator.onLine) break;
+        if (pendientes.length < BATCH_SIZE && !this.flushRequested) break;
       }
 
       // Schedule a retry if there are already-stuck items not in the current batch
@@ -280,9 +325,10 @@ class SyncService {
     const session = await db.session.get('singleton');
     if (!session || session.isDemo) return;
     const { clinicId } = session;
+    const from = rewindCursor(since);
 
     for (const { nombre } of TABLAS_SYNC) {
-      this.openSubscription(nombre, clinicId, since);
+      this.openSubscription(nombre, clinicId, from);
     }
 
     console.log(`[sync] ${TABLAS_SYNC.length} subscriptions open (since ${new Date(since).toISOString()})`);
@@ -307,10 +353,12 @@ class SyncService {
         console.warn(`[sync] subscription ${nombre} failed — will reopen:`, err.message);
         const idx = this.unsubscribers.indexOf(unsub);
         if (idx !== -1) this.unsubscribers.splice(idx, 1);
-        if (this.unsubscribers.length > 0) {
-          // Still active (not stopped) — reopen in 10 s
-          setTimeout(() => this.openSubscription(nombre, clinicId, since), 10_000);
-        }
+        // Reopen in 10 s unless the service was stopped. Checking `started`
+        // (not unsubscribers.length) so a listener still reopens when every
+        // subscription fails at once, e.g. on auth token expiry.
+        setTimeout(() => {
+          if (this.started) this.openSubscription(nombre, clinicId, since);
+        }, 10_000);
       },
     );
     this.unsubscribers.push(unsub);
@@ -344,7 +392,7 @@ class SyncService {
     try {
       for (const { nombre } of TABLAS_SYNC) {
         try {
-          const docs = await syncProvider.pull(nombre, lastPull, clinicId);
+          const docs = await syncProvider.pull(nombre, rewindCursor(lastPull), clinicId);
           totalReads += 1 + docs.length;
           if (docs.length > 0) {
             console.log(`[sync] pull ${nombre} — ${docs.length} doc(s)`);
@@ -439,7 +487,13 @@ class SyncService {
       const mensajesError: string[] = [];
 
       for (const doc of docs) {
-        const docClinicId = (doc as { clinicId?: string }).clinicId ?? '';
+        const docClinicId = (doc as { clinicId?: string }).clinicId;
+        if (!docClinicId) {
+          errores++;
+          const msg = 'Registro sin clinicId — omitido';
+          if (!mensajesError.includes(msg)) mensajesError.push(msg);
+          continue;
+        }
         try {
           await syncProvider.push(nombre, (doc as { id: string }).id, doc, docClinicId);
           enviados++;

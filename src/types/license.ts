@@ -16,6 +16,7 @@ export type AppModule =
   | 'schedule'
   | 'consultations'
   | 'sales'
+  | 'quotes'
   | 'inventory'
   | 'finances'
   | 'invoices'

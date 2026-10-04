@@ -63,7 +63,7 @@ export class UserNotFoundError extends Error {
 
 // Default permissions for staff users whose Firestore doc is missing the permissions field
 const DEFAULT_STAFF_PERMISSIONS: Permissions = {
-  patients: true, schedule: true, consultations: true, sales: true,
+  patients: true, schedule: true, consultations: true, sales: true, quotes: true,
   inventory: false, finances: false, invoices: false, services: false,
   promotions: false, import: false,
 };
