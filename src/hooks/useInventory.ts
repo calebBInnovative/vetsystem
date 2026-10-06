@@ -42,6 +42,67 @@ export function useProducts(search = '', category?: ProductCategory) {
   };
 }
 
+/**
+ * Stock valuation: how much capital is tied up in inventory, what it is worth
+ * at sale price, and the gap between the two.
+ *
+ * costPrice is optional on a product, so a product without it is counted in
+ * `missingCost` instead of being silently valued at zero — otherwise the total
+ * reads as precise while being short by however much is missing.
+ */
+export function useInventoryValuation() {
+  const result = useLiveQuery(async () => {
+    const clinicId = await getClinicaId();
+    const products = await db.products
+      .where('clinicId')
+      .equals(clinicId)
+      .filter((p) => !p.deletedAt && p.active)
+      .toArray();
+
+    let totalCost = 0;
+    let totalSale = 0;
+    const missingCost: ProductLocal[] = [];
+    const byCategory = new Map<string, { cost: number; sale: number; units: number; products: number }>();
+
+    for (const p of products) {
+      const units = p.currentStock ?? 0;
+      const cost  = (p.costPrice ?? 0) * units;
+      const sale  = (p.salePrice ?? 0) * units;
+
+      totalCost += cost;
+      totalSale += sale;
+
+      // Only stock on hand can be mis-valued; a product at zero stock adds nothing
+      if (p.costPrice === undefined && units > 0) missingCost.push(p);
+
+      const key = p.category ?? 'other';
+      const acc = byCategory.get(key) ?? { cost: 0, sale: 0, units: 0, products: 0 };
+      acc.cost     += cost;
+      acc.sale     += sale;
+      acc.units    += units;
+      acc.products += 1;
+      byCategory.set(key, acc);
+    }
+
+    const potentialProfit = totalSale - totalCost;
+
+    return {
+      totalCost,
+      totalSale,
+      potentialProfit,
+      /** Margin over sale price; null when there is nothing to value */
+      marginPct: totalSale > 0 ? (potentialProfit / totalSale) * 100 : null,
+      missingCost,
+      productCount: products.length,
+      byCategory: [...byCategory.entries()]
+        .map(([category, v]) => ({ category, ...v }))
+        .sort((a, b) => b.cost - a.cost),
+    };
+  }, []);
+
+  return { valuation: result, loading: result === undefined };
+}
+
 /** Products at or below minimum stock */
 export function useStockAlerts() {
   const result = useLiveQuery(async () => {

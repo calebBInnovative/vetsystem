@@ -3,14 +3,15 @@
 import { useState, useMemo } from 'react';
 import { format, subDays, subMonths, startOfMonth, endOfMonth, startOfYear, endOfYear, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter } from 'date-fns';
 import { useReportData } from '@/hooks/useReports';
+import { useInventoryValuation } from '@/hooks/useInventory';
 import { openPdfReport, printPdfReport } from '@/lib/reports/exportPdf';
 import { downloadCsv } from '@/lib/reports/exportCsv';
-import { PRODUCT_CATEGORIES } from '@/types/inventory';
+import { PRODUCT_CATEGORIES, type ProductCategory } from '@/types/inventory';
 import { SERVICE_CATEGORIES } from '@/types/service';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import {
-  FileText, Printer, Sheet, ShoppingBag, Stethoscope, CreditCard, ListCollapse,
+  FileText, Printer, Sheet, ShoppingBag, Stethoscope, CreditCard, ListCollapse, Package,
   CalendarDays, ChevronDown, ChevronUp, Wallet, Lightbulb,
 } from 'lucide-react';
 import { EXPENSE_CATEGORIES } from '@/types/expense';
@@ -98,6 +99,84 @@ function SectionHeader({ icon, title, count }: { icon: React.ReactNode; title: s
         <span className="ml-auto text-xs text-muted-foreground">{count} registros</span>
       )}
     </div>
+  );
+}
+
+// ─── Inventory valuation ──────────────────────────────────────────────────────
+
+/**
+ * What the stock on hand is worth, broken down by category — the answer to
+ * "where is my money sleeping". Independent of the selected period on purpose:
+ * it is a snapshot of today's stock, not a flow between two dates.
+ */
+function InventoryValuationSection() {
+  const { valuation, loading } = useInventoryValuation();
+
+  return (
+    <CollapsibleSection
+      title="Capital en inventario"
+      icon={<Package size={13} />}
+      defaultOpen={false}
+    >
+      {loading ? (
+        <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-8" />)}</div>
+      ) : !valuation || valuation.productCount === 0 ? (
+        <p className="text-sm text-muted-foreground py-2">Sin productos activos en inventario.</p>
+      ) : (
+        <div className="space-y-4">
+          <p className="text-xs text-muted-foreground">
+            Stock actual, no depende del período seleccionado.
+            {valuation.missingCost.length > 0 && (
+              <span className="text-amber-600 dark:text-amber-400">
+                {' '}· {valuation.missingCost.length} producto{valuation.missingCost.length !== 1 ? 's' : ''} sin
+                costo cargado, el capital real es mayor.
+              </span>
+            )}
+          </p>
+
+          <div className="grid grid-cols-3 gap-3">
+            <KpiCard label="Invertido" value={fmtCurrency(valuation.totalCost)} sub="costo del stock" />
+            <KpiCard label="Valor de venta" value={fmtCurrency(valuation.totalSale)} sub="si se vende todo" />
+            <KpiCard
+              label="Ganancia potencial"
+              value={fmtCurrency(valuation.potentialProfit)}
+              sub={valuation.marginPct !== null ? `margen ${valuation.marginPct.toFixed(0)}%` : undefined}
+              positive={valuation.potentialProfit >= 0}
+            />
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs text-muted-foreground border-b border-border">
+                  <th className="text-left  py-2 px-3 font-medium">Categoría</th>
+                  <th className="text-right py-2 px-3 font-medium">Productos</th>
+                  <th className="text-right py-2 px-3 font-medium">Unidades</th>
+                  <th className="text-right py-2 px-3 font-medium">Invertido</th>
+                  <th className="text-right py-2 px-3 font-medium">% del capital</th>
+                </tr>
+              </thead>
+              <tbody>
+                {valuation.byCategory.map((row) => {
+                  const pct = valuation.totalCost > 0 ? (row.cost / valuation.totalCost) * 100 : 0;
+                  return (
+                    <tr key={row.category} className="border-b border-border/50 last:border-0">
+                      <td className="py-2 px-3">
+                        {PRODUCT_CATEGORIES[row.category as ProductCategory]?.label ?? row.category}
+                      </td>
+                      <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">{row.products}</td>
+                      <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">{row.units}</td>
+                      <td className="py-2 px-3 text-right tabular-nums font-medium">{fmtCurrency(row.cost)}</td>
+                      <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">{pct.toFixed(0)}%</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </CollapsibleSection>
   );
 }
 
@@ -565,6 +644,11 @@ export default function ReportsPage() {
           </div>
         </CollapsibleSection>
       )}
+
+      {/* ── Inventory valuation ─────────────────────────────────────
+          Stock on hand is an asset, not income or expense of the period, so it
+          sits in its own section and is never mixed into the range totals. */}
+      <InventoryValuationSection />
 
       {/* ── Products ───────────────────────────────────────────────── */}
       <CollapsibleSection title={`Productos vendidos (${report?.productStats.length ?? 0})`} icon={<ShoppingBag size={13} />}>

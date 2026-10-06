@@ -9,6 +9,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { AlertasStock } from '@/components/inventory/StockAlerts';
+import { InventoryValuation } from '@/components/inventory/InventoryValuation';
 import { BuscadorPacientes } from '@/components/patients/PatientSearch';
 import { Button } from '@/components/ui/button';
 import {
@@ -361,6 +362,8 @@ export default function InventoryPage() {
       {!editMode && (
         <>
           <AlertasStock />
+
+          <InventoryValuation />
 
           <BuscadorPacientes
             onBuscar={setSearchQuery}
