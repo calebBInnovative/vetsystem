@@ -4,6 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, getClinicaId, type SyncQueueItem } from '@/lib/db/database';
 import type { SaleLocal, SaleItem, SalePaymentMethod } from '@/types/sale';
 import type { InvoiceLocal, InvoiceItem } from '@/types/invoice';
+import type { PaymentLocal } from '@/types/finances';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // READ HOOKS
@@ -146,7 +147,11 @@ export async function createSale(input: CreateSaleInput): Promise<string> {
           ? ('other' as const)
           : input.paymentMethod;
 
-        await db.payments.add({
+        // Push the whole record, never a subset: a create payload without
+        // clinicId reaches other devices as a payment that belongs to no clinic,
+        // so every clinicId-filtered query skips it and the finance totals read
+        // zero on any device that did not make the sale.
+        const payment: PaymentLocal = {
           id:            paymentId,
           patientId:     input.patientId ?? 'anonymous',
           clinicId,
@@ -160,8 +165,9 @@ export async function createSale(input: CreateSaleInput): Promise<string> {
           createdAt:     now,
           syncStatus:    'pending',
           updatedAt:     now,
-        });
-        await enqueueSync({ collection: 'payments', documentId: paymentId, operation: 'create', data: { id: paymentId, paymentMethod, amount: input.total, status: 'paid', date, updatedAt: now }, attempts: 0, createdAt: now });
+        };
+        await db.payments.add(payment);
+        await enqueueSync({ collection: 'payments', documentId: paymentId, operation: 'create', data: payment, attempts: 0, createdAt: now });
 
         await db.sales.update(id, { paymentId, invoiceId });
         await db.invoices.update(invoiceId, { paymentId });

@@ -74,7 +74,7 @@ export type SyncAllProgress = {
 
 // ─── Dexie upsert helper ──────────────────────────────────────────────────────
 
-async function upsertRemoteDocs(nombre: string, remoteDocs: RemoteDoc[]): Promise<void> {
+async function upsertRemoteDocs(nombre: string, remoteDocs: RemoteDoc[], clinicId: string): Promise<void> {
   if (remoteDocs.length === 0) return;
 
   type LocalTable = {
@@ -86,6 +86,11 @@ async function upsertRemoteDocs(nombre: string, remoteDocs: RemoteDoc[]): Promis
   for (const remoteDoc of remoteDocs) {
     const { _syncedAt, ...clean } = remoteDoc as Record<string, unknown>;
     void _syncedAt;
+    // The document came from clinics/{clinicId}/..., so its owner is known even
+    // when the field is absent. Records pushed with a partial payload arrive
+    // without it, and a row with no clinicId is invisible to every query in the
+    // app, so stamp it here rather than store an unusable record.
+    if (!clean.clinicId) clean.clinicId = clinicId;
     const local = await t.get(clean.id as string);
     if (!local || (clean.updatedAt as number) > local.updatedAt) {
       await t.put({ ...clean, syncStatus: 'synced' });
@@ -342,7 +347,7 @@ class SyncService {
       async (docs) => {
         console.log(`[sync] realtime — ${docs.length} doc(s) from ${nombre}`);
         try {
-          await upsertRemoteDocs(nombre, docs);
+          await upsertRemoteDocs(nombre, docs, clinicId);
         } catch (err) {
           console.error(`[sync] realtime upsert ${nombre}:`, err);
         }
@@ -396,7 +401,7 @@ class SyncService {
           totalReads += 1 + docs.length;
           if (docs.length > 0) {
             console.log(`[sync] pull ${nombre} — ${docs.length} doc(s)`);
-            await upsertRemoteDocs(nombre, docs);
+            await upsertRemoteDocs(nombre, docs, clinicId);
           }
         } catch (err) {
           pullErrored = true;
@@ -440,7 +445,7 @@ class SyncService {
         const docs = await syncProvider.pull(nombre, 0, clinicId);
         if (docs.length > 0) {
           console.log(`[sync] forcePull ${nombre} — ${docs.length} doc(s)`);
-          await upsertRemoteDocs(nombre, docs);
+          await upsertRemoteDocs(nombre, docs, clinicId);
           docsWritten += docs.length;
         }
       } catch (err) {

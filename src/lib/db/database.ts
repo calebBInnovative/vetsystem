@@ -382,9 +382,57 @@ class VetSystemDB extends Dexie {
       syncQueue:            '++id, collection, documentId, createdAt, attempts',
     }).upgrade(() => {});
 
-    // v23: quotes module
+    // v24: quotes module
     this.version(24).stores({
       quotes: 'id, number, clinicId, date, status, patientId, syncStatus, updatedAt, deletedAt',
+    });
+
+    // v26: full consolidated schema again (so bump-db-version.mjs keeps hashing
+    // the real schema), plus a data repair.
+    //
+    // Sales used to push their generated payment as a subset of fields, without
+    // clinicId. Any device that pulled those payments stored rows that no
+    // clinicId-filtered query can see, so the finance cards read zero while the
+    // data sat right there in IndexedDB. The incremental pull will never send
+    // those documents again, so the rows are fixed in place here. Every row in
+    // this database belongs to the session's clinic by definition.
+    this.version(26).stores({
+      patients:             'id, name, species, ownerId, clinicId, active, syncStatus, updatedAt, deletedAt',
+      owners:               'id, name, phone, clinicId, syncStatus, updatedAt',
+      consultations:        'id, patientId, ownerId, clinicId, date, type, status, appointmentId, syncStatus, updatedAt, deletedAt',
+      appointments:         'id, patientId, ownerId, clinicId, date, status, type, syncStatus, updatedAt, deletedAt',
+      products:             'id, name, category, clinicId, active, currentStock, syncStatus, updatedAt, deletedAt',
+      movements:            'id, productId, clinicId, type, createdAt, syncStatus, updatedAt',
+      payments:             'id, patientId, clinicId, date, type, status, paymentMethod, syncStatus, updatedAt, deletedAt',
+      invoices:             'id, number, consultationId, patientId, ownerId, clinicId, date, status, syncStatus, updatedAt, deletedAt',
+      services:             'id, clinicId, category, active, syncStatus, updatedAt, deletedAt',
+      sales:                'id, clinicId, date, status, patientId, syncStatus, updatedAt, deletedAt',
+      session:              'id, uid, clinicId',
+      fixedExpenses:        'id, clinicId, nextDueDate, active, syncStatus, updatedAt, deletedAt',
+      expensePayments:      'id, clinicId, fixedExpenseId, paymentDate, syncStatus, updatedAt',
+      collaborators:        'id, clinicId, nextPaymentDate, active, syncStatus, updatedAt, deletedAt',
+      collaboratorPayments: 'id, clinicId, collaboratorId, paymentDate, syncStatus, updatedAt',
+      promotions:           'id, clinicId, active, validFrom, validUntil, syncStatus, updatedAt, deletedAt',
+      quotes:               'id, number, clinicId, date, status, patientId, syncStatus, updatedAt, deletedAt',
+      syncQueue:            '++id, collection, documentId, createdAt, attempts',
+    }).upgrade(async (tx) => {
+      const session  = await tx.table('session').get('singleton');
+      const clinicId = session?.clinicId;
+      if (!clinicId) return;
+
+      const tables = [
+        'payments', 'invoices', 'sales', 'patients', 'owners', 'consultations',
+        'appointments', 'products', 'movements', 'services', 'fixedExpenses',
+        'expensePayments', 'collaborators', 'collaboratorPayments', 'promotions',
+        'quotes',
+      ];
+      let repaired = 0;
+      for (const name of tables) {
+        await tx.table(name).toCollection().modify((row: { clinicId?: string }) => {
+          if (!row.clinicId) { row.clinicId = clinicId; repaired++; }
+        });
+      }
+      if (repaired > 0) console.log(`[DB] v26: stamped clinicId on ${repaired} orphaned row(s)`);
     });
   }
 }

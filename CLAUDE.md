@@ -204,7 +204,7 @@ Demo mode is a fully isolated, no-Firebase sandbox:
 
 ## 9. Database Schema (Dexie)
 
-Current version: **23**. Schema is in `src/lib/db/database.ts`.
+Current version: **26**. Schema is in `src/lib/db/database.ts`.
 
 Tables and their primary key + indexed fields:
 ```
