@@ -13,8 +13,8 @@ import { VetSystemIcon, VetSystemWordmark, PAW_BG_WHITE, PAW_BG_TEAL } from '@/c
 // ─── Navbar ──────────────────────────────────────────────────────────────────
 
 function Navbar() {
-  const [scrolled,  setScrolled]  = useState(false);
-  const [menuOpen,  setMenuOpen]  = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 10);
@@ -23,9 +23,8 @@ function Navbar() {
   }, []);
 
   return (
-    <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${
-      scrolled ? 'bg-background/80 backdrop-blur-md shadow-sm border-b border-border' : 'bg-transparent'
-    }`}>
+    <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? 'bg-background/80 backdrop-blur-md shadow-sm border-b border-border' : 'bg-transparent'
+      }`}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
 
         <Link href="/landing" className="flex items-center gap-2.5">
@@ -35,9 +34,9 @@ function Navbar() {
 
         <nav className="hidden md:flex items-center gap-7 text-sm font-medium text-muted-foreground">
           <a href="#beneficios" className="hover:text-foreground transition-colors">Beneficios</a>
-          <a href="#demo"       className="hover:text-foreground transition-colors">El sistema</a>
-          <a href="#precios"    className="hover:text-foreground transition-colors">Precios</a>
-          <a href="#contacto"   className="hover:text-foreground transition-colors">Contacto</a>
+          <a href="#demo" className="hover:text-foreground transition-colors">El sistema</a>
+          <a href="#precios" className="hover:text-foreground transition-colors">Precios</a>
+          <a href="#contacto" className="hover:text-foreground transition-colors">Contacto</a>
         </nav>
 
         <div className="hidden md:flex items-center gap-2">
@@ -102,10 +101,9 @@ function DashboardMockup() {
         <div className="flex h-64">
           {/* Sidebar mock */}
           <div className="w-14 bg-[rgb(13,78,70)] flex flex-col items-center py-3 gap-3 shrink-0">
-            {['H','P','C','V','F'].map((l, i) => (
-              <div key={i} className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold ${
-                i === 0 ? 'bg-white/20 text-white' : 'text-white/50'
-              }`}>{l}</div>
+            {['H', 'P', 'C', 'V', 'F'].map((l, i) => (
+              <div key={i} className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold ${i === 0 ? 'bg-white/20 text-white' : 'text-white/50'
+                }`}>{l}</div>
             ))}
           </div>
 
@@ -124,8 +122,8 @@ function DashboardMockup() {
               <p className="text-[10px] font-semibold text-muted-foreground mb-1.5">Citas del día</p>
               {[
                 ['Luna', 'Golden R.', '9:00', 'Consultation'],
-                ['Mochi', 'Persa',    '10:30','Vacuna'],
-                ['Rex',  'Pastor A.','11:00','Control'],
+                ['Mochi', 'Persa', '10:30', 'Vacuna'],
+                ['Rex', 'Pastor A.', '11:00', 'Control'],
               ].map(([name, breed, time, type]) => (
                 <div key={name} className="flex items-center gap-2 py-1 border-b border-border/50 last:border-0">
                   <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[9px] font-bold text-primary shrink-0">
@@ -164,13 +162,13 @@ function Hero() {
             </div>
 
             <h1 className="text-4xl sm:text-5xl font-extrabold leading-tight tracking-tight">
-              El sistema veterinario que{' '}
+              El sistema veterinario todo en uno que{' '}
               <span className="text-primary">Nicaragua</span>{' '}
               estaba esperando
             </h1>
 
             <p className="text-lg text-muted-foreground leading-relaxed max-w-md">
-              Gestiona patients, appointments, inventario y cobros — aunque no tengas internet.
+              Gestiona pacientes, citas, inventario y cobros — aunque no tengas internet.
               Simple, rápido y diseñado para la realidad de nuestras clínicas.
             </p>
 
@@ -187,7 +185,7 @@ function Hero() {
             </div>
 
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
-              {['Sin tarjeta de crédito', '14 días de prueba gratis', 'Cancela cuando quieras'].map((t) => (
+              {['14 días de prueba gratis', 'Cancela cuando quieras'].map((t) => (
                 <span key={t} className="flex items-center gap-1.5">
                   <Check size={13} className="text-primary" />
                   {t}
@@ -210,27 +208,27 @@ function Hero() {
 const beneficios = [
   {
     icon: WifiOff,
-    titulo: 'Funciona 100% sin internet',
-    desc:   'Atiende patients, registra consultations y cobra aunque se vaya la luz o el internet. Todo se sincroniza automáticamente cuando vuelve la conexión.',
-    color:  'bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400',
+    titulo: 'Permite funcionar sin internet',
+    desc: 'Atiende patients, registra consultas y cobra aunque se vaya la luz o el internet. Todo se sincroniza automáticamente cuando vuelve la conexión.',
+    color: 'bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400',
   },
   {
     icon: FileText,
     titulo: 'Historial clínico completo',
-    desc:   'Pacientes, consultations, vacunas, diagnósticos y recetas en un solo lugar. Encuentra todo en segundos.',
-    color:  'bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400',
+    desc: 'Pacientes, consultas, vacunas, diagnósticos y recetas en un solo lugar. Encuentra todo en segundos.',
+    color: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400',
   },
   {
     icon: Package,
-    titulo: 'Inventario con alerts',
-    desc:   'Controla tu stock de medicamentos y products. Recibe alerts antes de quedarte sin lo esencial.',
-    color:  'bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-400',
+    titulo: 'Inventario con alertas',
+    desc: 'Controla tu stock de medicamentos y productos. Recibe alertas antes de quedarte sin lo esencial.',
+    color: 'bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-400',
   },
   {
     icon: Receipt,
     titulo: 'Facturación instantánea',
-    desc:   'Genera invoices desde la misma consulta. Lleva el control de cobros pendientes y pagados sin planillas.',
-    color:  'bg-purple-50 text-purple-600 dark:bg-purple-950 dark:text-purple-400',
+    desc: 'Genera facturas desde la misma consulta. Lleva el control de cobros pendientes y pagados sin planillas.',
+    color: 'bg-purple-50 text-purple-600 dark:bg-purple-950 dark:text-purple-400',
   },
 ];
 
@@ -300,11 +298,11 @@ function PacienteMockup() {
 }
 
 function AgendaMockup() {
-  const appointments = [
-    { hora: '08:00', nombre: 'Mochi',   tipo: 'Vacuna',    estado: 'Atendida', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400' },
-    { hora: '09:30', nombre: 'Rex',     tipo: 'Control',   estado: 'En curso', color: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400' },
-    { hora: '10:00', nombre: 'Simba',   tipo: 'Consultation',  estado: 'Espera',   color: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400' },
-    { hora: '11:30', nombre: 'Canela',  tipo: 'Revisión',  estado: 'Espera',   color: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400' },
+  const citas = [
+    { hora: '08:00', nombre: 'Mochi', tipo: 'Vacuna', estado: 'Atendida', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400' },
+    { hora: '09:30', nombre: 'Rex', tipo: 'Control', estado: 'En curso', color: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400' },
+    { hora: '10:00', nombre: 'Simba', tipo: 'Consultation', estado: 'Espera', color: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400' },
+    { hora: '11:30', nombre: 'Canela', tipo: 'Revisión', estado: 'Espera', color: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400' },
   ];
   return (
     <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
@@ -316,7 +314,7 @@ function AgendaMockup() {
         <span className="text-xs text-muted-foreground">24 jun 2026</span>
       </div>
       <div className="p-3 space-y-1.5">
-        {appointments.map(({ hora, nombre, tipo, estado, color }) => (
+        {citas.map(({ hora, nombre, tipo, estado, color }) => (
           <div key={hora} className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-muted/40 transition-colors">
             <span className="text-xs font-mono text-muted-foreground w-10 shrink-0">{hora}</span>
             <div className="flex-1 min-w-0">
@@ -335,9 +333,9 @@ function AgendaMockup() {
 
 function FacturaMockup() {
   const items = [
-    { desc: 'Consulta general',   qty: 1, precio: 350 },
+    { desc: 'Consulta general', qty: 1, precio: 350 },
     { desc: 'Vacuna antirrábica', qty: 1, precio: 280 },
-    { desc: 'Desparasitante',     qty: 2, precio: 85  },
+    { desc: 'Desparasitante', qty: 2, precio: 85 },
   ];
   const subtotal = items.reduce((s, i) => s + i.precio * i.qty, 0);
   return (
@@ -384,8 +382,8 @@ function Demo() {
 
   const tabs = [
     { id: 'paciente', label: 'Ficha clínica' },
-    { id: 'agenda',   label: 'Agenda'        },
-    { id: 'factura',  label: 'Facturación'   },
+    { id: 'agenda', label: 'Agenda' },
+    { id: 'factura', label: 'Facturación' },
   ] as const;
 
   return (
@@ -405,11 +403,10 @@ function Demo() {
               <button
                 key={id}
                 onClick={() => setTab(id)}
-                className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${
-                  tab === id
+                className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${tab === id
                     ? 'bg-card text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
-                }`}
+                  }`}
               >
                 {label}
               </button>
@@ -419,8 +416,8 @@ function Demo() {
 
         <div className="max-w-sm mx-auto">
           {tab === 'paciente' && <PacienteMockup />}
-          {tab === 'agenda'   && <AgendaMockup />}
-          {tab === 'factura'  && <FacturaMockup />}
+          {tab === 'agenda' && <AgendaMockup />}
+          {tab === 'factura' && <FacturaMockup />}
         </div>
       </div>
     </section>
@@ -431,25 +428,25 @@ function Demo() {
 
 const testimonios = [
   {
-    nombre:  'Dra. Sofía Martínez',
+    nombre: 'Dra. Sofía Martínez',
     clinica: 'Clínica Veterinaria Mascotas Felices · Managua',
-    texto:   'Desde que empezamos a usar VetSystem el caos de papeles desapareció. Lo mejor es que si se va el internet seguimos atendiendo sin problema. Mis asistentes lo aprendieron en un día.',
+    texto: 'Desde que empezamos a usar VetSystem el caos de papeles desapareció. Lo mejor es que si se va el internet seguimos atendiendo sin problema. Mis asistentes lo aprendieron en un día.',
     inicial: 'S',
-    color:   'bg-emerald-100 text-emerald-700',
+    color: 'bg-emerald-100 text-emerald-700',
   },
   {
-    nombre:  'Dr. Carlos Ibarra',
+    nombre: 'Dr. Carlos Ibarra',
     clinica: 'Veterinaria San Francisco · León',
-    texto:   'El control de inventario nos salvó varias veces. Antes se nos acababan las vacunas sin darnos cuenta. Ahora el sistema nos avisa antes de que llegue ese problema.',
+    texto: 'El control de inventario nos salvó varias veces. Antes se nos acababan las vacunas sin darnos cuenta. Ahora el sistema nos avisa antes de que llegue ese problema.',
     inicial: 'C',
-    color:   'bg-blue-100 text-blue-700',
+    color: 'bg-blue-100 text-blue-700',
   },
   {
-    nombre:  'Dra. Andrea López',
+    nombre: 'Dra. Andrea López',
     clinica: 'PetCare Veterinaria · Granada',
-    texto:   'La facturación directo desde la consulta es un antes y un después. Ya no perdemos cobros pendientes ni nos enredamos con las cuentas al final del día.',
+    texto: 'La facturación directo desde la consulta es un antes y un después. Ya no perdemos cobros pendientes ni nos enredamos con las cuentas al final del día.',
     inicial: 'A',
-    color:   'bg-purple-100 text-purple-700',
+    color: 'bg-purple-100 text-purple-700',
   },
 ];
 
@@ -492,8 +489,8 @@ function Testimonios() {
 
 const incluye = [
   'Pacientes y historial clínico ilimitados',
-  'Agenda y appointments',
-  'Inventario con alerts de stock',
+  'Agenda y citas',
+  'Inventario con alertas de stock',
   'Facturación y control de cobros',
   'Funciona sin internet',
   'Usuarios ilimitados',
@@ -523,7 +520,7 @@ function Precios() {
             <span className={`text-sm font-medium ${anual ? 'text-foreground' : 'text-muted-foreground'}`}>
               Anual
               <span className="ml-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 dark:text-emerald-400 px-1.5 py-0.5 rounded-full">
-                2 meses gratis
+                prueba en demo o crea tu cuenta gratis por 14 días
               </span>
             </span>
           </div>
@@ -553,7 +550,7 @@ function Precios() {
                   <Link href="/register">Comenzar 14 días gratis</Link>
                 </Button>
                 <p className="text-center text-xs text-muted-foreground mt-2">
-                  Sin tarjeta de crédito · Cancela cuando quieras
+                  Cancela cuando quieras
                 </p>
               </div>
             </div>
@@ -601,14 +598,14 @@ function Footer() {
               <VetSystemWordmark size="base" />
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
-              El sistema de gestión veterinaria diseñado para Nicaragua.
+              El sistema de gestión veterinaria diseñado para emprendedores de Nicaragua.
             </p>
           </div>
 
           <div className="space-y-3">
             <p className="text-sm font-semibold">Acceso</p>
             <div className="space-y-2 text-sm text-muted-foreground">
-              <Link href="/login"    className="block hover:text-foreground transition-colors">Iniciar sesión</Link>
+              <Link href="/login" className="block hover:text-foreground transition-colors">Iniciar sesión</Link>
               <Link href="/register" className="block hover:text-foreground transition-colors">Crear cuenta</Link>
             </div>
           </div>
