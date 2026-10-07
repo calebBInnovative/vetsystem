@@ -245,31 +245,37 @@ class SyncService {
         }
 
         for (const item of pendientes) {
-          // Prefer clinicId from the payload; fall back to looking it up from the
-          // actual Dexie record (important for update/delete ops that omit clinicId
-          // in their partial payload). Only use the session as a last resort.
-          let itemClinicId = (item.data as Record<string, unknown>).clinicId as string | undefined;
           const tableEntry = TABLAS_SYNC.find((t) => t.nombre === item.collection);
-          if (!itemClinicId) {
-            type Rec = { clinicId?: string } | undefined;
-            if (tableEntry) {
-              const record = await (tableEntry.tabla() as unknown as { get(id: string): Promise<Rec> })
-                .get(item.documentId);
-              itemClinicId = record?.clinicId;
-              // Known collection, partial payload, and the row is physically gone:
-              // only clearDemo() removes rows outright (real deletes are soft), so
-              // this item belongs to data that no longer exists. Nothing can resolve
-              // its owner, and pushing it under the current session would leak a
-              // foreign record into this clinic.
-              if (!itemClinicId) {
-                console.warn(
-                  `[sync] dropping ${item.collection}/${item.documentId} — local record gone, owner unknown`,
-                );
-                await db.syncQueue.delete(item.id!);
-                continue;
-              }
-            }
+
+          // Push the current local row rather than the queued payload. Queued
+          // payloads for updates carry only the changed fields, and setDoc with
+          // merge happily creates a document from them — so if the original
+          // create never synced, the remote ends up holding a few-field ghost
+          // that other devices download as a record missing everything the UI
+          // expects. The local row is complete by construction.
+          type Rec = (Record<string, unknown> & { clinicId?: string }) | undefined;
+          const record = tableEntry
+            ? await (tableEntry.tabla() as unknown as { get(id: string): Promise<Rec> })
+                .get(item.documentId)
+            : undefined;
+
+          const payload      = record ?? (item.data as Record<string, unknown>);
+          let   itemClinicId = record?.clinicId
+            ?? ((item.data as Record<string, unknown>).clinicId as string | undefined);
+
+          // Known collection, no local row, and no owner in the payload: only
+          // clearDemo() removes rows outright (real deletes are soft), so this
+          // item belongs to data that no longer exists. Nothing can resolve its
+          // owner, and pushing it under the current session would leak a foreign
+          // record into this clinic.
+          if (tableEntry && !record && !itemClinicId) {
+            console.warn(
+              `[sync] dropping ${item.collection}/${item.documentId} — local record gone, owner unknown`,
+            );
+            await db.syncQueue.delete(item.id!);
+            continue;
           }
+
           itemClinicId ??= session.clinicId;
 
           // Dead letter: an item addressed to another clinic can never succeed —
@@ -284,7 +290,7 @@ class SyncService {
           }
 
           try {
-            await syncProvider.push(item.collection, item.documentId, item.data, itemClinicId);
+            await syncProvider.push(item.collection, item.documentId, payload, itemClinicId);
             await db.syncQueue.delete(item.id!);
             this.retryAttempt = 0;
           } catch (err) {

@@ -12,9 +12,10 @@ function formatMonto(monto: number) {
   return new Intl.NumberFormat('es-NI', { style: 'currency', currency: 'NIO', maximumFractionDigits: 0 }).format(monto);
 }
 
-function fmtDate(iso: string) {
+function fmtDate(iso?: string) {
+  if (!iso) return '—';
   const [y, m, d] = iso.split('-');
-  return `${d}/${m}/${y}`;
+  return d && m && y ? `${d}/${m}/${y}` : iso;
 }
 
 const EXPENSE_CATEGORY_EMOJIS: Record<string, string> = {

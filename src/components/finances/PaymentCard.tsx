@@ -40,9 +40,10 @@ function formatMonto(monto: number) {
   return new Intl.NumberFormat('es-NI', { style: 'currency', currency: 'NIO', maximumFractionDigits: 0 }).format(monto);
 }
 
-function formatFecha(fecha: string) {
+function formatFecha(fecha?: string) {
+  if (!fecha) return '—';
   const [y, m, d] = fecha.split('-');
-  return `${d}/${m}/${y}`;
+  return d && m && y ? `${d}/${m}/${y}` : fecha;
 }
 
 export function PagoCard({ pago, compact = false }: PagoCardProps) {

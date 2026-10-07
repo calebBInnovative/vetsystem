@@ -24,14 +24,18 @@ function fmt(n: number) {
   }).format(n);
 }
 
-function fmtFecha(iso: string) {
+/** Tolerates a missing or malformed date: one bad row must not blank the list. */
+function fmtFecha(iso?: string) {
+  if (!iso) return '—';
   const [y, m, d] = iso.split('-');
-  return `${d}/${m}/${y}`;
+  return d && m && y ? `${d}/${m}/${y}` : iso;
 }
 
 function FacturaRow({ factura }: { factura: InvoiceWithDetails }) {
-  const estadoInfo = INVOICE_STATUSES[factura.status];
-  const metodo     = INVOICE_PAYMENT_METHODS[factura.paymentMethod];
+  // A record that reached this device through sync can be missing fields the
+  // type says are required, so every lookup here needs a fallback.
+  const estadoInfo = INVOICE_STATUSES[factura.status] ?? INVOICE_STATUSES.pending;
+  const metodo     = INVOICE_PAYMENT_METHODS[factura.paymentMethod] ?? { label: '—', emoji: '' };
 
   return (
     <Link
@@ -44,7 +48,7 @@ function FacturaRow({ factura }: { factura: InvoiceWithDetails }) {
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-mono text-sm font-semibold">{factura.number}</span>
+          <span className="font-mono text-sm font-semibold">{factura.number ?? '—'}</span>
           <span className={cn('text-xs px-2 py-0.5 rounded-full border font-medium', estadoInfo.color)}>
             {estadoInfo.label}
           </span>
@@ -63,7 +67,7 @@ function FacturaRow({ factura }: { factura: InvoiceWithDetails }) {
       </div>
 
       <div className="text-right shrink-0">
-        <p className="font-semibold text-sm">{fmt(factura.total)}</p>
+        <p className="font-semibold text-sm">{fmt(factura.total ?? 0)}</p>
         <p className="text-xs text-muted-foreground">{fmtFecha(factura.date)} · {metodo.emoji} {metodo.label}</p>
       </div>
     </Link>

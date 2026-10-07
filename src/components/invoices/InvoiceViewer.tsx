@@ -17,9 +17,10 @@ function fmt(n: number) {
   }).format(n);
 }
 
-function fmtFecha(iso: string) {
+function fmtFecha(iso?: string) {
+  if (!iso) return '—';
   const [y, m, d] = iso.split('-');
-  return `${d}/${m}/${y}`;
+  return d && m && y ? `${d}/${m}/${y}` : iso;
 }
 
 export function FacturaViewer({ factura, acciones = false }: FacturaViewerProps) {
