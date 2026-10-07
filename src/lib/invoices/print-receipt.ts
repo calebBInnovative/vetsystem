@@ -21,83 +21,9 @@ const ROLE_LABEL: Record<string, string> = {
   reception:    'Recepción',
 };
 
-// ── HTML builder ──────────────────────────────────────────────────────────────
+// ── Shared styles ─────────────────────────────────────────────────────────────
 
-/**
- * Lets a non-invoice document (a quote) reuse this exact layout: same clinic
- * header, same item list, same paper size. Only the wording changes, so the
- * client never mistakes a quote for a receipt of something already paid.
- */
-export interface ReceiptOptions {
-  /** Printed above the order number, e.g. "COTIZACIÓN" */
-  documentLabel?: string;
-  /** Hide the payment-method row — a quote collects nothing */
-  hidePaymentRow?: boolean;
-  /** Printed as "Válida hasta DD/MM/YYYY" */
-  validUntil?: string;
-  /** Replaces the "Atendido por" line */
-  attendedLabel?: string;
-}
-
-function buildHtml(
-  factura: InvoiceWithDetails,
-  session: SessionLocal | null,
-  options: ReceiptOptions = {},
-): string {
-  const clinicName   = session?.clinicName ?? 'House of Pets';
-  const roleLabel    = ROLE_LABEL[session?.role ?? ''] ?? '';
-  // Only the part before @ — e.g. "caleb" from "caleb@example.com"
-  const emailAlias   = session?.email?.split('@')[0] ?? '';
-  const atendidoPor  = options.attendedLabel ?? [roleLabel, emailAlias].filter(Boolean).join(' ');
-
-  const metodos: Record<string, string> = {
-    cash:     'Efectivo',
-    card:     'Tarjeta',
-    transfer: 'Transferencia',
-    mixed:    'Mixto',
-  };
-
-  const montoCobrado = factura.amountPaid > 0 ? factura.amountPaid : factura.total;
-  const saldoPend    = factura.status === 'partially_paid'
-    ? factura.total - factura.amountPaid : 0;
-
-  // ── Items ──
-  const itemsHtml = factura.items.map((item) => `
-    <div class="item">
-      <div class="item-row">
-        <span class="item-name">${escHtml(item.description.toUpperCase())}</span>
-        <span class="item-total">${fmtR(item.subtotal)}</span>
-      </div>
-      <div class="item-detail">
-        ${fmtQ(item.quantity)}&nbsp;&nbsp;x&nbsp;&nbsp;${fmtR(item.unitPrice)} / ${item.type === 'product' ? 'Unidades' : 'Service'}
-      </div>
-    </div>
-  `).join('');
-
-  // ── Patient / owner ──
-  const pacienteHtml = (factura.patientName || factura.ownerName) ? `
-    <div class="center info-block">
-      ${factura.patientName ? `<div>Patient: <strong>${escHtml(factura.patientName)}</strong>${factura.patientSpecies ? ` (${escHtml(factura.patientSpecies)})` : ''}</div>` : ''}
-      ${factura.ownerName   ? `<div>Due&ntilde;o: <strong>${escHtml(factura.ownerName)}</strong>${factura.ownerPhone ? ` &middot; ${escHtml(factura.ownerPhone)}` : ''}</div>` : ''}
-    </div>
-    <div class="dash"></div>
-  ` : '';
-
-  const descuentoHtml = factura.discount > 0
-    ? `<div class="row small"><span>Descuento</span><span>- ${fmtR(factura.discount)}</span></div>` : '';
-
-  const saldoHtml = factura.status === 'partially_paid'
-    ? `<div class="row small"><span>Saldo pendiente</span><span>${fmtR(saldoPend)}</span></div>` : '';
-
-  const notasHtml = factura.notes
-    ? `<div class="dash"></div><div class="notas">${escHtml(factura.notes)}</div>` : '';
-
-  return `<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8" />
-<title>${escHtml(options.documentLabel ?? 'Recibo')} ${escHtml(factura.number)}</title>
-<style>
+const RECEIPT_STYLES = `
   @page { size: 80mm auto; margin: 4mm 5mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -187,10 +113,83 @@ function buildHtml(
     letter-spacing: 0.3px;
     margin-top: 2px;
   }
-</style>
-</head>
-<body>
 
+  /* Batch printing: each receipt starts on its own ticket */
+  .receipt + .receipt { page-break-before: always; break-before: page; }
+`;
+
+// ── HTML builder ──────────────────────────────────────────────────────────────
+
+/**
+ * Lets a non-invoice document (a quote) reuse this exact layout: same clinic
+ * header, same item list, same paper size. Only the wording changes, so the
+ * client never mistakes a quote for a receipt of something already paid.
+ */
+export interface ReceiptOptions {
+  /** Printed above the order number, e.g. "COTIZACIÓN" */
+  documentLabel?: string;
+  /** Hide the payment-method row — a quote collects nothing */
+  hidePaymentRow?: boolean;
+  /** Printed as "Válida hasta DD/MM/YYYY" */
+  validUntil?: string;
+  /** Replaces the "Atendido por" line */
+  attendedLabel?: string;
+}
+
+function buildReceiptBody(
+  factura: InvoiceWithDetails,
+  session: SessionLocal | null,
+  options: ReceiptOptions = {},
+): string {
+  const clinicName   = session?.clinicName ?? 'House of Pets';
+  const roleLabel    = ROLE_LABEL[session?.role ?? ''] ?? '';
+  // Only the part before @ — e.g. "caleb" from "caleb@example.com"
+  const emailAlias   = session?.email?.split('@')[0] ?? '';
+  const atendidoPor  = options.attendedLabel ?? [roleLabel, emailAlias].filter(Boolean).join(' ');
+
+  const metodos: Record<string, string> = {
+    cash:     'Efectivo',
+    card:     'Tarjeta',
+    transfer: 'Transferencia',
+    mixed:    'Mixto',
+  };
+
+  const montoCobrado = factura.amountPaid > 0 ? factura.amountPaid : factura.total;
+  const saldoPend    = factura.status === 'partially_paid'
+    ? factura.total - factura.amountPaid : 0;
+
+  // ── Items ──
+  const itemsHtml = factura.items.map((item) => `
+    <div class="item">
+      <div class="item-row">
+        <span class="item-name">${escHtml(item.description.toUpperCase())}</span>
+        <span class="item-total">${fmtR(item.subtotal)}</span>
+      </div>
+      <div class="item-detail">
+        ${fmtQ(item.quantity)}&nbsp;&nbsp;x&nbsp;&nbsp;${fmtR(item.unitPrice)} / ${item.type === 'product' ? 'Unidades' : 'Service'}
+      </div>
+    </div>
+  `).join('');
+
+  // ── Patient / owner ──
+  const pacienteHtml = (factura.patientName || factura.ownerName) ? `
+    <div class="center info-block">
+      ${factura.patientName ? `<div>Patient: <strong>${escHtml(factura.patientName)}</strong>${factura.patientSpecies ? ` (${escHtml(factura.patientSpecies)})` : ''}</div>` : ''}
+      ${factura.ownerName   ? `<div>Due&ntilde;o: <strong>${escHtml(factura.ownerName)}</strong>${factura.ownerPhone ? ` &middot; ${escHtml(factura.ownerPhone)}` : ''}</div>` : ''}
+    </div>
+    <div class="dash"></div>
+  ` : '';
+
+  const descuentoHtml = factura.discount > 0
+    ? `<div class="row small"><span>Descuento</span><span>- ${fmtR(factura.discount)}</span></div>` : '';
+
+  const saldoHtml = factura.status === 'partially_paid'
+    ? `<div class="row small"><span>Saldo pendiente</span><span>${fmtR(saldoPend)}</span></div>` : '';
+
+  const notasHtml = factura.notes
+    ? `<div class="dash"></div><div class="notas">${escHtml(factura.notes)}</div>` : '';
+
+  return `
   <!-- 1. Logo + datos de clínica -->
   <div class="center">
     <img class="logo" src="/logo.jpeg" alt="logo" />
@@ -246,11 +245,7 @@ function buildHtml(
 
   <div class="dash"></div>
   <div class="footer">Con la tecnolog&iacute;a de VetSystem</div>
-  <div class="gap-md"></div>
-
-  <script>window.onload = function () { window.print(); };</script>
-</body>
-</html>`;
+  <div class="gap-md"></div>`;
 }
 
 function escHtml(s: string): string {
@@ -263,16 +258,54 @@ function escHtml(s: string): string {
 
 // ── Exportado ─────────────────────────────────────────────────────────────────
 
-export function printRecibo(
-  factura: InvoiceWithDetails,
-  session: SessionLocal | null,
-  options: ReceiptOptions = {},
-): void {
+/** Wraps one or more receipt bodies into a single printable document. */
+function wrapDocument(title: string, bodies: string[]): string {
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>${escHtml(title)}</title>
+<style>
+${RECEIPT_STYLES}
+</style>
+</head>
+<body>
+${bodies.map((b) => `<div class="receipt">${b}</div>`).join('\n')}
+  <script>window.onload = function () { window.print(); };</script>
+</body>
+</html>`;
+}
+
+function openPrintWindow(html: string): void {
   const win = window.open('', '_blank');
   if (!win) {
     window.print();
     return;
   }
-  win.document.write(buildHtml(factura, session, options));
+  win.document.write(html);
   win.document.close();
+}
+
+export function printRecibo(
+  factura: InvoiceWithDetails,
+  session: SessionLocal | null,
+  options: ReceiptOptions = {},
+): void {
+  const title = `${options.documentLabel ?? 'Recibo'} ${factura.number ?? ''}`.trim();
+  openPrintWindow(wrapDocument(title, [buildReceiptBody(factura, session, options)]));
+}
+
+/**
+ * Prints several receipts as ONE document, one ticket each, in a single print
+ * job. Opening a window per invoice would hit the browser's popup blocker and
+ * leave the user confirming a dialog per receipt.
+ */
+export function printRecibosBatch(
+  facturas: InvoiceWithDetails[],
+  session: SessionLocal | null,
+  options: ReceiptOptions = {},
+): void {
+  if (facturas.length === 0) return;
+  const bodies = facturas.map((f) => buildReceiptBody(f, session, options));
+  openPrintWindow(wrapDocument(`Recibos (${facturas.length})`, bodies));
 }
