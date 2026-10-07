@@ -60,17 +60,24 @@ export const createCheckout = onCall(
       throw new HttpsError('permission-denied', 'You do not belong to this clinic.');
     }
 
-    const secretKey = process.env.RECURRENTE_SECRET_KEY;
-    const productId = process.env.RECURRENTE_PRODUCT_ID;
+    const secretKey    = process.env.RECURRENTE_SECRET_KEY;
+    const planName     = process.env.RECURRENTE_PLAN_NAME     ?? 'VetSystem Pro - Plan Mensual';
+    const planAmount   = parseInt(process.env.RECURRENTE_PLAN_AMOUNT ?? '3000', 10);
+    const planCurrency = process.env.RECURRENTE_PLAN_CURRENCY ?? 'USD';
 
-    if (!secretKey || !productId) {
+    if (!secretKey) {
       throw new HttpsError('internal', 'Payment configuration missing.');
     }
 
     const body = {
-      items: [{ product_id: productId, quantity: 1 }],
+      items: [{
+        name:            planName,
+        amount_in_cents: planAmount,
+        currency:        planCurrency,
+        quantity:        1,
+      }],
       success_url: successUrl,
-      cancel_url: cancelUrl,
+      cancel_url:  cancelUrl,
       // Pass clinicId in metadata so the webhook can identify the clinic
       metadata: { clinicId, uid: request.auth.uid },
     };
