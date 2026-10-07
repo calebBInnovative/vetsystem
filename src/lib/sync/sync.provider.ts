@@ -26,7 +26,19 @@ export interface SyncProvider {
    * Retorna array vacío si no hay cambios.
    * clinicId must come from the authenticated session — never from a build-time env var.
    */
-  pull(collection: string, desde: number, clinicId: string): Promise<RemoteDoc[]>;
+  pull(
+    collection: string,
+    desde: number,
+    clinicId: string,
+    /**
+     * First pull on a device downloads the whole collection, which is the most
+     * expensive operation in the system. Transactional history is therefore
+     * limited to a recent window unless this is true (the manual "force pull").
+     * Catalog data — patients, owners, products, services — is never windowed:
+     * the UI reads only from the local DB, so a missing patient looks deleted.
+     */
+    fullHistory?: boolean,
+  ): Promise<RemoteDoc[]>;
 
   /**
    * Real-time subscription. Firestore calls onChange with ONLY the docs that

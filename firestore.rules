@@ -76,6 +76,16 @@ service cloud.firestore {
       }
     }
 
+    // ── Usage metering ────────────────────────────────────────────────────────
+    // One snapshot per clinic per day, written by the Uso y costos screen (and
+    // later by a scheduled function). Scoped to the clinic that owns it so a
+    // clinic can never read another clinic's figures.
+
+    match /admin/usage/{clinicId}/{day} {
+      allow read, write: if belongsToClinic(clinicId)
+                         && (isMaster() || userRole() == 'admin');
+    }
+
     // ── Public supplier catalog ───────────────────────────────────────────────
     // Any authenticated user can read (used in /import → Catálogo tab).
     // Only master role can add / edit / delete entries.

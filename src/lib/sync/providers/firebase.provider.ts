@@ -18,6 +18,19 @@ import {
 import { getFirestoreDb } from '@/lib/firebase/firebase.config';
 import type { SyncProvider, RemoteDoc } from '@/lib/sync/sync.provider';
 
+/** How far back a first pull reaches for transactional collections. */
+const INITIAL_PULL_WINDOW_DAYS = 365;
+
+/**
+ * Collections whose history can be capped on a first pull. Everything else is
+ * catalog data the UI needs in full — the app reads only from the local DB, so
+ * a patient or product that was not downloaded simply does not exist for the user.
+ */
+const WINDOWED_COLLECTIONS = new Set([
+  'sales', 'payments', 'invoices', 'consultations', 'appointments', 'movements',
+  'expensePayments', 'collaboratorPayments', 'quotes',
+]);
+
 /**
  * SyncProvider implementation using Firestore.
  *
@@ -47,7 +60,12 @@ export class FirebaseSyncProvider implements SyncProvider {
     await setDoc(ref, { ...clean, _syncedAt: serverTimestamp() }, { merge: true });
   }
 
-  async pull(collectionName: string, since: number, clinicId: string): Promise<RemoteDoc[]> {
+  async pull(
+    collectionName: string,
+    since: number,
+    clinicId: string,
+    fullHistory = false,
+  ): Promise<RemoteDoc[]> {
     // Query by _syncedAt (server-set timestamp). This guarantees we catch documents
     // regardless of when they were originally created on the client device.
     // Rules use 1 get() per list evaluation — well within the 10-read limit.
@@ -77,10 +95,18 @@ export class FirebaseSyncProvider implements SyncProvider {
     // Fallback for first-ever pull (since === 0): also fetch documents that were
     // pushed to Firestore before the _syncedAt field was added (legacy data without it).
     if (since === 0 && results.length === 0) {
-      // Get ALL documents in the collection for this clinic (no _syncedAt filter)
+      // A first pull is the single most expensive operation in the system: it is
+      // one read per document, repeated on every new browser, every cleared
+      // cache and every new device. Transactional history is capped to a recent
+      // window; the user can still pull everything on demand with forcePull().
+      const windowed = !fullHistory && WINDOWED_COLLECTIONS.has(collectionName);
+      const cutoff   = Date.now() - INITIAL_PULL_WINDOW_DAYS * 86_400_000;
+
       let lastFallbackDoc: QueryDocumentSnapshot | null = null;
       do {
-        const constraints: QueryConstraint[] = [limit(BATCH_SIZE)];
+        const constraints: QueryConstraint[] = windowed
+          ? [where('updatedAt', '>=', cutoff), orderBy('updatedAt', 'asc'), limit(BATCH_SIZE)]
+          : [limit(BATCH_SIZE)];
         if (lastFallbackDoc) constraints.push(startAfter(lastFallbackDoc));
         const snap = await getDocs(query(this.colRef(collectionName, clinicId), ...constraints));
         for (const d of snap.docs) {
@@ -88,6 +114,10 @@ export class FirebaseSyncProvider implements SyncProvider {
         }
         lastFallbackDoc = snap.size === BATCH_SIZE ? snap.docs[snap.docs.length - 1] : null;
       } while (lastFallbackDoc !== null);
+
+      if (windowed) {
+        console.log(`[sync] ${collectionName}: first pull limited to the last ${INITIAL_PULL_WINDOW_DAYS} days`);
+      }
     }
 
     return results;

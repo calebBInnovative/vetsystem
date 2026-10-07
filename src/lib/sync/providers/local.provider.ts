@@ -9,7 +9,7 @@ export class LocalSyncProvider implements SyncProvider {
 
   async push(_collection: string, _id: string, _data: object, _clinicId: string): Promise<void> {}
 
-  async pull(_collection: string, _desde: number, _clinicId: string): Promise<RemoteDoc[]> {
+  async pull(_collection: string, _desde: number, _clinicId: string, _fullHistory?: boolean): Promise<RemoteDoc[]> {
     return [];
   }
 

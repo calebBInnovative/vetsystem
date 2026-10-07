@@ -448,7 +448,8 @@ class SyncService {
     let docsWritten = 0;
     for (const { nombre } of TABLAS_SYNC) {
       try {
-        const docs = await syncProvider.pull(nombre, 0, clinicId);
+        // Manual recovery: the user explicitly asked for the full history.
+        const docs = await syncProvider.pull(nombre, 0, clinicId, true);
         if (docs.length > 0) {
           console.log(`[sync] forcePull ${nombre} — ${docs.length} doc(s)`);
           await upsertRemoteDocs(nombre, docs, clinicId);

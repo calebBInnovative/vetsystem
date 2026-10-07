@@ -19,7 +19,7 @@ import {
   Loader2, Sprout, Trash2, CheckCircle2, AlertCircle,
   CloudUpload, RefreshCw, Database, Wifi, WifiOff, AlertTriangle,
   UserPlus, Users, KeyRound, ShieldAlert, Pencil, KeySquare, Phone,
-  BookOpen, ChevronRight,
+  BookOpen, ChevronRight, Activity,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AppModule, Permissions, UserRole } from '@/types/license';
@@ -966,6 +966,7 @@ function TabDatos() {
 // ─── Tab: Firebase sync (master only) ────────────────────────────────────────
 
 function TabFirebase() {
+  const router = useRouter();
   const [online,      setOnline]      = useState(true);
   const [queue,       setQueue]       = useState<QueueEstado | null>(null);
   const [queueErrors, setQueueErrors] = useState<{ collection: string; documentId: string; lastError?: string }[]>([]);
@@ -1088,6 +1089,12 @@ function TabFirebase() {
         <Button onClick={handleForcePull} variant="outline" disabled={accion === 'loading' || !online} className="gap-2 w-full">
           {accion === 'loading' ? <Loader2 size={14} className="animate-spin" /> : <Database size={14} />}
           Re-pull completo desde Firebase
+        </Button>
+      </Card>
+
+      <Card titulo="Uso y costos" desc="Cuántos documentos tiene esta clínica, cuánto crece y qué cuesta en infraestructura.">
+        <Button onClick={() => router.push('/admin/usage')} variant="outline" className="gap-2">
+          <Activity size={14} /> Ver métricas
         </Button>
       </Card>
 
