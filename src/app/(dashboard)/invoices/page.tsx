@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useInvoices } from '@/hooks/useInvoices';
 import { INVOICE_STATUSES, INVOICE_PAYMENT_METHODS, type InvoiceStatus, type InvoiceWithDetails } from '@/types/invoice';
@@ -117,6 +117,16 @@ export default function InvoicesPage() {
       })
     : invoices;
 
+  // "Seleccionar todas" shows a dash when only part of the list is picked, so the
+  // box never claims everything is selected when it is not.
+  const allSelected = filtradas.length > 0 && selectedIds.size === filtradas.length;
+  const someSelected = selectedIds.size > 0 && !allSelected;
+  const selectAllRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (selectAllRef.current) selectAllRef.current.indeterminate = someSelected;
+  }, [someSelected]);
+
   function toggleOne(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -180,14 +190,20 @@ export default function InvoicesPage() {
       {selectMode && (
         <div className="sticky top-0 z-10 flex items-center justify-between gap-3 flex-wrap rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3">
           <div className="flex items-center gap-3">
-            <button
-              onClick={toggleAll}
-              className="text-xs font-medium text-primary hover:underline"
-            >
-              {selectedIds.size === filtradas.length && filtradas.length > 0
-                ? 'Quitar selección'
-                : `Seleccionar las ${filtradas.length} visibles`}
-            </button>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                ref={selectAllRef}
+                type="checkbox"
+                checked={allSelected}
+                onChange={toggleAll}
+                disabled={filtradas.length === 0}
+                className="h-4 w-4 rounded border-input accent-primary cursor-pointer"
+              />
+              <span className="text-sm font-medium">
+                Seleccionar todas
+                <span className="text-muted-foreground font-normal"> ({filtradas.length})</span>
+              </span>
+            </label>
             <span className="text-xs text-muted-foreground">
               {selectedIds.size} seleccionada{selectedIds.size !== 1 ? 's' : ''}
             </span>
