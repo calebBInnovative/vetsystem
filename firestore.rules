@@ -29,6 +29,15 @@ service cloud.firestore {
       return userExists() && userRole() == 'master';
     }
 
+    // Platform owner — the person who runs the SaaS, not a clinic user.
+    // Matched by e-mail because it needs no custom claim and no extra document
+    // read: the address is already inside the auth token. The trade-off is that
+    // changing the address means redeploying rules; the long-term alternative is
+    // a custom claim set by a Cloud Function with the Admin SDK.
+    function isPlatformOwner() {
+      return isAuth() && request.auth.token.email == 'calebgtnbacon@gmail.com';
+    }
+
     // Uses a single get() call (not exists() + get()) to stay within Firestore's
     // 10 external-read limit per list-query request. Previously, 2 reads per
     // document evaluation caused permission failures when a collection had more
@@ -61,7 +70,7 @@ service cloud.firestore {
     // Members of the clinic can read. Only master can write.
 
     match /clinics/{clinicId} {
-      allow read:  if belongsToClinic(clinicId);
+      allow read:  if belongsToClinic(clinicId) || isPlatformOwner();
       allow write: if isMaster() && userClinicId() == clinicId;
 
       // License sub-document
@@ -71,8 +80,11 @@ service cloud.firestore {
       }
 
       // All app data (patients, consultations, appointments, products, etc.)
+      // The platform owner gets read only: enough to run count() aggregations
+      // for metering, never enough to alter a customer's records.
       match /{collection}/{docId} {
-        allow read, write: if belongsToClinic(clinicId);
+        allow read:  if belongsToClinic(clinicId) || isPlatformOwner();
+        allow write: if belongsToClinic(clinicId);
       }
     }
 
@@ -82,8 +94,8 @@ service cloud.firestore {
     // clinic can never read another clinic's figures.
 
     match /admin/usage/{clinicId}/{day} {
-      allow read, write: if belongsToClinic(clinicId)
-                         && (isMaster() || userRole() == 'admin');
+      allow read, write: if isPlatformOwner()
+                         || (belongsToClinic(clinicId) && (isMaster() || userRole() == 'admin'));
     }
 
     // ── Public supplier catalog ───────────────────────────────────────────────

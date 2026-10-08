@@ -141,3 +141,69 @@ export function growthBetween(history: UsageSnapshot[]): { days: number; docs: n
   );
   return { days, docs: newest.totalDocs - previous.totalDocs };
 }
+
+// ── Platform owner ────────────────────────────────────────────────────────────
+
+/**
+ * The person who runs the SaaS, as opposed to a clinic's own master/admin.
+ * Only they can measure every tenant; a clinic master sees its own figures.
+ *
+ * Kept as a list in one place so the e-mail appears exactly once in the app.
+ * It is mirrored by isPlatformOwner() in firestore.rules — change both together,
+ * and remember the rules are what actually enforces this. The client-side check
+ * only decides what the UI offers.
+ */
+const PLATFORM_OWNER_EMAILS = ['calebgtnbacon@gmail.com'];
+
+export function isPlatformOwner(email?: string | null): boolean {
+  return !!email && PLATFORM_OWNER_EMAILS.includes(email.toLowerCase().trim());
+}
+
+export interface ClinicRef {
+  id: string;
+  name?: string;
+}
+
+/** Every clinic in the project. Only the platform owner is allowed to list these. */
+export async function listAllClinics(): Promise<ClinicRef[]> {
+  const snap = await getDocs(firestoreCollection(getFirestoreDb(), 'clinics'));
+  return snap.docs
+    .map((d) => ({ id: d.id, name: (d.data() as { name?: string }).name }))
+    .sort((a, b) => (a.name ?? a.id).localeCompare(b.name ?? b.id));
+}
+
+/**
+ * Measures every clinic, one after another rather than in parallel: this runs
+ * from a browser, and a burst of aggregation queries across every tenant is the
+ * kind of thing that trips rate limits for no benefit — metering is not urgent.
+ */
+export async function collectAllUsageSnapshots(
+  onProgress?: (done: number, total: number, clinic: ClinicRef) => void,
+): Promise<{ snapshots: UsageSnapshot[]; failures: { clinic: ClinicRef; error: string }[] }> {
+  const clinics   = await listAllClinics();
+  const snapshots: UsageSnapshot[] = [];
+  const failures:  { clinic: ClinicRef; error: string }[] = [];
+
+  for (const [i, clinic] of clinics.entries()) {
+    try {
+      snapshots.push(await collectUsageSnapshot(clinic.id));
+    } catch (err) {
+      // One unreadable tenant must not abandon the rest of the measurement
+      failures.push({ clinic, error: err instanceof Error ? err.message : String(err) });
+    }
+    onProgress?.(i + 1, clinics.length, clinic);
+  }
+
+  return { snapshots, failures };
+}
+
+/** Latest stored snapshot per clinic, for the platform-wide view. */
+export async function getLatestUsagePerClinic(): Promise<(UsageSnapshot | null)[]> {
+  const clinics = await listAllClinics();
+  return Promise.all(
+    clinics.map(async (c) => {
+      const history = await getUsageHistory(c.id, 1);
+      return history[0] ?? null;
+    }),
+  );
+}
