@@ -7,6 +7,7 @@ import {
 import { onAuthChange, getLocalSession, refreshSession, logout, UserNotFoundError, isUserCreationInFlight } from '@/lib/auth/auth.service';
 import { ensureDbReady } from '@/lib/db/database';
 import { calculateLicense } from '@/lib/license/license.service';
+import { setMonitoringContext } from '@/lib/monitoring/context';
 import type { LicenseInfo, SessionLocal } from '@/types/license';
 import type { User } from 'firebase/auth';
 
@@ -50,6 +51,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   firebaseUserRef.current = firebaseUser;
 
   const license = calculateLicense(session);
+
+  // Tag error reports with the clinic, role and plan — never the person
+  useEffect(() => { setMonitoringContext(session); }, [session]);
 
   const refreshFromDexie = useCallback(async () => {
     const local = await getLocalSession();

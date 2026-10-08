@@ -470,6 +470,30 @@ Never use `db.patients.delete(id)`. Always: `db.patients.update(id, { deletedAt:
 
 ---
 
+## 18b. Error Monitoring (Sentry)
+
+Crashlytics has no web SDK — this app uses Sentry instead, client-side only
+(static export has no server or edge runtime to instrument).
+
+- `instrumentation-client.ts` initialises the SDK **only when
+  `NEXT_PUBLIC_SENTRY_DSN` is set**, so the app runs untouched without it.
+- Offline errors are the point of monitoring an offline-first app:
+  `makeBrowserOfflineTransport` stores events in IndexedDB and replays them on
+  reconnect, instead of dropping them like the default transport.
+- `src/lib/monitoring/scrub.ts` is a pure `beforeSend` filter that strips
+  e-mails, phone numbers, long digit runs, sensitive keys, cookies and headers,
+  plus the session's own user/clinic names registered via `setScrubTerms()`.
+  **A patient or owner name interpolated into an error message cannot be
+  detected generically — never put one in a thrown message.**
+- `src/lib/monitoring/context.ts` tags reports with clinicId, role and plan.
+  Never the person.
+- Source maps upload at build time when `SENTRY_ORG`, `SENTRY_PROJECT` and
+  `SENTRY_AUTH_TOKEN` are present, then are deleted from `out/`. Without them
+  the build still succeeds — monitoring must never break a deploy.
+- `tracesSampleRate: 0`: errors only, so the free tier is not spent on traces.
+
+---
+
 ## 19. Environment Variables
 
 Firebase config is in `src/firebase/` (or similar). Required env vars for production build:
@@ -480,6 +504,14 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
 NEXT_PUBLIC_FIREBASE_APP_ID
+```
+
+Optional, for error monitoring (the app works without them):
+```
+NEXT_PUBLIC_SENTRY_DSN      # enables the SDK at runtime
+SENTRY_ORG                  # build-time, source map upload
+SENTRY_PROJECT              # build-time, source map upload
+SENTRY_AUTH_TOKEN           # build-time, source map upload (CI secret)
 ```
 
 ---
