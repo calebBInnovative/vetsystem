@@ -15,8 +15,9 @@ const nextConfig = {
 // token it skips the upload and the build still succeeds — monitoring is
 // optional infrastructure, it must never be able to break a deploy.
 export default withSentryConfig(nextConfig, {
-  org:     process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
+  // Defaults so a local build does not need these exported; CI can override.
+  org:     process.env.SENTRY_ORG     ?? 'calebbinnovative',
+  project: process.env.SENTRY_PROJECT ?? 'javascript-nextjs',
   silent:  !process.env.CI,
   // Source maps are uploaded, then deleted from the export so the minified
   // bundle is not shipped alongside readable sources on a public host.

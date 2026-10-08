@@ -20,6 +20,13 @@ jobs:
         run: node scripts/generate-firebase-rewrites.mjs --check
       - name: Build
         run: npm run build
+        env:
+          # Optional: when these secrets are absent the build still succeeds and
+          # only the source map upload is skipped.
+          NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
+          SENTRY_AUTH_TOKEN:      ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG:             calebbinnovative
+          SENTRY_PROJECT:         javascript-nextjs
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
