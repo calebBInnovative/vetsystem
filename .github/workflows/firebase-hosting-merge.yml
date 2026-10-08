@@ -23,7 +23,10 @@ jobs:
         env:
           # Optional: when these secrets are absent the build still succeeds and
           # only the source map upload is skipped.
-          NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
+          # The DSN is public by design — it ships inside the client bundle, like
+          # the Firebase web keys — so it belongs in a variable. Secrets are
+          # accepted as a fallback in case it was stored there.
+          NEXT_PUBLIC_SENTRY_DSN: ${{ vars.NEXT_PUBLIC_SENTRY_DSN || secrets.NEXT_PUBLIC_SENTRY_DSN }}
           SENTRY_AUTH_TOKEN:      ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG:             calebbinnovative
           SENTRY_PROJECT:         javascript-nextjs
