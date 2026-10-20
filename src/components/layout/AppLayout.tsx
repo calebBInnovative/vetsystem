@@ -685,6 +685,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                           <PlayCircle size={14} />
                           Ver tour nuevamente
                         </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href="/dev/seed" className="flex items-center gap-2 cursor-pointer">
+                            <Database size={14} />
+                            Datos de prueba
+                          </Link>
+                        </DropdownMenuItem>
                       </>
                     )}
 
@@ -697,7 +703,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                             Admin
                           </Link>
                         </DropdownMenuItem>
-                        {esMaster && (
+                        {(esMaster || process.env.NODE_ENV === 'development') && (
                           <DropdownMenuItem asChild>
                             <Link href="/dev/seed" className="flex items-center gap-2 cursor-pointer">
                               <Database size={14} />

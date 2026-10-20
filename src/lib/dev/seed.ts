@@ -11,6 +11,7 @@ import type { FixedExpense, ExpensePayment } from '@/types/expense';
 import type { Collaborator, CollaboratorPayment } from '@/types/collaborator';
 import type { PromotionLocal, PromotionItem } from '@/types/promotion';
 import { applyDiscount } from '@/types/promotion';
+import type { QuoteLocal } from '@/types/quote';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -727,13 +728,71 @@ export async function sembrarDatos(clinicId: string): Promise<{ mensaje: string;
     };
   });
 
+  // ── Quotes ────────────────────────────────────────────────────────────────────
+  // One per status: open, open-but-expired, converted (points to a seeded sale) and cancelled.
+  function productQuoteItem(p: ProductLocal, qty: number): SaleItem {
+    const unitPrice = p.salePrice ?? 0;
+    return {
+      id: uuid(), productId: p.id, itemType: 'product', description: p.name,
+      quantity: qty, unit: p.unit, unitPrice, subtotal: unitPrice * qty,
+    };
+  }
+  function serviceQuoteItem(s: ServiceLocal, qty: number): SaleItem {
+    return {
+      id: uuid(), serviceId: s.id, itemType: 'service', description: s.name,
+      quantity: qty, unitPrice: s.price, subtotal: s.price * qty,
+    };
+  }
+
+  const convertedSale = sales[0];
+  const quotesRaw: {
+    items: SaleItem[]; daysAgo: number; validDays: number; status: QuoteLocal['status'];
+    patientIdx?: number; discount?: number; notes?: string; saleId?: string;
+  }[] = [
+    { items: [productQuoteItem(products[3], 1), productQuoteItem(products[4], 1), serviceQuoteItem(services[3], 2)],
+      daysAgo: 2,  validDays: 15, status: 'open',      patientIdx: 2, notes: 'Esquema de vacunación anual' },
+    { items: [serviceQuoteItem(services[11], 1), productQuoteItem(products[5], 1)],
+      daysAgo: 4,  validDays: 15, status: 'open',      patientIdx: 5, discount: 50 },
+    { items: [productQuoteItem(products[1], 2), serviceQuoteItem(services[5], 1)],
+      daysAgo: 25, validDays: 7,  status: 'open',      patientIdx: 6, notes: 'Cliente pidió pensarlo' },
+    { items: convertedSale.items.map(i => ({ ...i, id: uuid() })),
+      daysAgo: 3,  validDays: 15, status: 'converted', patientIdx: 1, saleId: convertedSale.id },
+    { items: [productQuoteItem(products[9], 1)],
+      daysAgo: 12, validDays: 15, status: 'cancelled', notes: 'Compró en otro lugar' },
+  ];
+
+  const quoteYear = new Date().getFullYear();
+  const quotes: QuoteLocal[] = quotesRaw.map((q, i) => {
+    const subtotal = q.items.reduce((s, it) => s + it.subtotal, 0);
+    const discount = q.discount ?? 0;
+    return {
+      id:          uuid(),
+      number:      `COT-${quoteYear}-${String(i + 1).padStart(4, '0')}`,
+      clinicId,
+      date:        dateStr(-q.daysAgo),
+      validUntil:  dateStr(-q.daysAgo + q.validDays),
+      items:       q.items,
+      subtotal,
+      discount,
+      total:       subtotal - discount,
+      status:      q.status,
+      patientId:   q.patientIdx !== undefined ? patients[q.patientIdx].id : undefined,
+      notes:       q.notes,
+      saleId:      q.saleId,
+      convertedAt: q.status === 'converted' ? tsAgo(1) : undefined,
+      createdAt:   tsAgo(q.daysAgo),
+      syncStatus:  'pending' as const,
+      updatedAt:   now,
+    };
+  });
+
   // ── Write everything to Dexie ─────────────────────────────────────────────────
   await db.transaction('rw',
     [
       db.owners, db.patients, db.consultations, db.appointments,
       db.products, db.movements, db.payments, db.invoices, db.services,
       db.sales, db.fixedExpenses, db.expensePayments,
-      db.collaborators, db.collaboratorPayments, db.promotions,
+      db.collaborators, db.collaboratorPayments, db.promotions, db.quotes,
     ],
     async () => {
       await db.owners.bulkAdd(owners);
@@ -751,6 +810,7 @@ export async function sembrarDatos(clinicId: string): Promise<{ mensaje: string;
       await db.collaborators.bulkAdd(collaborators);
       await db.collaboratorPayments.bulkAdd(collaboratorPayments);
       await db.promotions.bulkAdd(promotions);
+      await db.quotes.bulkAdd(quotes);
     }
   );
 
@@ -772,6 +832,7 @@ export async function sembrarDatos(clinicId: string): Promise<{ mensaje: string;
       collaborators:        collaborators.length,
       collaboratorPayments: collaboratorPayments.length,
       promotions:           promotions.length,
+      quotes:               quotes.length,
     },
   };
 }
@@ -782,7 +843,7 @@ export async function limpiarDatos(): Promise<void> {
       db.owners, db.patients, db.consultations, db.appointments,
       db.products, db.movements, db.payments, db.invoices, db.services,
       db.sales, db.fixedExpenses, db.expensePayments,
-      db.collaborators, db.collaboratorPayments, db.promotions, db.syncQueue,
+      db.collaborators, db.collaboratorPayments, db.promotions, db.quotes, db.syncQueue,
     ],
     async () => {
       await Promise.all([
@@ -801,6 +862,7 @@ export async function limpiarDatos(): Promise<void> {
         db.collaborators.clear(),
         db.collaboratorPayments.clear(),
         db.promotions.clear(),
+        db.quotes.clear(),
         db.syncQueue.clear(),
       ]);
     }

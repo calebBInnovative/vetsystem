@@ -26,14 +26,18 @@ export default function SeedPage() {
   const { session, loading } = useAuth();
   const router   = useRouter();
   const isMaster = session?.role === 'master';
+  // Local seeding only touches this browser's IndexedDB. Demo sessions are an isolated
+  // sandbox that never syncs, so they may seed in production too; any session may in
+  // development. Firebase sync and demo publishing stay master-only.
+  const canSeed  = isMaster || session?.isDemo === true || process.env.NODE_ENV === 'development';
 
   // ── clinicId diagnostic ─────────────────────────────────────────────────────
   const [dexieClinicId, setDexieClinicId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isMaster) return;
+    if (!canSeed) return;
     import('@/lib/db/database').then(({ getClinicId }) => getClinicId().then(setDexieClinicId));
-  }, [isMaster]);
+  }, [canSeed]);
 
   // ── local seed state ────────────────────────────────────────────────────────
   const [seedStatus,  setSeedStatus]  = useState<Status>('idle');
@@ -54,15 +58,15 @@ export default function SeedPage() {
   const [remoteConfig,  setRemoteConfig]  = useState<DemoConfig | null | undefined>(undefined);
 
   useEffect(() => {
-    if (!loading && !isMaster) router.replace('/dashboard');
-  }, [loading, isMaster, router]);
+    if (!loading && !canSeed) router.replace('/dashboard');
+  }, [loading, canSeed, router]);
 
   useEffect(() => {
     if (!isMaster) return;
     getDemoConfig().then(setRemoteConfig);
   }, [isMaster]);
 
-  if (loading || !isMaster) return null;
+  if (loading || !canSeed) return null;
 
   // ── handlers ─────────────────────────────────────────────────────────────────
 
@@ -179,7 +183,8 @@ export default function SeedPage() {
       {/* ── 1. Local seed ───────────────────────────────────────────────────── */}
       <Section label="1 · Datos locales (IndexedDB)">
         <p className="text-xs text-muted-foreground">
-          Crea 8 dueños, 12 pacientes, consultas, citas, 18 productos y 30 pagos del mes.
+          Llena todos los módulos: dueños, pacientes, consultas, citas, inventario, servicios,
+          ventas, facturas, pagos, gastos, colaboradores, promociones y cotizaciones.
           El seed <strong>solo escribe en Dexie</strong> — usa el paso 2 para subir a Firebase.
         </p>
         <div className="flex gap-3">
@@ -195,6 +200,7 @@ export default function SeedPage() {
         <StatusBox status={seedStatus} message={seedMessage} counts={seedCounts} />
       </Section>
 
+      {isMaster && (<>
       {/* ── 2. Sync to Firebase ─────────────────────────────────────────────── */}
       <Section label="2 · Sync → Firebase (master account)">
         <p className="text-xs text-muted-foreground">
@@ -362,6 +368,7 @@ export default function SeedPage() {
         className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
         <RefreshCw size={11} /> Actualizar info publicada
       </button>
+      </>)}
     </div>
   );
 }
