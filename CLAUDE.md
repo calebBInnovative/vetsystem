@@ -494,6 +494,23 @@ Crashlytics has no web SDK — this app uses Sentry instead, client-side only
 
 ---
 
+## 18c. Payments (Recurrente)
+
+Clinic subscriptions are paid through Recurrente from Cloud Functions in
+`functions/src/payments/recurrente/`. Full guide: `docs/payments/recurrente.md`.
+
+- `PAYMENT_PROVIDER_MODE=mock` is the default: no request reaches Recurrente, records go to
+  `mockPayments`, and a mock payment **never** extends a license (the mock repository throws).
+- Live needs `PAYMENT_PROVIDER_MODE=live` **and** `RECURRENTE_LIVE_ENABLED=true`, a deployed
+  runtime (refused in the emulator) and the secrets `RECURRENTE_SECRET_KEY` /
+  `RECURRENTE_WEBHOOK_SECRET` in Secret Manager — never in `functions/.env`.
+- Prices live only in `recurrente.plans.ts`; the client sends a plan id, never an amount.
+- A payment becomes `paid` only after `GET /checkouts/{id}` confirms it; webhook deliveries are
+  deduplicated by `svix-id` in the same transaction that updates the payment and the license.
+- Tests: `cd functions && npm test` (no network) and `npm run test:emulator`.
+
+---
+
 ## 19. Environment Variables
 
 Firebase config is in `src/firebase/` (or similar). Required env vars for production build:

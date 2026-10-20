@@ -6,14 +6,18 @@ import { getFirebaseFunctions } from '@/lib/firebase/firebase.config';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
+// The price is decided by the server from planId — the client never sends an amount.
 interface CreateCheckoutData {
-  clinicId: string;
-  successUrl: string;
-  cancelUrl: string;
+  planId: 'monthly';
+  returnOrigin: string;
 }
 
 interface CreateCheckoutResult {
+  paymentId: string;
   checkoutUrl: string;
+  mode: 'mock' | 'live';
+  status: string;
+  reused: boolean;
 }
 
 export function useSubscription() {
@@ -30,17 +34,17 @@ export function useSubscription() {
     try {
       const fn = httpsCallable<CreateCheckoutData, CreateCheckoutResult>(
         getFirebaseFunctions(),
-        'createCheckout',
+        'createRecurrenteCheckout',
       );
 
-      const origin = typeof window !== 'undefined' ? window.location.origin : '';
-      const result = await fn({
-        clinicId:   session.clinicId,
-        successUrl: `${origin}/dashboard?suscripcion=ok`,
-        cancelUrl:  `${origin}/dashboard?suscripcion=cancelada`,
-      });
+      // Clinic and amount are resolved server-side from the signed-in user.
+      const result = await fn({ planId: 'monthly', returnOrigin: window.location.origin });
 
-      // Redirect to Recurrente hosted checkout
+      if (result.data.mode === 'mock') {
+        toast.info('Modo de prueba: no se realizará ningún cobro real.');
+      }
+
+      // Redirect to Recurrente hosted checkout (or back to the app in mock mode)
       window.location.href = result.data.checkoutUrl;
     } catch (err) {
       console.error('[useSubscription] createCheckout error:', err);

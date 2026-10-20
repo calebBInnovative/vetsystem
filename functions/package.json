@@ -6,7 +6,10 @@
     "build:watch": "tsc --watch",
     "serve": "npm run build && firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log"
+    "logs": "firebase functions:log",
+    "test": "rm -rf lib-test && tsc -p tsconfig.test.json && node --test \"lib-test/test/*.test.js\"",
+    "recurrente:check-credentials": "node scripts/check-recurrente-credentials.mjs",
+    "test:emulator": "rm -rf lib-test && tsc -p tsconfig.test.json && firebase emulators:exec --only firestore --project demo-vetsystem \"node --test lib-test/test/emulator/*.itest.js\""
   },
   "engines": {
     "node": "22"

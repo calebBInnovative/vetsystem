@@ -51,3 +51,5 @@ next-env.d.ts
 functions/lib/
 functions/node_modules/
 functions/.env
+functions/.secret.local
+functions/lib-test/
