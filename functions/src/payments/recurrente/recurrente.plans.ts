@@ -26,7 +26,7 @@ export const PLANS: Readonly<Record<string, Plan>> = {
   monthly: {
     id:            'monthly',
     name:          'VetSystem Pro - Plan Mensual',
-    amountInCents: 3000,
+    amountInCents: 2000,
     currency:      'USD',
     durationDays:  30,
     licensePlan:   'monthly',

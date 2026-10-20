@@ -508,6 +508,17 @@ Clinic subscriptions are paid through Recurrente from Cloud Functions in
 - A payment becomes `paid` only after `GET /checkouts/{id}` confirms it; webhook deliveries are
   deduplicated by `svix-id` in the same transaction that updates the payment and the license.
 - Tests: `cd functions && npm test` (no network) and `npm run test:emulator`.
+- Price: **US$20 / 30 days** (`monthly`). The UI label lives in `SUBSCRIPTION_PLAN`
+  (`src/hooks/useSubscription.ts`) and must match `recurrente.plans.ts`.
+- **The browser never writes a license.** New clinics are created by the `registerClinic`
+  callable (`functions/src/clinics/`), which also grants the 14-day trial. `firestore.rules`
+  lets only the platform owner write `clinics/{id}/license/data`; clinic managers may change
+  just `clinicName`. Users cannot change their own `role`, `clinicId` or `permissions`.
+  Rules tests: `npm run test:rules`.
+- Clinic admins pay from Admin → Plan, the expiring-soon banner (≤ 5 days) or the lock
+  screen. `PaymentReturnHandler` confirms the payment when Recurrente sends the user back.
+- `functions/scripts/set-license-expiration.mjs` moves existing licenses to a date
+  (dry run unless `--apply`).
 
 ---
 

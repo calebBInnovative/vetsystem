@@ -75,7 +75,7 @@ describe('live mode (fake Recurrente API, no network)', () => {
     assert.equal(request.url, 'https://app.recurrente.com/api/checkouts');
     assert.equal(request.headers['X-SECRET-KEY'], 'sk_live_fake_for_tests');
     assert.deepEqual((request.body as { items: unknown[] }).items, [{
-      name: PLANS.monthly.name, amount_in_cents: 3000, currency: 'USD', quantity: 1, charge_type: 'one_time',
+      name: PLANS.monthly.name, amount_in_cents: 2000, currency: 'USD', quantity: 1, charge_type: 'one_time',
     }]);
     assert.equal((request.body as { metadata: Record<string, string> }).metadata.paymentId, paymentId);
   });

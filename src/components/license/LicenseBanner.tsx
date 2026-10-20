@@ -3,10 +3,13 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { LICENSE_MESSAGES, estaBloquada } from '@/lib/license/license.service';
-import { useSubscription } from '@/hooks/useSubscription';
+import { useSubscription, SUBSCRIPTION_PLAN } from '@/hooks/useSubscription';
 import { WifiOff, AlertTriangle, Lock, CreditCard, X, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LicenseMode } from '@/types/license';
+
+/** Days before expiration when the renewal notice starts showing. */
+const EXPIRY_NOTICE_DAYS = 5;
 
 const ICONS: Partial<Record<LicenseMode, React.FC<{ size?: number; className?: string }> | null>> = {
   soft_warning: WifiOff,
@@ -22,9 +25,39 @@ export function LicenseBanner() {
   const [closed, setClosed] = useState(false);
   const { startCheckout, loading: checkoutLoading } = useSubscription();
 
-  const { mode, daysOffline } = license;
+  const { mode, daysOffline, daysUntilExpiry } = license;
 
-  if (mode === 'normal') return null;
+  // Expiring soon — the only banner a healthy, online clinic ever sees
+  if (mode === 'normal') {
+    if (closed || daysUntilExpiry === null || daysUntilExpiry > EXPIRY_NOTICE_DAYS) return null;
+    return (
+      <div className="flex items-center gap-3 px-4 py-2.5 border-b text-sm bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-950/40 dark:border-amber-700 dark:text-amber-300">
+        <CreditCard size={14} className="shrink-0" />
+        <div className="flex-1 min-w-0">
+          <span className="font-medium">
+            Tu suscripción vence {daysUntilExpiry === 0 ? 'hoy' : daysUntilExpiry === 1 ? 'mañana' : `en ${daysUntilExpiry} días`}
+          </span>
+          <span className="opacity-80"> — renueva para no perder el acceso. Los días se suman a tu fecha actual.</span>
+        </div>
+        <button
+          type="button"
+          onClick={startCheckout}
+          disabled={checkoutLoading}
+          className="shrink-0 flex items-center gap-1 px-3 py-1 rounded-lg bg-current/10 hover:bg-current/20 font-medium text-xs transition-colors disabled:opacity-60"
+        >
+          {checkoutLoading ? <Loader2 size={11} className="animate-spin" /> : <CreditCard size={11} />}
+          {checkoutLoading ? 'Redirigiendo…' : `Pagar ${SUBSCRIPTION_PLAN.priceLabel}`}
+        </button>
+        <button
+          type="button"
+          onClick={() => setClosed(true)}
+          className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"
+        >
+          <X size={14} />
+        </button>
+      </div>
+    );
+  }
   if (closed && (mode === 'soft_warning' || mode === 'hard_warning')) return null;
 
   const info   = LICENSE_MESSAGES[mode];
@@ -60,7 +93,7 @@ export function LicenseBanner() {
           >
             {checkoutLoading
               ? <><Loader2 size={14} className="animate-spin" /> Redirigiendo…</>
-              : <><CreditCard size={14} /> Activar suscripción</>
+              : <><CreditCard size={14} /> Pagar {SUBSCRIPTION_PLAN.priceLabel} · {SUBSCRIPTION_PLAN.durationDays} días</>
             }
           </button>
           {mode !== 'expired' && (

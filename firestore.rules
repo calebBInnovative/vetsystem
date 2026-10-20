@@ -47,23 +47,38 @@ service cloud.firestore {
     }
 
     // ── User documents ────────────────────────────────────────────────────────
-    // Each user can read/write their own profile.
-    // Master and admin can manage staff users within their own clinic.
+    // Profiles are created by the registerClinic Cloud Function (clinic owner) or
+    // by a clinic manager (staff). Nobody can change their own role, clinic or
+    // permissions: those fields decide which clinic's data a user can reach.
+
+    function staffRole(role) {
+      return role in ['admin', 'veterinarian', 'reception'];
+    }
 
     match /users/{uid} {
-      // Self: full access to own document
-      allow read, write: if isAuth() && request.auth.uid == uid;
+      // Self: read own profile and edit it, except identity and access fields
+      allow read: if isAuth() && request.auth.uid == uid;
+      allow update: if isAuth() && request.auth.uid == uid
+                    && !request.resource.data.diff(resource.data).affectedKeys()
+                         .hasAny(['uid', 'email', 'role', 'clinicId', 'permissions']);
 
       // Master/admin: read any user (listUsers queries the whole collection)
       allow read: if isAuth() && (isMaster() || userRole() == 'admin');
 
-      // Master/admin: create a new user doc only if it belongs to their clinic
+      // Master/admin: create a staff user doc only in their own clinic
       allow create: if isAuth() && (isMaster() || userRole() == 'admin')
-                    && request.resource.data.clinicId == userClinicId();
+                    && request.resource.data.clinicId == userClinicId()
+                    && staffRole(request.resource.data.role);
 
-      // Master/admin: update/delete an existing user doc from their clinic
-      allow update, delete: if isAuth() && (isMaster() || userRole() == 'admin')
-                            && resource.data.clinicId == userClinicId();
+      // Master/admin: manage staff of their own clinic. The clinic cannot change,
+      // and only a master can touch a master account or grant that role.
+      allow update: if isAuth() && (isMaster() || userRole() == 'admin')
+                    && resource.data.clinicId == userClinicId()
+                    && request.resource.data.clinicId == resource.data.clinicId
+                    && (isMaster() || (resource.data.role != 'master' && staffRole(request.resource.data.role)));
+      allow delete: if isAuth() && (isMaster() || userRole() == 'admin')
+                    && resource.data.clinicId == userClinicId()
+                    && (isMaster() || resource.data.role != 'master');
     }
 
     // ── Clinic root document ──────────────────────────────────────────────────
@@ -74,9 +89,15 @@ service cloud.firestore {
       allow write: if isMaster() && userClinicId() == clinicId;
 
       // License sub-document
+      // Plan, expiration date and status change only through Cloud Functions (the
+      // trial at registration, a confirmed payment) or the platform owner. A clinic
+      // manager may only keep the displayed clinic name in step with the profile.
       match /license/{doc} {
-        allow read:  if belongsToClinic(clinicId);
-        allow write: if isMaster() && userClinicId() == clinicId;
+        allow read:   if belongsToClinic(clinicId) || isPlatformOwner();
+        allow write:  if isPlatformOwner();
+        allow update: if belongsToClinic(clinicId) && (isMaster() || userRole() == 'admin')
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['clinicName', 'updatedAt']);
       }
 
       // All app data (patients, consultations, appointments, products, etc.)
@@ -84,7 +105,9 @@ service cloud.firestore {
       // for metering, never enough to alter a customer's records.
       match /{collection}/{docId} {
         allow read:  if belongsToClinic(clinicId) || isPlatformOwner();
-        allow write: if belongsToClinic(clinicId);
+        // The license also matches this wildcard; rules grant access if ANY match
+        // allows it, so it must be excluded here or every member could renew it.
+        allow write: if belongsToClinic(clinicId) && collection != 'license';
       }
     }
 

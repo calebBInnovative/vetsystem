@@ -67,7 +67,7 @@ Recurrente ──POST──> recurrenteWebhook                       Svix signat
   "description": "VetSystem Pro - Plan Mensual",
   "durationDays": 30,              // frozen at checkout time
   "licensePlan": "monthly",
-  "amountInCents": 3000,           // integer cents, from the server price list
+  "amountInCents": 2000,           // integer cents, from the server price list
   "currency": "USD",               // Recurrente accepts only GTQ and USD — NIO is not supported
   "status": "paid",                // created | pending | paid | failed | cancelled
   "providerCheckoutId": "mock_ch_…",

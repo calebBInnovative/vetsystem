@@ -10,6 +10,7 @@ import { logout, actualizarUsuario } from '@/lib/auth/auth.service';
 import { db } from '@/lib/db/database';
 import { clearDemo } from '@/lib/demo/demo.service';
 import { LicenseBanner } from '@/components/license/LicenseBanner';
+import { PaymentReturnHandler } from '@/components/license/PaymentReturnHandler';
 import { TourGuide } from '@/components/common/TourGuide';
 import { puedeEscribir } from '@/lib/license/license.service';
 import { ThemeSwitcher } from '@/components/themes/ThemeSwitcher';
@@ -817,6 +818,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* Banner de licencia (advertencias / solo lectura / bloqueado) */}
         {!isDemo && <LicenseBanner />}
+        {!isDemo && <PaymentReturnHandler />}
 
         {/* Stock alerts — visible en todas las páginas */}
         <div className="px-6 pt-4 print:hidden">

@@ -30,7 +30,7 @@ All code is in `functions/src/payments/recurrente/`:
 | `recurrente.service.ts` | `createCheckout`, `getPaymentStatus` (+ `refresh`), `processWebhookEvent`, license renewal |
 | `recurrente.webhook.ts` | Svix signature + replay check, maps results to 200 / 401 / 405 / 500 |
 | `payment.repository.ts` | Firestore access. A mock repository throws if anything touches a license |
-| `recurrente.plans.ts` | Server-side price list: `monthly` = 3000 cents **USD**, 30 days |
+| `recurrente.plans.ts` | Server-side price list: `monthly` = 2000 cents **USD** (US$20), 30 days |
 | `recurrente.config.ts` | Mode resolution and live safeguards |
 | `recurrente.functions.ts` | Function definitions, params and secrets |
 

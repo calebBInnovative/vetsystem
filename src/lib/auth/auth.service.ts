@@ -15,13 +15,13 @@ import {
   getDocs,
   setDoc,
   deleteDoc,
-  writeBatch,
   collection,
   serverTimestamp,
 } from 'firebase/firestore';
 // TODO: enable when Firebase Storage plan is upgraded
 // import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { getFirebaseApp, getFirestoreDb } from '@/lib/firebase/firebase.config';
+import { httpsCallable } from 'firebase/functions';
+import { getFirebaseApp, getFirestoreDb, getFirebaseFunctions } from '@/lib/firebase/firebase.config';
 import { db } from '@/lib/db/database';
 import type { SessionLocal, Permissions, UserRole } from '@/types/license';
 
@@ -84,8 +84,8 @@ export async function login(email: string, password: string): Promise<void> {
 }
 
 /**
- * Register new clinic owner (master) with email/password.
- * Creates the clinic document, uploads logo if provided, then opens session.
+ * Register a new clinic owner (role admin) with email/password.
+ * The registerClinic Cloud Function creates the clinic, its trial license and the user doc.
  */
 export async function register(params: {
   email:      string;
@@ -98,48 +98,13 @@ export async function register(params: {
   _userCreationInFlight = true;
   const credential = await createUserWithEmailAndPassword(getAuth_(), params.email, params.password);
   const user       = credential.user;
-  const clinicId   = _slugify(params.clinicName) || user.uid.slice(0, 8);
-
   try {
-    // TODO: enable when Firebase Storage plan is upgraded
-    const logoUrl: string | null = null;
-
-    const expiry = new Date();
-    expiry.setFullYear(expiry.getFullYear() + 1);
-
-    const fs    = getFirestoreDb();
-    const batch = writeBatch(fs);
-
-    // All 3 documents written atomically — either all succeed or none do
-    batch.set(doc(fs, 'clinics', clinicId), {
-      name:      params.clinicName,
-      logoUrl,
-      phone:     params.phone ?? null,
-      createdAt: serverTimestamp(),
-    });
-
-    batch.set(doc(fs, 'clinics', clinicId, 'license', 'data'), {
-      clinicName:     params.clinicName,
-      plan:           'Trial',
-      expirationDate: expiry.toISOString().slice(0, 10),
-      subscription:   true,
-      updatedAt:      serverTimestamp(),
-    });
-
-    batch.set(doc(fs, 'users', user.uid), {
-      uid:         user.uid,
-      email:       user.email,
-      name:        params.name,
-      role:        'admin',
-      clinicId,
-      permissions: null,
-      createdAt:   serverTimestamp(),
-    });
-
-    await batch.commit();
+    // Clinic, trial license and user doc are created server-side: the browser is
+    // not allowed to write a license (see firestore.rules).
+    await _registerClinic({ clinicName: params.clinicName, userName: params.name, phone: params.phone });
     await refreshSession(user);
   } catch (err) {
-    // Batch failed — roll back the Auth user so the person can retry with the same email.
+    // Registration failed — roll back the Auth user so the person can retry with the same email.
     try { await user.delete(); } catch { /* ignore, surface the original error */ }
     throw err;
   } finally {
@@ -203,7 +168,11 @@ export async function refreshSession(user: User): Promise<SessionLocal | null> {
         : ((userData.permissions as Permissions | null | undefined) ?? DEFAULT_STAFF_PERMISSIONS);
 
     const licenseDoc  = await getDoc(doc(fs, 'clinics', clinicId, 'license', 'data'));
-    const licenseData = licenseDoc.exists() ? licenseDoc.data() : _devLicense();
+    // A clinic without a license document has no right to use the app. The
+    // generous dev license only applies to a local `next dev` session.
+    const licenseData = licenseDoc.exists()
+      ? licenseDoc.data()
+      : process.env.NODE_ENV === 'development' ? _devLicense() : _missingLicense();
 
     const clinicDoc   = await getDoc(doc(fs, 'clinics', clinicId));
     const clinicData  = clinicDoc.exists() ? clinicDoc.data() : null;
@@ -224,7 +193,7 @@ export async function refreshSession(user: User): Promise<SessionLocal | null> {
       role,
       permissions,
       plan:           licenseData.plan ?? 'Basic',
-      expirationDate: licenseData.expirationDate ?? '2099-12-31',
+      expirationDate: licenseData.expirationDate ?? _missingLicense().expirationDate,
       subscription:   licenseData.subscription !== false,
       lastSync:       now,
       cachedAt:       now,
@@ -413,45 +382,13 @@ export async function createClinicFromSetup(params: {
   const user = getAuth_().currentUser;
   if (!user) throw new Error('No authenticated user');
 
-  const fs = getFirestoreDb();
-
-  const userDocSnap = await getDoc(doc(fs, 'users', user.uid));
-  const clinicId = userDocSnap.exists()
-    ? (userDocSnap.data().clinicId as string)
-    : (_slugify(params.clinicName) || user.uid.slice(0, 8));
-
-  const expiry = new Date();
-  expiry.setFullYear(expiry.getFullYear() + 1);
-
-  const batch = writeBatch(fs);
-
-  batch.set(doc(fs, 'clinics', clinicId), {
-    name:      params.clinicName,
-    logoUrl:   user.photoURL ?? null,
-    phone:     params.phone,
-    createdAt: serverTimestamp(),
-  }, { merge: true });
-
-  batch.set(doc(fs, 'clinics', clinicId, 'license', 'data'), {
-    clinicName:     params.clinicName,
-    plan:           'Trial',
-    expirationDate: expiry.toISOString().slice(0, 10),
-    subscription:   true,
-    updatedAt:      serverTimestamp(),
-  }, { merge: true });
-
-  batch.set(doc(fs, 'users', user.uid), {
-    uid:           user.uid,
-    email:         user.email,
-    name:          user.displayName ?? user.email ?? 'User',
-    role:          'admin',
-    clinicId,
-    permissions:   null,
-    setupComplete: true,
-    createdAt:     serverTimestamp(),
-  }, { merge: true });
-
-  await batch.commit();
+  // Idempotent: a user who already has a clinic gets it back unchanged.
+  await _registerClinic({
+    clinicName: params.clinicName,
+    userName:   user.displayName ?? user.email ?? undefined,
+    phone:      params.phone,
+    logoUrl:    user.photoURL ?? undefined,
+  });
   await refreshSession(user);
 }
 
@@ -524,36 +461,19 @@ export const eliminarUsuario = deleteUser;
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
-async function _createClinic(params: {
-  clinicId:   string;
+async function _registerClinic(data: {
   clinicName: string;
-  logoUrl:    string | null;
+  userName?:  string;
   phone?:     string;
-}): Promise<void> {
-  const fs = getFirestoreDb();
-
-  await setDoc(doc(fs, 'clinics', params.clinicId), {
-    name:      params.clinicName,
-    logoUrl:   params.logoUrl,
-    phone:     params.phone ?? null,
-    createdAt: serverTimestamp(),
-  }, { merge: true });
-
-  const expiry = new Date();
-  expiry.setFullYear(expiry.getFullYear() + 1);
-
-  await setDoc(doc(fs, 'clinics', params.clinicId, 'license', 'data'), {
-    clinicName:     params.clinicName,
-    plan:           'Trial',
-    expirationDate: expiry.toISOString().slice(0, 10),
-    subscription:   true,
-    updatedAt:      serverTimestamp(),
-  }, { merge: true });
+  logoUrl?:   string;
+}): Promise<{ clinicId: string; created: boolean }> {
+  const fn = httpsCallable<typeof data, { clinicId: string; created: boolean }>(
+    getFirebaseFunctions(),
+    'registerClinic',
+  );
+  const result = await fn(data);
+  return result.data;
 }
-
-/** @deprecated Use _createClinic instead */
-const _crearClinica = _createClinic;
-void _crearClinica; // suppress unused warning
 
 async function _createUserDoc(
   user:          User,
@@ -588,15 +508,6 @@ void _crearDocUsuario; // suppress unused warning
 //   return getDownloadURL(logoRef);
 // }
 
-function _slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-}
-
 // ─── Dev helpers ──────────────────────────────────────────────────────────────
 
 function _devLicense() {
@@ -607,6 +518,17 @@ function _devLicense() {
     expirationDate: expiry.toISOString().slice(0, 10),
     subscription:   true,
     clinicName:     'House of Pets (Dev)',
+  };
+}
+
+/** Already expired: the clinic sees the payment screen instead of the app. */
+function _missingLicense() {
+  const yesterday = new Date(Date.now() - 86_400_000);
+  return {
+    plan:           'none',
+    expirationDate: yesterday.toISOString().slice(0, 10),
+    subscription:   true,
+    clinicName:     undefined as string | undefined,
   };
 }
 

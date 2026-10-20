@@ -6,6 +6,17 @@ import { getFirebaseFunctions } from '@/lib/firebase/firebase.config';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
+/**
+ * What the UI shows about the plan. The amount actually charged comes only from
+ * functions/src/payments/recurrente/recurrente.plans.ts — keep this label in step.
+ */
+export const SUBSCRIPTION_PLAN = {
+  id:           'monthly',
+  name:         'Plan Mensual',
+  priceLabel:   'US$20',
+  durationDays: 30,
+} as const;
+
 // The price is decided by the server from planId — the client never sends an amount.
 interface CreateCheckoutData {
   planId: 'monthly';
@@ -25,6 +36,10 @@ export function useSubscription() {
   const [loading, setLoading] = useState(false);
 
   async function startCheckout() {
+    if (session?.isDemo) {
+      toast.info('En el modo demo no se realizan pagos.');
+      return;
+    }
     if (!session?.clinicId) {
       toast.error('No se pudo identificar la clínica. Inicia sesión nuevamente.');
       return;

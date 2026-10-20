@@ -13,3 +13,6 @@ export {
   simulateRecurrenteMockEvent,
   createCheckout,
 } from './payments/recurrente/recurrente.functions';
+
+// Clinic registration — the only client-reachable path that creates a license.
+export { registerClinic } from './clinics/clinic.functions';

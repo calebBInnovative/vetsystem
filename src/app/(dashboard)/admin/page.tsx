@@ -11,6 +11,8 @@ import {
   type NuevoUsuario, type UsuarioFirestore,
 } from '@/lib/auth/auth.service';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSubscription, SUBSCRIPTION_PLAN } from '@/hooks/useSubscription';
+import { isPlatformOwner } from '@/lib/usage/usage.service';
 import { Button } from '@/components/ui/button';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -19,7 +21,7 @@ import {
   Loader2, Sprout, Trash2, CheckCircle2, AlertCircle,
   CloudUpload, RefreshCw, Database, Wifi, WifiOff, AlertTriangle,
   UserPlus, Users, KeyRound, ShieldAlert, Pencil, KeySquare, Phone,
-  BookOpen, ChevronRight, Activity,
+  BookOpen, ChevronRight, Activity, CreditCard,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AppModule, Permissions, UserRole } from '@/types/license';
@@ -127,7 +129,7 @@ export default function AdminPage() {
 
       {tab === 'clinica'  && <TabClinica />}
       {tab === 'usuarios' && <TabUsuarios esMaster={esMaster} />}
-      {tab === 'plan'     && <TabPlan esMaster={esMaster} />}
+      {tab === 'plan'     && <TabPlan />}
       {esMaster && tab === 'datos'    && <TabDatos />}
       {esMaster && tab === 'firebase' && <TabFirebase />}
       {esMaster && tab === 'estado'   && <TabEstado />}
@@ -721,48 +723,40 @@ function TabClinica() {
 
 // ─── Tab: Plan (admin + master) ──────────────────────────────────────────────
 
-function TabPlan({ esMaster }: { esMaster: boolean }) {
-  const { session } = useAuth();
-  const clinicId = session?.clinicId ?? process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
+function TabPlan() {
+  const { session, license } = useAuth();
+  const { startCheckout, loading: checkoutLoading } = useSubscription();
+  const platformOwner = isPlatformOwner(session?.email);
+  const clinicId = session?.clinicId ?? '';
 
-  const activa = session?.subscription === true;
+  const days    = license.daysUntilExpiry;
+  const expired = session?.subscription === false || (days !== null && days < 0);
+  const isTrial = session?.plan === 'Trial';
 
-  // State for master's full editor
+  // State for the platform owner's license editor
   const [lic, setLic] = useState({
+    clinicId,
     clinicName:     session?.clinicName     ?? '',
-    plan:           session?.plan           ?? 'Pro',
+    plan:           session?.plan           ?? 'monthly',
     expirationDate: session?.expirationDate ?? '',
     subscription:   session?.subscription  ?? true,
   });
   const [accionLic, setAccionLic] = useState<Accion>('idle');
 
-  // Pause / resume for admins
-  const [accionPausa, setAccionPausa] = useState<Accion>('idle');
-  const [confirmPause, setConfirmPause] = useState(false);
-
   async function handleGuardarLicencia(e: React.FormEvent) {
     e.preventDefault();
     setAccionLic('loading');
     try {
-      await configurarLicencia({ clinicId, ...lic });
+      await configurarLicencia({ ...lic, clinicId: lic.clinicId.trim() });
       setAccionLic('ok');
     } catch { setAccionLic('error'); }
   }
 
-  async function handlePausa() {
-    setAccionPausa('loading');
-    try {
-      await configurarLicencia({
-        clinicId,
-        clinicName:     session?.clinicName     ?? '',
-        plan:           session?.plan           ?? 'Pro',
-        expirationDate: session?.expirationDate ?? '',
-        subscription:   activa ? false : true,
-      });
-      setAccionPausa('ok');
-      setConfirmPause(false);
-    } catch { setAccionPausa('error'); }
-  }
+  const estado = expired
+    ? { label: 'Vencida', dot: 'bg-red-500',   text: 'text-red-600 dark:text-red-400' }
+    : isTrial
+      ? { label: 'Prueba gratis', dot: 'bg-blue-500', text: 'text-blue-600 dark:text-blue-400' }
+      : { label: 'Activa', dot: 'bg-green-500', text: 'text-green-600 dark:text-green-400' };
 
   return (
     <div className="space-y-5">
@@ -772,76 +766,52 @@ function TabPlan({ esMaster }: { esMaster: boolean }) {
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-xl bg-muted/40 px-4 py-3">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Plan</p>
-            <p className="text-sm font-semibold">{session?.plan ?? '—'}</p>
+            <p className="text-sm font-semibold">{isTrial ? 'Prueba' : session?.plan === 'monthly' ? SUBSCRIPTION_PLAN.name : (session?.plan ?? '—')}</p>
           </div>
           <div className="rounded-xl bg-muted/40 px-4 py-3">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Estado</p>
-            <span className={cn(
-              'inline-flex items-center gap-1.5 text-xs font-semibold',
-              activa ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400',
-            )}>
-              <span className={cn('w-1.5 h-1.5 rounded-full', activa ? 'bg-green-500' : 'bg-amber-400')} />
-              {activa ? 'Activa' : 'Pausada'}
+            <span className={cn('inline-flex items-center gap-1.5 text-xs font-semibold', estado.text)}>
+              <span className={cn('w-1.5 h-1.5 rounded-full', estado.dot)} />
+              {estado.label}
             </span>
           </div>
           <div className="rounded-xl bg-muted/40 px-4 py-3 col-span-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Vence el</p>
-            <p className="text-sm font-semibold">{session?.expirationDate ?? '—'}</p>
+            <p className="text-sm font-semibold">
+              {session?.expirationDate ?? '—'}
+              {days !== null && days >= 0 && (
+                <span className="text-xs font-normal text-muted-foreground ml-2">
+                  {days === 0 ? '(hoy)' : `(${days} ${days === 1 ? 'día' : 'días'})`}
+                </span>
+              )}
+            </p>
           </div>
         </div>
       </Card>
 
-      {/* Pause / resume — admins only */}
-      {!esMaster && (
+      {/* Pay / renew */}
+      {!session?.isDemo && (
         <Card
-          titulo={activa ? 'Pausar suscripción' : 'Reactivar suscripción'}
-          desc={activa
-            ? 'Al pausar, tú y tu equipo perderán acceso al sistema hasta reactivarla.'
-            : 'Reactiva tu suscripción para volver a tener acceso completo.'}
+          titulo={expired ? 'Reactivar suscripción' : 'Pagar o renovar'}
+          desc={`${SUBSCRIPTION_PLAN.name}: ${SUBSCRIPTION_PLAN.priceLabel} por ${SUBSCRIPTION_PLAN.durationDays} días de acceso completo.`}
         >
-          {!confirmPause ? (
-            <Button
-              variant={activa ? 'outline' : 'default'}
-              className={cn('gap-2', activa && 'border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950/30')}
-              onClick={() => setConfirmPause(true)}
-            >
-              {activa ? 'Pausar suscripción' : 'Reactivar suscripción'}
-            </Button>
-          ) : (
-            <div className="space-y-3">
-              <Advertencia tipo={activa ? 'riesgo' : 'info'}>
-                {activa
-                  ? '¿Estás seguro? Tu equipo perderá acceso de inmediato.'
-                  : '¿Confirmas que deseas reactivar tu suscripción?'}
-              </Advertencia>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setConfirmPause(false)}>
-                  Cancelar
-                </Button>
-                <Button
-                  variant={activa ? 'destructive' : 'default'}
-                  disabled={accionPausa === 'loading'}
-                  onClick={handlePausa}
-                >
-                  {accionPausa === 'loading' && <Loader2 size={13} className="animate-spin mr-1.5" />}
-                  {activa ? 'Sí, pausar' : 'Sí, reactivar'}
-                </Button>
-              </div>
-              {accionPausa === 'ok' && (
-                <p className="text-xs text-green-600 flex items-center gap-1">
-                  <CheckCircle2 size={12} /> Cambio guardado. Recarga para ver el nuevo estado.
-                </p>
-              )}
-            </div>
-          )}
+          <p className="text-xs text-muted-foreground">
+            Pago seguro con tarjeta a través de Recurrente. Si pagas antes de que venza, los
+            {` ${SUBSCRIPTION_PLAN.durationDays} `}días se suman a tu fecha actual: no pierdes ningún día.
+          </p>
+          <Button onClick={startCheckout} disabled={checkoutLoading} className="w-full gap-2">
+            {checkoutLoading ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />}
+            Pagar {SUBSCRIPTION_PLAN.priceLabel}
+          </Button>
         </Card>
       )}
 
-      {/* Cancel note — admins only */}
-      {!esMaster && (
+      {/* Cancel note */}
+      {!platformOwner && (
         <Card titulo="Cancelar cuenta" desc="La cancelación elimina permanentemente tu clínica y sus datos.">
           <p className="text-xs text-muted-foreground">
-            Para cancelar tu cuenta de VetSystem, contacta al soporte:{' '}
+            Los pagos no se renuevan solos: si no pagas, el acceso se detiene al vencer. Para eliminar
+            tu cuenta de VetSystem, contacta al soporte:{' '}
             <a href="mailto:soporte@vetsystem.app" className="underline text-foreground">
               soporte@vetsystem.app
             </a>
@@ -849,13 +819,22 @@ function TabPlan({ esMaster }: { esMaster: boolean }) {
         </Card>
       )}
 
-      {/* Full license editor — master only */}
-      {esMaster && (
-        <Card titulo="Editor de licencia" desc="Configura el plan de cualquier clínica. Se replica al reconectar.">
+      {/* Full license editor — platform owner only (enforced by firestore.rules) */}
+      {platformOwner && (
+        <Card titulo="Editor de licencia" desc="Configura el plan de cualquier clínica. Se aplica en su próximo inicio de sesión.">
           <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 mb-3">
-            <ShieldAlert size={12} /> Solo visible para master
+            <ShieldAlert size={12} /> Solo visible para el dueño de la plataforma
           </div>
           <form onSubmit={handleGuardarLicencia} className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium">ID de la clínica</label>
+              <input
+                required
+                value={lic.clinicId}
+                onChange={(e) => setLic({ ...lic, clinicId: e.target.value })}
+                className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-xs font-medium">Nombre clínica</label>
@@ -872,7 +851,7 @@ function TabPlan({ esMaster }: { esMaster: boolean }) {
                   required
                   value={lic.plan}
                   onChange={(e) => setLic({ ...lic, plan: e.target.value })}
-                  placeholder="Pro, Básico…"
+                  placeholder="monthly, Trial…"
                   className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
@@ -896,7 +875,7 @@ function TabPlan({ esMaster }: { esMaster: boolean }) {
                   className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 >
                   <option value="active">Activa</option>
-                  <option value="inactive">Pausada</option>
+                  <option value="inactive">Suspendida</option>
                 </select>
               </div>
             </div>
@@ -907,6 +886,11 @@ function TabPlan({ esMaster }: { esMaster: boolean }) {
             {accionLic === 'ok' && (
               <p className="text-xs text-green-600 flex items-center gap-1">
                 <CheckCircle2 size={12} /> Guardado en Firestore.
+              </p>
+            )}
+            {accionLic === 'error' && (
+              <p className="text-xs text-destructive flex items-center gap-1">
+                <AlertCircle size={12} /> No se pudo guardar. Revisa el ID de la clínica.
               </p>
             )}
           </form>

@@ -75,7 +75,7 @@ describe('mock checkout', () => {
     const input = { uid: 'u1', planId: 'monthly', returnOrigin: ORIGIN, amountInCents: 1, amount: 1 };
     const result = await env.service.createCheckout(input);
     const checkout = await env.store.get(env.repository.payments.get(result.paymentId)!.providerCheckoutId!);
-    assert.equal(checkout!.total_in_cents, 3000);
+    assert.equal(checkout!.total_in_cents, 2000);
   });
 
   it('rejects an unknown plan', async () => {
