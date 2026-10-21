@@ -195,6 +195,7 @@ export async function refreshSession(user: User): Promise<SessionLocal | null> {
       plan:           licenseData.plan ?? 'Basic',
       expirationDate: licenseData.expirationDate ?? _missingLicense().expirationDate,
       subscription:   licenseData.subscription !== false,
+      ...billingNoticeFields(licenseData),
       lastSync:       now,
       cachedAt:       now,
       // undefined / missing = already set up (email users, legacy Google users)
@@ -519,6 +520,17 @@ function _devLicense() {
     subscription:   true,
     clinicName:     'House of Pets (Dev)',
   };
+}
+
+/** Maps the license's billingNotice to the flat session fields (absent = no notice). */
+export function billingNoticeFields(
+  license: Record<string, unknown>,
+): Pick<SessionLocal, 'billingNoticeAt' | 'billingNoticeBlocking'> {
+  const notice = license.billingNotice as { at?: unknown; blocking?: unknown } | null | undefined;
+  if (!notice || typeof notice.at !== 'number') {
+    return { billingNoticeAt: undefined, billingNoticeBlocking: undefined };
+  }
+  return { billingNoticeAt: notice.at, billingNoticeBlocking: notice.blocking === true };
 }
 
 /** Already expired: the clinic sees the payment screen instead of the app. */

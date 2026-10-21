@@ -4,8 +4,13 @@ import {
   createContext, useContext, useEffect, useState, useCallback, useRef,
   type ReactNode,
 } from 'react';
-import { onAuthChange, getLocalSession, refreshSession, logout, UserNotFoundError, isUserCreationInFlight } from '@/lib/auth/auth.service';
-import { ensureDbReady } from '@/lib/db/database';
+import { doc, onSnapshot } from 'firebase/firestore';
+import {
+  onAuthChange, getLocalSession, refreshSession, logout, UserNotFoundError, isUserCreationInFlight,
+  billingNoticeFields,
+} from '@/lib/auth/auth.service';
+import { db, ensureDbReady } from '@/lib/db/database';
+import { getFirestoreDb } from '@/lib/firebase/firebase.config';
 import { calculateLicense } from '@/lib/license/license.service';
 import { setMonitoringContext } from '@/lib/monitoring/context';
 import type { LicenseInfo, SessionLocal } from '@/types/license';
@@ -27,7 +32,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue>({
   firebaseUser:     null,
   session:          null,
-  license:          { mode: 'blocked', daysOffline: 0, daysUntilExpiry: null, session: null },
+  license:          { mode: 'blocked', daysOffline: 0, daysUntilExpiry: null, billingDue: false, session: null },
   loading:         true,
   syncing:    false,
   refreshFromDexie: async () => {},
@@ -50,7 +55,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const firebaseUserRef = useRef<User | null>(null);
   firebaseUserRef.current = firebaseUser;
 
+  // Bumped when a scheduled billing notice comes due, so the license is recalculated.
+  const [, setLicenseClock] = useState(0);
   const license = calculateLicense(session);
+
+  // ── Live license ─────────────────────────────────────────────────────────
+  // The platform owner can schedule a billing notice or a payment can renew the
+  // license at any moment; listening means neither needs a reload or re-login.
+  const clinicId = session?.clinicId;
+  const isDemoSession = session?.isDemo === true;
+  useEffect(() => {
+    if (!firebaseUser || !clinicId || isDemoSession) return;
+    const ref = doc(getFirestoreDb(), 'clinics', clinicId, 'license', 'data');
+    return onSnapshot(ref, async (snap) => {
+      if (!snap.exists() || snap.metadata.fromCache) return;
+      const data = snap.data();
+      const local = await getLocalSession();
+      if (!local || local.clinicId !== clinicId) return;
+      const now = Date.now();
+      const next: SessionLocal = {
+        ...local,
+        plan:           typeof data.plan === 'string' ? data.plan : local.plan,
+        expirationDate: typeof data.expirationDate === 'string' ? data.expirationDate : local.expirationDate,
+        subscription:   data.subscription !== false,
+        ...billingNoticeFields(data),
+        lastSync:       now,
+        cachedAt:       now,
+      };
+      await db.session.put(next);
+      setSession(next);
+    }, (err) => console.warn('[auth] license listener failed:', err));
+  }, [firebaseUser, clinicId, isDemoSession]);
+
+  // ── Fire a scheduled billing notice on time, without waiting for a re-render ──
+  const billingNoticeAt = session?.billingNoticeAt;
+  useEffect(() => {
+    if (billingNoticeAt === undefined) return;
+    const delay = billingNoticeAt - Date.now();
+    if (delay <= 0) return;
+    const timer = setTimeout(() => setLicenseClock((n) => n + 1), Math.min(delay + 250, 2_147_483_647));
+    return () => clearTimeout(timer);
+  }, [billingNoticeAt]);
 
   // Tag error reports with the clinic, role and plan — never the person
   useEffect(() => { setMonitoringContext(session); }, [session]);

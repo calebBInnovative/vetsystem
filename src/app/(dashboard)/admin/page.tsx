@@ -21,7 +21,7 @@ import {
   Loader2, Sprout, Trash2, CheckCircle2, AlertCircle,
   CloudUpload, RefreshCw, Database, Wifi, WifiOff, AlertTriangle,
   UserPlus, Users, KeyRound, ShieldAlert, Pencil, KeySquare, Phone,
-  BookOpen, ChevronRight, Activity, CreditCard,
+  BookOpen, ChevronRight, Activity, CreditCard, BellRing,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AppModule, Permissions, UserRole } from '@/types/license';
@@ -724,6 +724,7 @@ function TabClinica() {
 // ─── Tab: Plan (admin + master) ──────────────────────────────────────────────
 
 function TabPlan() {
+  const router = useRouter();
   const { session, license } = useAuth();
   const { startCheckout, loading: checkoutLoading } = useSubscription();
   const platformOwner = isPlatformOwner(session?.email);
@@ -816,6 +817,15 @@ function TabPlan() {
               soporte@vetsystem.app
             </a>
           </p>
+        </Card>
+      )}
+
+      {/* Billing notices — platform owner only */}
+      {platformOwner && (
+        <Card titulo="Avisos de cobro" desc="Elige cuándo cada clínica ve el cobro: ahora, en 5 minutos o a una hora exacta.">
+          <Button onClick={() => router.push('/admin/billing')} variant="outline" className="gap-2">
+            <BellRing size={14} /> Programar cobros
+          </Button>
         </Card>
       )}
 

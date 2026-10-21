@@ -19,19 +19,22 @@ const DIAS_BLOQUEADO          = 45;
  */
 export function calculateLicense(session: SessionLocal | null): LicenseInfo {
   if (!session) {
-    return { mode: 'blocked', daysOffline: 0, daysUntilExpiry: null, session: null };
+    return { mode: 'blocked', daysOffline: 0, daysUntilExpiry: null, billingDue: false, session: null };
   }
 
   const now = Date.now();
 
   // ── Anti-tamper: clock set back ───────────────────────────────────────────
   if (now < session.cachedAt) {
-    return { mode: 'blocked', daysOffline: -1, daysUntilExpiry: null, session };
+    return { mode: 'blocked', daysOffline: -1, daysUntilExpiry: null, billingDue: false, session };
   }
+
+  // ── Billing notice from the platform owner (checked offline too) ─────────
+  const billingDue = session.billingNoticeAt !== undefined && now >= session.billingNoticeAt;
 
   // ── Subscription inactive (detected at last online sync) ─────────────────
   if (session.subscription === false) {
-    return { mode: 'expired', daysOffline: 0, daysUntilExpiry: 0, session };
+    return { mode: 'expired', daysOffline: 0, daysUntilExpiry: 0, billingDue, session };
   }
 
   // ── Days since last successful sync ──────────────────────────────────────
@@ -45,7 +48,12 @@ export function calculateLicense(session: SessionLocal | null): LicenseInfo {
 
   // ── If subscription expired by date ──────────────────────────────────────
   if (daysUntilExpiry < 0) {
-    return { mode: 'expired', daysOffline, daysUntilExpiry, session };
+    return { mode: 'expired', daysOffline, daysUntilExpiry, billingDue, session };
+  }
+
+  // ── Blocking billing notice: same lock screen as an expired license ──────
+  if (billingDue && session.billingNoticeBlocking) {
+    return { mode: 'expired', daysOffline, daysUntilExpiry, billingDue, session };
   }
 
   // ── Mode based on days offline ────────────────────────────────────────────
@@ -55,7 +63,7 @@ export function calculateLicense(session: SessionLocal | null): LicenseInfo {
   else if (daysOffline >= DIAS_ADVERTENCIA_FUERTE)  mode = 'hard_warning';
   else if (daysOffline >= DIAS_ADVERTENCIA_SUAVE)   mode = 'soft_warning';
 
-  return { mode, daysOffline, daysUntilExpiry, session };
+  return { mode, daysOffline, daysUntilExpiry, billingDue, session };
 }
 
 /** @deprecated Use calculateLicense instead */

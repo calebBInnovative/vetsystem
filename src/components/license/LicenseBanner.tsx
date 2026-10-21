@@ -25,7 +25,38 @@ export function LicenseBanner() {
   const [closed, setClosed] = useState(false);
   const { startCheckout, loading: checkoutLoading } = useSubscription();
 
-  const { mode, daysOffline, daysUntilExpiry } = license;
+  const { mode, daysOffline, daysUntilExpiry, billingDue } = license;
+
+  // Billing notice scheduled by the platform owner (non-blocking variant).
+  // Dismissing hides it until the next page load, never for good.
+  if (billingDue && mode !== 'expired' && mode !== 'blocked') {
+    if (closed) return null;
+    return (
+      <div className="flex items-center gap-3 px-4 py-2.5 border-b text-sm bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-950/40 dark:border-amber-700 dark:text-amber-300">
+        <CreditCard size={14} className="shrink-0" />
+        <div className="flex-1 min-w-0">
+          <span className="font-medium">Activa tu suscripción</span>
+          <span className="opacity-80"> — {SUBSCRIPTION_PLAN.priceLabel} por {SUBSCRIPTION_PLAN.durationDays} días para seguir usando VetSystem.</span>
+        </div>
+        <button
+          type="button"
+          onClick={startCheckout}
+          disabled={checkoutLoading}
+          className="shrink-0 flex items-center gap-1 px-3 py-1 rounded-lg bg-current/10 hover:bg-current/20 font-medium text-xs transition-colors disabled:opacity-60"
+        >
+          {checkoutLoading ? <Loader2 size={11} className="animate-spin" /> : <CreditCard size={11} />}
+          {checkoutLoading ? 'Redirigiendo…' : `Pagar ${SUBSCRIPTION_PLAN.priceLabel}`}
+        </button>
+        <button
+          type="button"
+          onClick={() => setClosed(true)}
+          className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"
+        >
+          <X size={14} />
+        </button>
+      </div>
+    );
+  }
 
   // Expiring soon — the only banner a healthy, online clinic ever sees
   if (mode === 'normal') {
@@ -60,7 +91,10 @@ export function LicenseBanner() {
   }
   if (closed && (mode === 'soft_warning' || mode === 'hard_warning')) return null;
 
-  const info   = LICENSE_MESSAGES[mode];
+  // A blocking billing notice reuses the expired lock screen with its own wording
+  const info = mode === 'expired' && billingDue
+    ? { ...LICENSE_MESSAGES.expired, titulo: 'Activa tu suscripción', desc: `Para seguir usando VetSystem, activa tu plan: ${SUBSCRIPTION_PLAN.priceLabel} por ${SUBSCRIPTION_PLAN.durationDays} días.` }
+    : LICENSE_MESSAGES[mode];
   const Icon   = ICONS[mode] ?? null;
   const blocked = estaBloquada(mode);
 

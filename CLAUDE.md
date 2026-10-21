@@ -517,8 +517,11 @@ Clinic subscriptions are paid through Recurrente from Cloud Functions in
   Rules tests: `npm run test:rules`.
 - Clinic admins pay from Admin → Plan, the expiring-soon banner (≤ 5 days) or the lock
   screen. `PaymentReturnHandler` confirms the payment when Recurrente sends the user back.
-- `functions/scripts/set-license-expiration.mjs` moves existing licenses to a date
-  (dry run unless `--apply`).
+- **Billing notices** (`/admin/billing`, platform owner only): `license/data.billingNotice =
+  { at, blocking }` asks a clinic to pay from a chosen moment — a dismissible banner or the
+  lock screen — whatever its expiration date. Clinics receive it live (license `onSnapshot`
+  in `AuthContext`, plus a timer for `at`). A confirmed payment clears it and starts the
+  paid period from the payment day, not after the old trial.
 
 ---
 

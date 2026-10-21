@@ -91,7 +91,7 @@ describe('live mode (fake Recurrente API, no network)', () => {
     assert.equal(record.fulfilledAt, NOW);
     // The trial had expired on 2026-10-01, so 30 days are counted from today.
     assert.deepEqual(env.repository.licenses.get('clinic-a'), {
-      subscription: true, plan: 'monthly', expirationDate: '2026-11-08',
+      subscription: true, plan: 'monthly', expirationDate: '2026-11-08', billingNotice: null,
     });
 
     const again = await deliverLive(env.service, intentEvent(env.api, checkoutId, 'intent.succeeded'));
@@ -133,6 +133,17 @@ describe('live mode (fake Recurrente API, no network)', () => {
     env.api.checkouts.get(checkoutId)!.status = 'paid';
     await deliverLive(env.service, intentEvent(env.api, checkoutId, 'intent.succeeded'));
     assert.equal(env.repository.licenses.get('clinic-a')!.expirationDate, '2026-12-31');
+  });
+
+  it('a billing notice is cleared and the paid period starts today, not after the old trial', async () => {
+    env.repository.licenses.set('clinic-a', {
+      subscription: true, expirationDate: '2027-10-01', plan: 'Trial', billingNotice: { at: NOW - 1000, blocking: true },
+    });
+    env.api.checkouts.get(checkoutId)!.status = 'paid';
+    await deliverLive(env.service, intentEvent(env.api, checkoutId, 'intent.succeeded'));
+    const license = env.repository.licenses.get('clinic-a')!;
+    assert.equal(license.expirationDate, '2026-11-08');
+    assert.equal(license.billingNotice, null);
   });
 
   it('requires an https return origin in live mode', async () => {

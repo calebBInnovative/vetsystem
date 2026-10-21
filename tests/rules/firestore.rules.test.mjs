@@ -60,6 +60,17 @@ describe('license', () => {
     await assertFails(setDoc(doc(as('owner-a'), 'clinics/clinic-a/license/other'), { expirationDate: '2099-01-01' }));
   });
 
+  it('the platform owner can schedule a billing notice', async () => {
+    await assertSucceeds(setDoc(doc(as('platform', PLATFORM_OWNER_EMAIL), 'clinics/clinic-a/license/data'),
+      { billingNotice: { at: 1, blocking: true } }, { merge: true }));
+  });
+
+  it('a clinic cannot remove its own billing notice', async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'clinics/clinic-a/license/data'),
+      { billingNotice: { at: 1, blocking: true } }, { merge: true }));
+    await assertFails(setDoc(doc(as('owner-a'), 'clinics/clinic-a/license/data'), { billingNotice: null }, { merge: true }));
+  });
+
   it('the platform owner can edit any license', async () => {
     await assertSucceeds(updateDoc(doc(as('platform', PLATFORM_OWNER_EMAIL), 'clinics/clinic-a/license/data'), { expirationDate: '2026-12-01' }));
   });

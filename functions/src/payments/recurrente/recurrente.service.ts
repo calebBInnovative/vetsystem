@@ -376,10 +376,14 @@ export class PaymentService {
     });
 
     if (fulfill) {
+      // A clinic asked to pay (billing notice) starts its paid period today: the
+      // days left on the free license it had before billing are not carried over.
+      const carriedExpiration = license?.billingNotice ? undefined : license?.expirationDate;
       tx.setLicense(payment.clinicId, {
         subscription:   true,
         plan:           payment.licensePlan,
-        expirationDate: extendExpiration(license?.expirationDate, payment.durationDays, now),
+        expirationDate: extendExpiration(carriedExpiration, payment.durationDays, now),
+        billingNotice:  null,
       });
     }
     return 'paid';

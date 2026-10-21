@@ -62,11 +62,20 @@ export interface SessionLocal {
    * undefined / true = setup done (including all email/password users).
    */
   setupComplete?: boolean;
+  /**
+   * Payment notice set by the platform owner: from this ms timestamp the clinic
+   * is asked to pay, regardless of expirationDate. Cleared by a confirmed payment.
+   */
+  billingNoticeAt?:       number;
+  /** true = the app locks until payment; false = dismissible banner */
+  billingNoticeBlocking?: boolean;
 }
 
 export interface LicenseInfo {
   mode:             LicenseMode;
   daysOffline:      number;
   daysUntilExpiry:  number | null; // null if already expired or not applicable
+  /** true once the platform owner's billing notice time has been reached */
+  billingDue:       boolean;
   session:          SessionLocal | null;
 }

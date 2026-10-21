@@ -125,10 +125,22 @@ export interface CheckoutLock {
   expiresAt: number;
 }
 
+/**
+ * Set by the platform owner to ask a clinic to pay from a given moment on,
+ * independently of the expiration date. Cleared by a confirmed payment.
+ */
+export interface BillingNotice {
+  /** ms timestamp from which the clinic sees the notice */
+  at: number;
+  /** true = the app locks until the clinic pays; false = dismissible banner */
+  blocking: boolean;
+}
+
 export interface LicenseData {
   plan?: string;
   expirationDate?: string;
   subscription?: boolean;
+  billingNotice?: BillingNotice | null;
 }
 
 export interface UserProfile {
