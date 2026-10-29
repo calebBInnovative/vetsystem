@@ -7,6 +7,24 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
+// Web push (Firebase Cloud Messaging, data-only messages). The server sends
+// { title, body, url, tag } — e.g. a new manual payment for the platform owner.
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+  let payload = {};
+  try { payload = event.data.json(); } catch { return; }
+  const data = payload.data ?? payload;
+  if (!data.title) return;
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body ?? '',
+      tag:  data.tag,
+      icon: '/logo.jpeg',
+      data: { url: data.url ?? '/dashboard' },
+    })
+  );
+});
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const url = event.notification.data?.url ?? '/dashboard';

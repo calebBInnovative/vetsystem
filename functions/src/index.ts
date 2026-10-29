@@ -16,3 +16,6 @@ export {
 
 // Clinic registration — the only client-reachable path that creates a license.
 export { registerClinic } from './clinics/clinic.functions';
+
+// Manual payments (bank transfer / Kash): report, owner review, owner push alerts.
+export { reportManualPayment, reviewManualPayment } from './billing/manual-payments.functions';

@@ -12,6 +12,9 @@ import {
 } from '@/lib/auth/auth.service';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription, SUBSCRIPTION_PLAN } from '@/hooks/useSubscription';
+import { useBillingConfig } from '@/hooks/useBillingConfig';
+import { ManualPaymentPanel } from '@/components/billing/ManualPaymentPanel';
+import { formatMoney, subscribeClinicInvoices, type SubscriptionInvoice } from '@/lib/billing/manual-payments';
 import { isPlatformOwner } from '@/lib/usage/usage.service';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,7 +24,7 @@ import {
   Loader2, Sprout, Trash2, CheckCircle2, AlertCircle,
   CloudUpload, RefreshCw, Database, Wifi, WifiOff, AlertTriangle,
   UserPlus, Users, KeyRound, ShieldAlert, Pencil, KeySquare, Phone,
-  BookOpen, ChevronRight, Activity, CreditCard, BellRing,
+  BookOpen, ChevronRight, Activity, CreditCard, BellRing, Landmark,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AppModule, Permissions, UserRole } from '@/types/license';
@@ -727,7 +730,16 @@ function TabPlan() {
   const router = useRouter();
   const { session, license } = useAuth();
   const { startCheckout, loading: checkoutLoading } = useSubscription();
+  const billingConfig = useBillingConfig();
   const platformOwner = isPlatformOwner(session?.email);
+
+  // This clinic's manual payment reports, live
+  const [clinicInvoices, setClinicInvoices] = useState<SubscriptionInvoice[]>([]);
+  const invoicesClinicId = session?.isDemo ? null : session?.clinicId;
+  useEffect(() => {
+    if (!invoicesClinicId) return;
+    return subscribeClinicInvoices(invoicesClinicId, setClinicInvoices);
+  }, [invoicesClinicId]);
   const clinicId = session?.clinicId ?? '';
 
   const days    = license.daysUntilExpiry;
@@ -797,13 +809,41 @@ function TabPlan() {
           desc={`${SUBSCRIPTION_PLAN.name}: ${SUBSCRIPTION_PLAN.priceLabel} por ${SUBSCRIPTION_PLAN.durationDays} días de acceso completo.`}
         >
           <p className="text-xs text-muted-foreground">
-            Pago seguro con tarjeta a través de Recurrente. Si pagas antes de que venza, los
-            {` ${SUBSCRIPTION_PLAN.durationDays} `}días se suman a tu fecha actual: no pierdes ningún día.
+            Si pagas antes de que venza, los {SUBSCRIPTION_PLAN.durationDays} días se suman a tu fecha
+            actual: no pierdes ningún día.
           </p>
-          <Button onClick={startCheckout} disabled={checkoutLoading} className="w-full gap-2">
-            {checkoutLoading ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />}
-            Pagar {SUBSCRIPTION_PLAN.priceLabel}
-          </Button>
+          <ManualPaymentPanel />
+          {billingConfig?.cardEnabled && (
+            <Button onClick={startCheckout} disabled={checkoutLoading} variant="outline" className="w-full gap-2">
+              {checkoutLoading ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />}
+              Pagar con tarjeta
+            </Button>
+          )}
+        </Card>
+      )}
+
+      {/* Payment history */}
+      {!session?.isDemo && clinicInvoices.length > 0 && (
+        <Card titulo="Tus pagos" desc="Pagos reportados por transferencia o Kash.">
+          <ul className="divide-y divide-border">
+            {clinicInvoices.map((inv) => (
+              <li key={inv.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <div className="min-w-0">
+                  <p className="font-medium">{inv.number} · {formatMoney(inv.amount, inv.currency)}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {inv.methodLabel} · comprobante {inv.payerReference} · {inv.paidOn}
+                    {inv.status === 'rejected' && inv.rejectReason ? ` · ${inv.rejectReason}` : ''}
+                  </p>
+                </div>
+                <span className={cn('shrink-0 rounded-lg px-2 py-0.5 text-[11px] font-medium',
+                  inv.status === 'confirmed' ? 'bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400'
+                  : inv.status === 'rejected' ? 'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400'
+                  : 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400')}>
+                  {inv.status === 'confirmed' ? 'Confirmado' : inv.status === 'rejected' ? 'Rechazado' : 'En revisión'}
+                </span>
+              </li>
+            ))}
+          </ul>
         </Card>
       )}
 
@@ -822,10 +862,15 @@ function TabPlan() {
 
       {/* Billing notices — platform owner only */}
       {platformOwner && (
-        <Card titulo="Avisos de cobro" desc="Elige cuándo cada clínica ve el cobro: ahora, en 5 minutos o a una hora exacta.">
-          <Button onClick={() => router.push('/admin/billing')} variant="outline" className="gap-2">
-            <BellRing size={14} /> Programar cobros
-          </Button>
+        <Card titulo="Cobros a clínicas" desc="Confirma pagos por transferencia o Kash, y elige cuándo cada clínica ve el cobro.">
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => router.push('/admin/payments')} className="gap-2">
+              <Landmark size={14} /> Pagos por confirmar
+            </Button>
+            <Button onClick={() => router.push('/admin/billing')} variant="outline" className="gap-2">
+              <BellRing size={14} /> Programar cobros
+            </Button>
+          </div>
         </Card>
       )}
 

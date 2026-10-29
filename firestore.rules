@@ -121,6 +121,28 @@ service cloud.firestore {
                          || (belongsToClinic(clinicId) && (isMaster() || userRole() == 'admin'));
     }
 
+    // ── Subscription billing (manual payments) ─────────────────────────────────
+    // Payment instructions are readable by any signed-in user (clinics need the
+    // account numbers to pay) and editable only by the platform owner. Invoices
+    // and counters are written only by Cloud Functions (reportManualPayment /
+    // reviewManualPayment); a clinic can read its own invoices.
+
+    match /platform/billing {
+      allow read:  if isAuth();
+      allow write: if isPlatformOwner();
+    }
+
+    match /subscriptionInvoices/{invoiceId} {
+      allow read:  if isPlatformOwner()
+                   || (isAuth() && resource.data.clinicId == userClinicId());
+      allow write: if false;
+    }
+
+    // Web push tokens of the platform owner's devices
+    match /platformPushTokens/{token} {
+      allow read, write: if isPlatformOwner();
+    }
+
     // ── Public supplier catalog ───────────────────────────────────────────────
     // Any authenticated user can read (used in /import → Catálogo tab).
     // Only master role can add / edit / delete entries.

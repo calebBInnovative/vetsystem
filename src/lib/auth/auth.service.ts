@@ -195,7 +195,7 @@ export async function refreshSession(user: User): Promise<SessionLocal | null> {
       plan:           licenseData.plan ?? 'Basic',
       expirationDate: licenseData.expirationDate ?? _missingLicense().expirationDate,
       subscription:   licenseData.subscription !== false,
-      ...billingNoticeFields(licenseData),
+      ...billingStateFields(licenseData),
       lastSync:       now,
       cachedAt:       now,
       // undefined / missing = already set up (email users, legacy Google users)
@@ -522,15 +522,20 @@ function _devLicense() {
   };
 }
 
-/** Maps the license's billingNotice to the flat session fields (absent = no notice). */
-export function billingNoticeFields(
+/**
+ * Maps the license's billing state (billingNotice, graceUntil) to the flat session
+ * fields. Absent or null = not set, so a cleared notice also clears the session.
+ */
+export function billingStateFields(
   license: Record<string, unknown>,
-): Pick<SessionLocal, 'billingNoticeAt' | 'billingNoticeBlocking'> {
+): Pick<SessionLocal, 'billingNoticeAt' | 'billingNoticeBlocking' | 'graceUntil'> {
   const notice = license.billingNotice as { at?: unknown; blocking?: unknown } | null | undefined;
-  if (!notice || typeof notice.at !== 'number') {
-    return { billingNoticeAt: undefined, billingNoticeBlocking: undefined };
-  }
-  return { billingNoticeAt: notice.at, billingNoticeBlocking: notice.blocking === true };
+  const hasNotice = !!notice && typeof notice.at === 'number';
+  return {
+    billingNoticeAt:       hasNotice ? notice.at as number : undefined,
+    billingNoticeBlocking: hasNotice ? notice.blocking === true : undefined,
+    graceUntil:            typeof license.graceUntil === 'number' ? license.graceUntil : undefined,
+  };
 }
 
 /** Already expired: the clinic sees the payment screen instead of the app. */

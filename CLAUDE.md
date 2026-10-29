@@ -522,6 +522,21 @@ Clinic subscriptions are paid through Recurrente from Cloud Functions in
   lock screen — whatever its expiration date. Clinics receive it live (license `onSnapshot`
   in `AuthContext`, plus a timer for `at`). A confirmed payment clears it and starts the
   paid period from the payment day, not after the old trial.
+- **Manual payments (bank transfer / Kash)** — the default way to pay while card payouts to
+  Nicaragua are unresolved (`platform/billing.cardEnabled` hides the card button).
+  - Clinics report from the pay modal (lock screen, banners, Admin → Plan) via the
+    `reportManualPayment` callable → `subscriptionInvoices/{id}` (`PAG-YYYY-NNNN`, status
+    `pending`) plus `license.graceUntil` (provisional access, `graceDays`, default 3).
+  - The owner confirms or rejects at `/admin/payments` (`reviewManualPayment`, owner-only).
+    Confirming extends the license 30 days like a card payment; rejecting removes the grace.
+  - One pending report per clinic; a receipt number cannot be reported twice.
+  - Alerts: a live toast while the owner has the app open (`OwnerPaymentAlerts`), and web push
+    through FCM when it is closed (`platformPushTokens`, `public/sw.js` `push` handler; needs
+    `NEXT_PUBLIC_FIREBASE_VAPID_KEY`).
+  - Payment instructions (Kash, BAC, LAFISE accounts, prices in USD/NIO, WhatsApp) are edited
+    in the Configuración tab and stored in `platform/billing`, never in code.
+  - `clinicPaymentReference()` (the `VS-XXXXXX` code clinics write in the transfer) exists
+    in both `functions/src/billing/` and `src/lib/billing/` and must stay identical.
 
 ---
 

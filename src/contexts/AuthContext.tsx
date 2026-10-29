@@ -7,7 +7,7 @@ import {
 import { doc, onSnapshot } from 'firebase/firestore';
 import {
   onAuthChange, getLocalSession, refreshSession, logout, UserNotFoundError, isUserCreationInFlight,
-  billingNoticeFields,
+  billingStateFields,
 } from '@/lib/auth/auth.service';
 import { db, ensureDbReady } from '@/lib/db/database';
 import { getFirestoreDb } from '@/lib/firebase/firebase.config';
@@ -32,7 +32,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue>({
   firebaseUser:     null,
   session:          null,
-  license:          { mode: 'blocked', daysOffline: 0, daysUntilExpiry: null, billingDue: false, session: null },
+  license:          { mode: 'blocked', daysOffline: 0, daysUntilExpiry: null, billingDue: false, inGrace: false, session: null },
   loading:         true,
   syncing:    false,
   refreshFromDexie: async () => {},
@@ -78,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         plan:           typeof data.plan === 'string' ? data.plan : local.plan,
         expirationDate: typeof data.expirationDate === 'string' ? data.expirationDate : local.expirationDate,
         subscription:   data.subscription !== false,
-        ...billingNoticeFields(data),
+        ...billingStateFields(data),
         lastSync:       now,
         cachedAt:       now,
       };
@@ -87,15 +87,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, (err) => console.warn('[auth] license listener failed:', err));
   }, [firebaseUser, clinicId, isDemoSession]);
 
-  // ── Fire a scheduled billing notice on time, without waiting for a re-render ──
+  // ── Recalculate on time when a billing notice starts or a grace period ends ──
   const billingNoticeAt = session?.billingNoticeAt;
+  const graceUntil = session?.graceUntil;
   useEffect(() => {
-    if (billingNoticeAt === undefined) return;
-    const delay = billingNoticeAt - Date.now();
-    if (delay <= 0) return;
+    const now = Date.now();
+    const upcoming = [billingNoticeAt, graceUntil].filter((t): t is number => t !== undefined && t > now);
+    if (upcoming.length === 0) return;
+    const delay = Math.min(...upcoming) - now;
     const timer = setTimeout(() => setLicenseClock((n) => n + 1), Math.min(delay + 250, 2_147_483_647));
     return () => clearTimeout(timer);
-  }, [billingNoticeAt]);
+  }, [billingNoticeAt, graceUntil]);
 
   // Tag error reports with the clinic, role and plan — never the person
   useEffect(() => { setMonitoringContext(session); }, [session]);

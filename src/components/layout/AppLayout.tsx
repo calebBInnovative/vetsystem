@@ -11,6 +11,8 @@ import { db } from '@/lib/db/database';
 import { clearDemo } from '@/lib/demo/demo.service';
 import { LicenseBanner } from '@/components/license/LicenseBanner';
 import { PaymentReturnHandler } from '@/components/license/PaymentReturnHandler';
+import { OwnerPaymentAlerts } from '@/components/billing/OwnerPaymentAlerts';
+import { isPlatformOwner } from '@/lib/usage/usage.service';
 import { TourGuide } from '@/components/common/TourGuide';
 import { puedeEscribir } from '@/lib/license/license.service';
 import { ThemeSwitcher } from '@/components/themes/ThemeSwitcher';
@@ -34,7 +36,7 @@ import {
   BarChart3, Settings, DollarSign, Stethoscope, Receipt,
   ClipboardList, ShoppingBag, Tag, Shield, Database, LogOut, ChevronDown,
   FlaskConical, PlayCircle, UserCircle, Loader2, CheckCircle2, Phone,
-  Wallet, Bell, FileSpreadsheet, MessageCircle, FileText,
+  Wallet, Bell, FileSpreadsheet, MessageCircle, FileText, Landmark,
 } from 'lucide-react';
 import {
   Popover, PopoverContent, PopoverTrigger,
@@ -704,6 +706,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                             Admin
                           </Link>
                         </DropdownMenuItem>
+                        {isPlatformOwner(session.email) && (
+                          <DropdownMenuItem asChild>
+                            <Link href="/admin/payments" className="flex items-center gap-2 cursor-pointer">
+                              <Landmark size={14} />
+                              Pagos de clínicas
+                            </Link>
+                          </DropdownMenuItem>
+                        )}
                         {(esMaster || process.env.NODE_ENV === 'development') && (
                           <DropdownMenuItem asChild>
                             <Link href="/dev/seed" className="flex items-center gap-2 cursor-pointer">
@@ -819,6 +829,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Banner de licencia (advertencias / solo lectura / bloqueado) */}
         {!isDemo && <LicenseBanner />}
         {!isDemo && <PaymentReturnHandler />}
+        {!isDemo && <OwnerPaymentAlerts />}
 
         {/* Stock alerts — visible en todas las páginas */}
         <div className="px-6 pt-4 print:hidden">

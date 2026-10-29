@@ -139,3 +139,43 @@ describe('payments', () => {
     await assertFails(setDoc(doc(as('owner-a'), 'payments/any'), { status: 'paid' }));
   });
 });
+
+describe('manual payments', () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'platform/billing'), { methods: [], prices: { USD: 20 } });
+      await setDoc(doc(db, 'subscriptionInvoices/inv-a'), { clinicId: 'clinic-a', status: 'pending' });
+      await setDoc(doc(db, 'subscriptionInvoices/inv-b'), { clinicId: 'clinic-b', status: 'pending' });
+    });
+  });
+
+  it('clinics read payment instructions but cannot change them', async () => {
+    await assertSucceeds(getDoc(doc(as('recep-a'), 'platform/billing')));
+    await assertFails(setDoc(doc(as('owner-a'), 'platform/billing'), { prices: { USD: 1 } }));
+    await assertSucceeds(setDoc(doc(as('platform', PLATFORM_OWNER_EMAIL), 'platform/billing'), { prices: { USD: 20 } }, { merge: true }));
+  });
+
+  it('a clinic reads only its own invoices and can never write one', async () => {
+    await assertSucceeds(getDoc(doc(as('owner-a'), 'subscriptionInvoices/inv-a')));
+    await assertFails(getDoc(doc(as('owner-a'), 'subscriptionInvoices/inv-b')));
+    await assertFails(setDoc(doc(as('owner-a'), 'subscriptionInvoices/new'), { clinicId: 'clinic-a', status: 'confirmed' }));
+    await assertFails(updateDoc(doc(as('owner-a'), 'subscriptionInvoices/inv-a'), { status: 'confirmed' }));
+  });
+
+  it('the platform owner reads every invoice but confirms only through the function', async () => {
+    const owner = as('platform', PLATFORM_OWNER_EMAIL);
+    await assertSucceeds(getDoc(doc(owner, 'subscriptionInvoices/inv-b')));
+    await assertFails(updateDoc(doc(owner, 'subscriptionInvoices/inv-b'), { status: 'confirmed' }));
+  });
+
+  it('only the platform owner manages push tokens', async () => {
+    await assertFails(setDoc(doc(as('owner-a'), 'platformPushTokens/t1'), { at: 1 }));
+    await assertSucceeds(setDoc(doc(as('platform', PLATFORM_OWNER_EMAIL), 'platformPushTokens/t1'), { at: 1 }));
+  });
+
+  it('a clinic cannot grant itself a grace period', async () => {
+    await assertFails(setDoc(doc(as('owner-a'), 'clinics/clinic-a/license/data'), { graceUntil: 9e12 }, { merge: true }));
+  });
+});
+

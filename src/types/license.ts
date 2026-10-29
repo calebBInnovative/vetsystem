@@ -69,6 +69,11 @@ export interface SessionLocal {
   billingNoticeAt?:       number;
   /** true = the app locks until payment; false = dismissible banner */
   billingNoticeBlocking?: boolean;
+  /**
+   * ms timestamp until which a reported manual payment (transfer / Kash) keeps the
+   * clinic working while the platform owner confirms it. Server-written only.
+   */
+  graceUntil?:            number;
 }
 
 export interface LicenseInfo {
@@ -77,5 +82,7 @@ export interface LicenseInfo {
   daysUntilExpiry:  number | null; // null if already expired or not applicable
   /** true once the platform owner's billing notice time has been reached */
   billingDue:       boolean;
+  /** true while a reported manual payment awaits confirmation (provisional access) */
+  inGrace:          boolean;
   session:          SessionLocal | null;
 }
