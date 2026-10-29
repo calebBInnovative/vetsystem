@@ -217,16 +217,36 @@ export function whatsappReportLink(
 
 export const PUSH_SUPPORTED_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY ?? '';
 
+/** iPhone/iPad only deliver web push to an app installed on the home screen (iOS 16.4+). */
+export function needsHomeScreenInstall(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const standalone = window.matchMedia?.('(display-mode: standalone)').matches
+    || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  return ios && !standalone;
+}
+
+/** Owner only: sends a test push to every registered device after `delaySeconds` (max 15). */
+export async function sendOwnerTestPush(delaySeconds = 10): Promise<{ sent: number; failed: number }> {
+  const fn = httpsCallable<{ delaySeconds: number }, { sent: number; failed: number }>(
+    getFirebaseFunctions(), 'sendOwnerTestPush',
+  );
+  return (await fn({ delaySeconds })).data;
+}
+
 /**
  * Asks permission, registers this device with Firebase Cloud Messaging through
  * public/sw.js and stores the token so reportManualPayment can push to it.
  */
 export async function enableOwnerPush(): Promise<'enabled' | 'denied' | 'unsupported' | 'not-configured'> {
   if (!PUSH_SUPPORTED_KEY) return 'not-configured';
-  const { isSupported, getMessaging, getToken } = await import('firebase/messaging');
-  if (!(await isSupported()) || !('serviceWorker' in navigator)) return 'unsupported';
+  if (typeof Notification === 'undefined' || !('serviceWorker' in navigator)) return 'unsupported';
+  // Ask first, while still inside the tap: iOS ignores a permission request that
+  // comes after other awaits have consumed the user gesture.
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') return 'denied';
+  const { isSupported, getMessaging, getToken } = await import('firebase/messaging');
+  if (!(await isSupported())) return 'unsupported';
 
   const registration = await navigator.serviceWorker.register('/sw.js');
   const token = await getToken(getMessaging(getFirebaseApp()), {

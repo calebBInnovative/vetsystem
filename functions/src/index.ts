@@ -18,4 +18,4 @@ export {
 export { registerClinic } from './clinics/clinic.functions';
 
 // Manual payments (bank transfer / Kash): report, owner review, owner push alerts.
-export { reportManualPayment, reviewManualPayment } from './billing/manual-payments.functions';
+export { reportManualPayment, reviewManualPayment, sendOwnerTestPush } from './billing/manual-payments.functions';

@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { isPlatformOwner } from '@/lib/usage/usage.service';
 import {
-  PUSH_SUPPORTED_KEY, enableOwnerPush, formatMoney, reviewManualPayment,
+  PUSH_SUPPORTED_KEY, enableOwnerPush, formatMoney, needsHomeScreenInstall, reviewManualPayment, sendOwnerTestPush,
   saveBillingConfig, subscribeBillingConfig, subscribeInvoicesByStatus,
   type BillingConfig, type InvoiceStatus, type PaymentCurrency, type SubscriptionInvoice,
 } from '@/lib/billing/manual-payments';
@@ -175,11 +175,21 @@ export default function PaymentsAdminPage() {
 
 function PushButton() {
   const [state, setState] = useState<'idle' | 'busy' | 'on'>('idle');
+  const [testing, setTesting] = useState(false);
+
+  // Permission already granted: refresh this device's token silently (tokens rotate).
   useEffect(() => {
-    try { if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && PUSH_SUPPORTED_KEY) setState('on'); } catch { /* ignore */ }
+    try {
+      if (!PUSH_SUPPORTED_KEY || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+      enableOwnerPush().then((r) => { if (r === 'enabled') setState('on'); }).catch(() => {});
+    } catch { /* ignore */ }
   }, []);
 
   async function enable() {
+    if (needsHomeScreenInstall()) {
+      toast.info('En iPhone: toca Compartir → "Añadir a pantalla de inicio", abre VetSystem desde el ícono y activa push ahí.', { duration: 12_000 });
+      return;
+    }
     setState('busy');
     try {
       const result = await enableOwnerPush();
@@ -198,12 +208,34 @@ function PushButton() {
     }
   }
 
+  async function test() {
+    setTesting(true);
+    toast.info('Prueba enviada: cierra o minimiza la app. Llegará en unos 10 segundos.', { duration: 8000 });
+    try {
+      const { sent, failed } = await sendOwnerTestPush(10);
+      if (sent === 0) toast.error(failed > 0 ? 'No se pudo entregar a ningún dispositivo.' : 'No hay dispositivos con push activo.');
+    } catch (err) {
+      console.error('[payments] test push failed:', err);
+      toast.error('No se pudo enviar la prueba');
+    } finally {
+      setTesting(false);
+    }
+  }
+
   return (
-    <Button variant="outline" size="sm" onClick={enable} disabled={state === 'busy'} className="gap-1.5 shrink-0"
-      title="Recibe un aviso en este dispositivo cuando una clínica reporte un pago">
-      {state === 'busy' ? <Loader2 size={13} className="animate-spin" /> : <Bell size={13} />}
-      {state === 'on' ? 'Push activo' : 'Activar push'}
-    </Button>
+    <div className="flex flex-col items-end gap-1.5 shrink-0">
+      <Button variant="outline" size="sm" onClick={enable} disabled={state === 'busy'} className="gap-1.5"
+        title="Recibe un aviso en este dispositivo cuando una clínica reporte un pago">
+        {state === 'busy' ? <Loader2 size={13} className="animate-spin" /> : <Bell size={13} />}
+        {state === 'on' ? 'Push activo' : 'Activar push'}
+      </Button>
+      {state === 'on' && (
+        <button type="button" onClick={test} disabled={testing}
+          className="text-xs text-primary hover:underline disabled:opacity-60 inline-flex items-center gap-1">
+          {testing && <Loader2 size={11} className="animate-spin" />} Enviar prueba
+        </button>
+      )}
+    </div>
   );
 }
 

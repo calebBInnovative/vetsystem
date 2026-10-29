@@ -21,31 +21,41 @@ function toHttpsError(err: unknown): HttpsError {
   return new HttpsError('internal', 'Unexpected billing error.');
 }
 
+interface OwnerPush { title: string; body: string; url: string; tag: string }
+
+/** Sends a web push to every registered device of the platform owner. */
+async function sendOwnerPush(push: OwnerPush): Promise<{ sent: number; failed: number }> {
+  const db = getFirestore();
+  const tokens = (await db.collection(PUSH_TOKENS_COLLECTION).get()).docs.map((d) => d.id);
+  if (tokens.length === 0) return { sent: 0, failed: 0 };
+
+  const response = await getMessaging().sendEachForMulticast({
+    tokens,
+    // Data-only: public/sw.js renders it, so the browser never shows it twice.
+    data: { ...push },
+    webpush: { headers: { Urgency: 'high', TTL: '86400' } },
+  });
+
+  // Forget devices that uninstalled or revoked permission.
+  const stale = response.responses.flatMap((r, i) =>
+    !r.success && ['messaging/registration-token-not-registered', 'messaging/invalid-argument']
+      .includes(r.error?.code ?? '') ? [tokens[i]] : []);
+  await Promise.all(stale.map((token) => db.collection(PUSH_TOKENS_COLLECTION).doc(token).delete()));
+  for (const r of response.responses) {
+    if (!r.success) logger.warn('[billing] push to a device failed', { code: r.error?.code });
+  }
+  return { sent: response.successCount, failed: response.failureCount };
+}
+
 /** Best effort: a failed push must never fail the payment report itself. */
 async function notifyOwner(result: ReportResult, clinicName: string): Promise<void> {
   try {
-    const db = getFirestore();
-    const tokensSnap = await db.collection(PUSH_TOKENS_COLLECTION).get();
-    const tokens = tokensSnap.docs.map((d) => d.id);
-    if (tokens.length === 0) return;
-
-    const response = await getMessaging().sendEachForMulticast({
-      tokens,
-      // Data-only: public/sw.js renders it, so the browser never shows it twice.
-      data: {
-        title: 'Nuevo pago por confirmar',
-        body:  `${clinicName} · ${result.currency} ${result.amount} · ${result.number}`,
-        url:   '/admin/payments/',
-        tag:   `invoice-${result.invoiceId}`,
-      },
-      webpush: { headers: { Urgency: 'high' } },
+    await sendOwnerPush({
+      title: 'Nuevo pago por confirmar',
+      body:  `${clinicName} · ${result.currency} ${result.amount} · ${result.number}`,
+      url:   '/admin/payments/',
+      tag:   `invoice-${result.invoiceId}`,
     });
-
-    // Forget devices that uninstalled or revoked permission.
-    const stale = response.responses.flatMap((r, i) =>
-      !r.success && ['messaging/registration-token-not-registered', 'messaging/invalid-argument']
-        .includes(r.error?.code ?? '') ? [tokens[i]] : []);
-    await Promise.all(stale.map((token) => db.collection(PUSH_TOKENS_COLLECTION).doc(token).delete()));
   } catch (err) {
     logger.warn('[billing] owner push failed', { message: (err as Error).message });
   }
@@ -75,6 +85,28 @@ export const reportManualPayment = onCall({ cors: true }, async (request) => {
   } catch (err) {
     throw toHttpsError(err);
   }
+});
+
+// ─── sendOwnerTestPush ────────────────────────────────────────────────────────
+// Input: { delaySeconds? (0–15) } — platform owner only. Lets the owner close the
+// app and check that a push reaches the phone/PWA without a real payment.
+
+export const sendOwnerTestPush = onCall({ cors: true, timeoutSeconds: 60 }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+  if (!isPlatformOwnerEmail(request.auth.token.email)) {
+    throw new HttpsError('permission-denied', 'Only the platform owner can send test pushes.');
+  }
+  const requested = Number(payload(request).delaySeconds ?? 0);
+  const delay = Number.isFinite(requested) ? Math.min(Math.max(requested, 0), 15) : 0;
+  if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay * 1000));
+  const result = await sendOwnerPush({
+    title: 'Prueba de VetSystem',
+    body:  'Las notificaciones de pagos llegan a este dispositivo.',
+    url:   '/admin/payments/',
+    tag:   `test-${Date.now()}`,
+  });
+  logger.info('[billing] test push sent', result);
+  return result;
 });
 
 // ─── reviewManualPayment ──────────────────────────────────────────────────────
