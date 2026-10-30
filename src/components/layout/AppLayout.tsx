@@ -10,6 +10,10 @@ import { logout, actualizarUsuario } from '@/lib/auth/auth.service';
 import { db } from '@/lib/db/database';
 import { clearDemo } from '@/lib/demo/demo.service';
 import { LicenseBanner } from '@/components/license/LicenseBanner';
+import {
+  SubscriptionExpiryBellItem, SubscriptionExpiryChip, useSubscriptionExpiry,
+} from '@/components/license/SubscriptionExpiryAlert';
+import { ManualPaymentModal } from '@/components/billing/ManualPaymentPanel';
 import { PaymentReturnHandler } from '@/components/license/PaymentReturnHandler';
 import { OwnerPaymentAlerts } from '@/components/billing/OwnerPaymentAlerts';
 import { isPlatformOwner } from '@/lib/usage/usage.service';
@@ -145,7 +149,8 @@ const menuItems: {
 
 // ── Bell notification ─────────────────────────────────────────────────────────
 
-function BellNotification() {
+function BellNotification({ onPaySubscription }: { onPaySubscription: () => void }) {
+  const subscriptionExpiry          = useSubscriptionExpiry();
   const alertsExpenses              = useExpenseAlerts();
   const alertsCollab                = useCollaboratorAlerts();
   const { expenses }                = useFixedExpenses();
@@ -153,7 +158,8 @@ function BellNotification() {
   const { alerts: stockAlerts }     = useStockAlerts();
   const [notifPerm, setNotifPerm]   = useState<NotificationPermission>(() => getNotifPermission());
 
-  const totalAlertas = alertsExpenses.total + alertsCollab.total + stockAlerts.length;
+  const totalAlertas = alertsExpenses.total + alertsCollab.total + stockAlerts.length
+    + (subscriptionExpiry ? 1 : 0);
 
   const en30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
   const en14 = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
@@ -245,6 +251,11 @@ function BellNotification() {
           </div>
         ) : (
           <ul className="divide-y divide-border max-h-80 overflow-y-auto">
+
+            {/* Subscription expiring — first: it decides whether the app keeps working */}
+            {subscriptionExpiry && (
+              <SubscriptionExpiryBellItem expiry={subscriptionExpiry} onPay={onPaySubscription} />
+            )}
 
             {/* Stock */}
             {stockAlerts.length > 0 && (
@@ -445,6 +456,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     const lastPull = localStorage.getItem(key);
     if (lastPull && lastPull !== '0') setInitialSyncing(false);
   }, [session?.clinicId, session?.uid, isDemo]);
+
+  // Header subscription alert (pill + bell); one modal shared by both entry points
+  const subscriptionExpiry = useSubscriptionExpiry();
+  const [payingSubscription, setPayingSubscription] = useState(false);
 
   useEffect(() => {
     syncService.start().finally(() => setInitialSyncing(false));
@@ -648,8 +663,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 </span>
               )}
               {!isDemo && <SyncIndicator />}
+              {subscriptionExpiry && (
+                <SubscriptionExpiryChip expiry={subscriptionExpiry} onPay={() => setPayingSubscription(true)} />
+              )}
               <ThemeSwitcher />
-              <BellNotification />
+              <BellNotification onPaySubscription={() => setPayingSubscription(true)} />
 
               {/* ── User dropdown ── */}
               {session && (
@@ -753,6 +771,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
           </div>
         </header>
+        <ManualPaymentModal open={payingSubscription} onClose={() => setPayingSubscription(false)} />
 
         {/* Mi perfil modal */}
         <Dialog open={perfilOpen} onOpenChange={(o) => { if (!o) setPerfilOpen(false); }}>

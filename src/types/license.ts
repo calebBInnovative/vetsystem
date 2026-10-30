@@ -74,6 +74,11 @@ export interface SessionLocal {
    * clinic working while the platform owner confirms it. Server-written only.
    */
   graceUntil?:            number;
+  /**
+   * ms timestamp of the last confirmed subscription payment. Cached so the app
+   * can show it offline; expirationDate stays the source of truth for access.
+   */
+  lastPaymentAt?:         number;
 }
 
 export interface LicenseInfo {

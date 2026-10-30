@@ -527,18 +527,19 @@ function _devLicense() {
 }
 
 /**
- * Maps the license's billing state (billingNotice, graceUntil) to the flat session
+ * Maps the license's billing state (billingNotice, graceUntil, lastPaymentAt) to the flat session
  * fields. Absent or null = not set, so a cleared notice also clears the session.
  */
 export function billingStateFields(
   license: Record<string, unknown>,
-): Pick<SessionLocal, 'billingNoticeAt' | 'billingNoticeBlocking' | 'graceUntil'> {
+): Pick<SessionLocal, 'billingNoticeAt' | 'billingNoticeBlocking' | 'graceUntil' | 'lastPaymentAt'> {
   const notice = license.billingNotice as { at?: unknown; blocking?: unknown } | null | undefined;
   const hasNotice = !!notice && typeof notice.at === 'number';
   return {
     billingNoticeAt:       hasNotice ? notice.at as number : undefined,
     billingNoticeBlocking: hasNotice ? notice.blocking === true : undefined,
     graceUntil:            typeof license.graceUntil === 'number' ? license.graceUntil : undefined,
+    lastPaymentAt:         typeof license.lastPaymentAt === 'number' ? license.lastPaymentAt : undefined,
   };
 }
 

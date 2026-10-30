@@ -384,6 +384,7 @@ export class PaymentService {
         plan:           payment.licensePlan,
         expirationDate: extendExpiration(carriedExpiration, payment.durationDays, now),
         billingNotice:  null,
+        lastPaymentAt:  now,
       });
     }
     return 'paid';

@@ -45,7 +45,10 @@ export function calculateLicense(session: SessionLocal | null): LicenseInfo {
   const daysOffline = Math.floor((now - session.lastSync) / 86_400_000);
 
   // ── Days until subscription expires ──────────────────────────────────────
-  const todayStr      = new Date(now).toISOString().slice(0, 10);
+  // Local date, not UTC: in Nicaragua (UTC-6) the UTC date turns over at 6 pm,
+  // which would count one day less every evening.
+  const today         = new Date(now);
+  const todayStr      = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   const daysUntilExpiry = Math.ceil(
     (new Date(session.expirationDate).getTime() - new Date(todayStr).getTime()) / 86_400_000,
   );

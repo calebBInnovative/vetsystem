@@ -316,6 +316,7 @@ export async function reviewManualPayment(db: Firestore, input: ReviewInput, now
       expirationDate: newExpirationDate,
       billingNotice:  null,
       graceUntil:     null,
+      lastPaymentAt:  now,
       updatedAt:      FieldValue.serverTimestamp(),
     }, { merge: true });
     tx.update(invoiceRef, { status: 'confirmed', reviewedAt: now, reviewedBy: input.reviewer, newExpirationDate });

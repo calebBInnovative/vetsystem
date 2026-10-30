@@ -141,6 +141,8 @@ export interface LicenseData {
   expirationDate?: string;
   subscription?: boolean;
   billingNotice?: BillingNotice | null;
+  /** ms timestamp of the last confirmed payment; cached offline by the app */
+  lastPaymentAt?: number;
 }
 
 export interface UserProfile {
