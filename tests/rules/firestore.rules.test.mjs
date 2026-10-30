@@ -156,6 +156,21 @@ describe('manual payments', () => {
     await assertSucceeds(setDoc(doc(as('platform', PLATFORM_OWNER_EMAIL), 'platform/billing'), { prices: { USD: 20 } }, { merge: true }));
   });
 
+  it('visitors read the public sales contact but only the platform owner sets it', async () => {
+    await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(), 'platform/contact')));
+    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'platform/billing')));
+    await assertFails(setDoc(doc(env.unauthenticatedContext().firestore(), 'platform/contact'), { whatsapp: '1' }));
+    await assertFails(setDoc(doc(as('owner-a'), 'platform/contact'), { whatsapp: '1' }));
+    await assertSucceeds(setDoc(doc(as('platform', PLATFORM_OWNER_EMAIL), 'platform/contact'), { whatsapp: '50588880000' }));
+  });
+
+  it('visitors read the landing content but only the platform owner edits it', async () => {
+    await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(), 'platform/landing')));
+    await assertFails(setDoc(doc(env.unauthenticatedContext().firestore(), 'platform/landing'), { testimonials: [] }));
+    await assertFails(setDoc(doc(as('owner-a'), 'platform/landing'), { testimonials: [] }));
+    await assertSucceeds(setDoc(doc(as('platform', PLATFORM_OWNER_EMAIL), 'platform/landing'), { testimonials: [] }));
+  });
+
   it('clinics read the plan catalog but only the platform owner sets prices and limits', async () => {
     await assertSucceeds(getDoc(doc(as('recep-a'), 'platform/plans')));
     await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(), 'platform/plans')));

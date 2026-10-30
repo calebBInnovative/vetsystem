@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { DEFAULT_PLANS, parsePlans, planIdOf } from '../src/billing/plans';
+import { DEFAULT_PLANS, annualEnabled, parsePlans, parseStoredPlans, planIdOf } from '../src/billing/plans';
 
 describe('subscription plans', () => {
   it('falls back to the defaults when nothing is saved', () => {
@@ -25,6 +25,21 @@ describe('subscription plans', () => {
     assert.equal(catalog.basic.maxPatients, 500);
     assert.deepEqual(catalog.basic.modules, ['patients']);
     assert.deepEqual(catalog.basic.prices.USD, { annual: 99 });
+  });
+
+  it('drops every annual price while annual selling is off, but keeps them stored', () => {
+    const data = { annualEnabled: false, plans: { basic: { prices: { USD: { monthly: 12, annual: 120 }, NIO: { annual: 4000 } } } } };
+    const sold = parsePlans(data);
+    assert.deepEqual(sold.basic.prices, { USD: { monthly: 12 }, NIO: {} });
+    for (const id of ['professional', 'clinic'] as const) assert.equal(sold[id].prices.USD.annual, undefined);
+    assert.deepEqual(parseStoredPlans(data).basic.prices.USD, { monthly: 12, annual: 120 });
+    assert.equal(annualEnabled(data), false);
+  });
+
+  it('sells annual periods unless the switch is explicitly off', () => {
+    assert.equal(annualEnabled(undefined), true);
+    assert.equal(annualEnabled({ annualEnabled: 'no' }), true);
+    assert.equal(parsePlans({}).basic.prices.USD.annual, DEFAULT_PLANS.basic.prices.USD.annual);
   });
 
   it('maps licenses from before plans existed to Professional', () => {

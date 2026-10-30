@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { isPlatformOwner } from '@/lib/usage/usage.service';
 import {
-  PLAN_IDS, PLAN_MODULE_LABELS, savePlans, subscribePlans,
+  PLAN_IDS, PLAN_MODULE_LABELS, savePlans, subscribePlanSettings,
   type BillingPeriod, type PlanCatalog, type PlanConfig, type PlanCurrency, type PlanId,
 } from '@/lib/billing/plans';
 import type { AppModule } from '@/types/license';
@@ -28,6 +28,7 @@ export default function PlansPage() {
   const platformOwner = isPlatformOwner(session?.email);
 
   const [catalog, setCatalog] = useState<PlanCatalog | null>(null);
+  const [annualOn, setAnnualOn] = useState(true);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -38,7 +39,7 @@ export default function PlansPage() {
   // Live until the first edit, so unsaved changes are never overwritten.
   useEffect(() => {
     if (!platformOwner || dirty) return;
-    return subscribePlans(setCatalog);
+    return subscribePlanSettings((s) => { setCatalog(s.catalog); setAnnualOn(s.annualEnabled); });
   }, [platformOwner, dirty]);
 
   function update(id: PlanId, patch: Partial<PlanConfig>) {
@@ -76,7 +77,7 @@ export default function PlansPage() {
     }
     setSaving(true);
     try {
-      await savePlans(catalog);
+      await savePlans({ catalog, annualEnabled: annualOn });
       setDirty(false);
       toast.success('Planes guardados. Los nuevos precios aplican desde el próximo pago de cada clínica.');
     } catch (err) {
@@ -108,6 +109,20 @@ export default function PlansPage() {
         </Button>
       </div>
 
+      {catalog && (
+        <label className="flex items-start gap-3 bg-card rounded-2xl border border-border p-5 cursor-pointer">
+          <input type="checkbox" className="mt-1" checked={annualOn}
+            onChange={(e) => { setDirty(true); setAnnualOn(e.target.checked); }} />
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Vender plan anual</span>
+            <span className="block text-xs text-muted-foreground">
+              Apagado, ninguna clínica ve ni puede pagar el periodo anual (landing, pantalla de pago y servidor).
+              Los precios anuales quedan guardados para cuando lo vuelvas a encender.
+            </span>
+          </span>
+        </label>
+      )}
+
       {!catalog ? (
         <div className="flex justify-center py-10"><Loader2 size={18} className="animate-spin text-muted-foreground" /></div>
       ) : (
@@ -128,7 +143,7 @@ export default function PlansPage() {
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {(['USD', 'NIO'] as const).flatMap((currency) => (['monthly', 'annual'] as const).map((period) => (
-                    <label key={`${currency}-${period}`} className="space-y-1">
+                    <label key={`${currency}-${period}`} className={cn('space-y-1', period === 'annual' && !annualOn && 'opacity-50')}>
                       <span className="text-xs font-medium">
                         {currency === 'USD' ? 'US$' : 'C$'} {period === 'monthly' ? 'mensual' : 'anual'}
                       </span>

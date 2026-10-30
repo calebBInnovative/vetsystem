@@ -90,8 +90,31 @@ function limit(value: unknown, fallback: number | null): number | null {
   return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : fallback;
 }
 
-/** Reads platform/plans, filling every missing or invalid field from DEFAULT_PLANS. */
+/** platform/plans.annualEnabled: the owner's switch to stop selling annual periods. Default on. */
+export function annualEnabled(data: Record<string, unknown> | undefined): boolean {
+  return data?.annualEnabled !== false;
+}
+
+/**
+ * The catalog as sold: with annual selling switched off, every annual price is
+ * dropped, so nothing can show it or charge it. The stored prices are kept for
+ * when the switch is turned back on (see parseStoredPlans).
+ */
 export function parsePlans(data: Record<string, unknown> | undefined): PlanCatalog {
+  const catalog = parseStoredPlans(data);
+  if (annualEnabled(data)) return catalog;
+  for (const id of PLAN_IDS) {
+    const plan = catalog[id];
+    plan.prices = { USD: { monthly: plan.prices.USD.monthly }, NIO: { monthly: plan.prices.NIO.monthly } };
+    for (const currency of ['USD', 'NIO'] as const) {
+      if (plan.prices[currency].monthly === undefined) delete plan.prices[currency].monthly;
+    }
+  }
+  return catalog;
+}
+
+/** Reads platform/plans as stored, filling every missing or invalid field from DEFAULT_PLANS. */
+export function parseStoredPlans(data: Record<string, unknown> | undefined): PlanCatalog {
   const raw = (data?.plans && typeof data.plans === 'object' ? data.plans : {}) as Record<string, unknown>;
   const catalog = {} as PlanCatalog;
   for (const id of PLAN_IDS) {

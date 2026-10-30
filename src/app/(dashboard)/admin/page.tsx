@@ -26,7 +26,7 @@ import {
   Loader2, Sprout, Trash2, CheckCircle2, AlertCircle,
   CloudUpload, RefreshCw, Database, Wifi, WifiOff, AlertTriangle,
   UserPlus, Users, KeyRound, ShieldAlert, Pencil, KeySquare, Phone,
-  BookOpen, ChevronRight, Activity, CreditCard, BellRing, Landmark, Layers,
+  BookOpen, ChevronRight, Activity, CreditCard, BellRing, Landmark, Layers, Globe,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AppModule, Permissions, UserRole } from '@/types/license';
@@ -927,6 +927,9 @@ function TabPlan() {
             </Button>
             <Button onClick={() => router.push('/admin/plans')} variant="outline" className="gap-2">
               <Layers size={14} /> Planes y precios
+            </Button>
+            <Button onClick={() => router.push('/admin/landing')} variant="outline" className="gap-2">
+              <Globe size={14} /> Página web
             </Button>
           </div>
         </Card>

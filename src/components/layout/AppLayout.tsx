@@ -41,7 +41,7 @@ import {
   BarChart3, Settings, DollarSign, Stethoscope, Receipt,
   ClipboardList, ShoppingBag, Tag, Shield, Database, LogOut, ChevronDown,
   FlaskConical, PlayCircle, UserCircle, Loader2, CheckCircle2, Phone,
-  Wallet, Bell, FileSpreadsheet, MessageCircle, FileText, Landmark, BellRing, Layers,
+  Wallet, Bell, FileSpreadsheet, MessageCircle, FileText, Landmark, BellRing, Layers, Globe,
 } from 'lucide-react';
 import {
   Popover, PopoverContent, PopoverTrigger,
@@ -752,6 +752,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                             <Link href="/admin/plans" className="flex items-center gap-2 cursor-pointer">
                               <Layers size={14} />
                               Planes
+                            </Link>
+                          </DropdownMenuItem>
+                        )}
+                        {isPlatformOwner(session.email) && (
+                          <DropdownMenuItem asChild>
+                            <Link href="/admin/landing" className="flex items-center gap-2 cursor-pointer">
+                              <Globe size={14} />
+                              Página web
                             </Link>
                           </DropdownMenuItem>
                         )}

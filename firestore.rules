@@ -132,6 +132,21 @@ service cloud.firestore {
       allow write: if isPlatformOwner();
     }
 
+    // Public sales contact for the landing page: a copy of the owner's WhatsApp
+    // from platform/billing, which visitors cannot read. Only the platform owner
+    // writes it (saveBillingConfig mirrors it on every save).
+    match /platform/contact {
+      allow read:  if true;
+      allow write: if isPlatformOwner();
+    }
+
+    // Landing page content (testimonials) edited at /admin/landing. Public: it
+    // holds only what the landing shows every visitor.
+    match /platform/landing {
+      allow read:  if true;
+      allow write: if isPlatformOwner();
+    }
+
     // Plan catalog (prices and limits, docs/pricing/pricing-strategy.md). Public:
     // the landing page shows it to visitors, and it holds nothing that is not
     // already advertised. Only the platform owner edits it.

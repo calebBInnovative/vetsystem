@@ -1,5 +1,5 @@
 import {
-  collection, doc, onSnapshot, orderBy, query, setDoc, where, limit, serverTimestamp,
+  collection, doc, onSnapshot, orderBy, query, setDoc, where, limit, serverTimestamp, writeBatch,
   type Unsubscribe,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -123,9 +123,16 @@ export function subscribeBillingConfig(onChange: (config: BillingConfig) => void
   );
 }
 
-/** Platform owner only (enforced by firestore.rules). */
+/**
+ * Platform owner only (enforced by firestore.rules). The WhatsApp number is also
+ * mirrored to the public platform/contact so the landing page can show it.
+ */
 export async function saveBillingConfig(config: BillingConfig): Promise<void> {
-  await setDoc(doc(getFirestoreDb(), 'platform', 'billing'), { ...config, updatedAt: serverTimestamp() });
+  const db = getFirestoreDb();
+  const batch = writeBatch(db);
+  batch.set(doc(db, 'platform', 'billing'), { ...config, updatedAt: serverTimestamp() });
+  batch.set(doc(db, 'platform', 'contact'), { whatsapp: config.ownerWhatsapp.replace(/\D/g, ''), updatedAt: serverTimestamp() });
+  await batch.commit();
 }
 
 function toInvoice(id: string, data: Record<string, unknown>): SubscriptionInvoice {

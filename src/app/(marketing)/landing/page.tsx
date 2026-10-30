@@ -6,10 +6,14 @@ import { Button } from '@/components/ui/button';
 import { ThemeSwitcher } from '@/components/themes/ThemeSwitcher';
 import {
   WifiOff, FileText, Package, Receipt,
-  Star, ChevronRight, Menu, X, Check,
+  ChevronRight, Menu, X, Check, ChevronDown,
+  Stethoscope, CalendarDays, ShoppingCart, ClipboardList, Wallet, Megaphone,
+  MessageCircle, BarChart3, FileUp, Users, Smartphone, Bell,
 } from 'lucide-react';
 import { VetSystemIcon, VetSystemWordmark, PAW_BG_WHITE, PAW_BG_TEAL } from '@/components/common/VetSystemLogo';
 import { PricingPlans } from '@/components/marketing/PricingPlans';
+import { WhatsAppButton } from '@/components/marketing/WhatsAppButton';
+import { Testimonials } from '@/components/marketing/Testimonials';
 
 // ─── Navbar ──────────────────────────────────────────────────────────────────
 
@@ -37,6 +41,7 @@ function Navbar() {
           <a href="#beneficios" className="hover:text-foreground transition-colors">Beneficios</a>
           <a href="#demo" className="hover:text-foreground transition-colors">El sistema</a>
           <a href="#precios" className="hover:text-foreground transition-colors">Precios</a>
+          <a href="#preguntas" className="hover:text-foreground transition-colors">Preguntas</a>
           <a href="#contacto" className="hover:text-foreground transition-colors">Contacto</a>
         </nav>
 
@@ -61,7 +66,7 @@ function Navbar() {
 
       {menuOpen && (
         <div className="md:hidden bg-background/95 backdrop-blur-md border-b border-border px-4 py-4 space-y-1">
-          {[['#beneficios', 'Beneficios'], ['#demo', 'El sistema'], ['#precios', 'Precios'], ['#contacto', 'Contacto']].map(([href, label]) => (
+          {[['#beneficios', 'Beneficios'], ['#demo', 'El sistema'], ['#precios', 'Precios'], ['#preguntas', 'Preguntas'], ['#contacto', 'Contacto']].map(([href, label]) => (
             <a
               key={href}
               href={href}
@@ -431,60 +436,126 @@ function Demo() {
   );
 }
 
-// ─── Testimonios ──────────────────────────────────────────────────────────────
+// ─── Módulos ──────────────────────────────────────────────────────────────────
 
-const testimonios = [
+const modules = [
+  { icon: Stethoscope,   title: 'Consultas y expediente', desc: 'Historial, vacunas, diagnósticos y recetas por paciente.' },
+  { icon: CalendarDays,  title: 'Agenda de citas',        desc: 'Citas del día, estados y recordatorios antes de cada cita.' },
+  { icon: ShoppingCart,  title: 'Ventas (POS)',           desc: 'Cobra productos y servicios en segundos, con recibo impreso.' },
+  { icon: ClipboardList, title: 'Cotizaciones',           desc: 'Envía presupuestos y conviértelos en venta con un clic.' },
+  { icon: Package,       title: 'Inventario',             desc: 'Stock en tiempo real y alertas de productos por agotarse.' },
+  { icon: Receipt,       title: 'Facturas y cobros',      desc: 'Facturas desde la consulta y control de lo pendiente.' },
+  { icon: Wallet,        title: 'Finanzas y gastos',      desc: 'Ingresos, gastos fijos y pagos a colaboradores.' },
+  { icon: BarChart3,     title: 'Reportes',               desc: 'Ventas por método de pago, capital en inventario y más.' },
+  { icon: Megaphone,     title: 'Promociones',            desc: 'Descuentos y campañas para traer de vuelta a tus clientes.' },
+  { icon: MessageCircle, title: 'Marketing por WhatsApp', desc: 'Mensajes a tus clientes directo desde el sistema.' },
+  { icon: Users,         title: 'Usuarios y permisos',    desc: 'Roles para administración, veterinarios y recepción.' },
+  { icon: FileUp,        title: 'Importar desde Excel',   desc: 'Sube tu catálogo de productos y servicios sin teclearlo.' },
+  { icon: Smartphone,    title: 'Computadora y celular',  desc: 'Sin instalar nada; agrégalo como app si lo prefieres.' },
+  { icon: Bell,          title: 'Alertas',                desc: 'Avisos de stock bajo y de citas próximas.' },
+  { icon: WifiOff,       title: 'Sin internet',           desc: 'Todo sigue funcionando; se sincroniza al volver la conexión.' },
+];
+
+function Modulos() {
+  return (
+    <section id="modulos" className="py-24 bg-muted/30">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="text-center space-y-3 mb-14">
+          <p className="text-sm font-semibold text-primary uppercase tracking-wider">Todo lo que incluye</p>
+          <h2 className="text-3xl sm:text-4xl font-bold">Un solo sistema para toda tu clínica</h2>
+          <p className="text-muted-foreground max-w-lg mx-auto">
+            Desde la consulta hasta la caja. Sin hojas de Excel ni cuadernos.
+          </p>
+        </div>
+
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {modules.map(({ icon: Icon, title, desc }) => (
+            <div key={title} className="flex gap-3.5 bg-card rounded-xl p-4 border border-border">
+              <div className="w-10 h-10 shrink-0 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                <Icon size={20} />
+              </div>
+              <div className="space-y-0.5">
+                <h3 className="font-semibold text-sm">{title}</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <p className="text-center text-xs text-muted-foreground mt-8">
+          Algunos módulos dependen del plan. <a href="#precios" className="text-primary font-medium hover:underline">Compara los planes</a>.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+// ─── Preguntas frecuentes ─────────────────────────────────────────────────────
+
+const faqs = [
   {
-    nombre: 'Dra. Sofía Martínez',
-    clinica: 'Clínica Veterinaria Mascotas Felices · Managua',
-    texto: 'Desde que empezamos a usar VetSystem el caos de papeles desapareció. Lo mejor es que si se va el internet seguimos atendiendo sin problema. Mis asistentes lo aprendieron en un día.',
-    inicial: 'S',
-    color: 'bg-emerald-100 text-emerald-700',
+    q: '¿Necesito tarjeta para probarlo?',
+    a: 'No. Tienes 7 días gratis con todo incluido y sin tarjeta. Al terminar eliges el plan que mejor le quede a tu clínica.',
   },
   {
-    nombre: 'Dr. Carlos Ibarra',
-    clinica: 'Veterinaria San Francisco · León',
-    texto: 'El control de inventario nos salvó varias veces. Antes se nos acababan las vacunas sin darnos cuenta. Ahora el sistema nos avisa antes de que llegue ese problema.',
-    inicial: 'C',
-    color: 'bg-blue-100 text-blue-700',
+    q: '¿Puedo verlo antes de crear una cuenta?',
+    a: 'Sí. El demo abre el sistema completo con datos de ejemplo, sin registrarte.',
   },
   {
-    nombre: 'Dra. Andrea López',
-    clinica: 'PetCare Veterinaria · Granada',
-    texto: 'La facturación directo desde la consulta es un antes y un después. Ya no perdemos cobros pendientes ni nos enredamos con las cuentas al final del día.',
-    inicial: 'A',
-    color: 'bg-purple-100 text-purple-700',
+    q: '¿Qué pasa si se va el internet?',
+    a: 'Sigues atendiendo, registrando consultas y cobrando. Todo se guarda en tu equipo y se sincroniza cuando vuelve la conexión. Si pasas más de 30 días sin conectarte, el sistema queda en solo lectura hasta que vuelvas a sincronizar.',
+  },
+  {
+    q: '¿Tengo que instalar algo?',
+    a: 'No. Funciona desde el navegador en computadora, tablet o celular. Si quieres, puedes agregarlo como app a tu pantalla de inicio.',
+  },
+  {
+    q: '¿Cómo pago la suscripción?',
+    a: 'Por transferencia bancaria o Kash. Reportas el pago desde el sistema y tu plan se activa en cuanto lo confirmamos.',
+  },
+  {
+    q: '¿Puedo pasar mis datos desde Excel?',
+    a: 'Sí, puedes importar tu catálogo de productos y servicios desde un archivo de Excel en lugar de escribirlo a mano.',
+  },
+  {
+    q: '¿Puede usarlo todo mi equipo?',
+    a: 'Sí. Cada persona entra con su propio usuario y rol (administración, veterinario o recepción), con permisos por módulo. La cantidad de usuarios depende del plan.',
+  },
+  {
+    q: '¿Mis datos están seguros?',
+    a: 'Se respaldan en la nube de Google (Firebase) y cada clínica solo puede ver su propia información.',
+  },
+  {
+    q: '¿Hay contrato o permanencia?',
+    a: 'No. Pagas mes a mes o por año y puedes dejar de usarlo cuando quieras.',
   },
 ];
 
-function Testimonios() {
+const faqJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(({ q, a }) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })),
+};
+
+function PreguntasFrecuentes() {
   return (
-    <section className="py-24 bg-muted/30">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="text-center space-y-3 mb-14">
-          <p className="text-sm font-semibold text-primary uppercase tracking-wider">Testimonios</p>
-          <h2 className="text-3xl sm:text-4xl font-bold">Lo que dicen nuestros clientes</h2>
+    <section id="preguntas" className="py-24">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
+      <div className="max-w-3xl mx-auto px-4 sm:px-6">
+        <div className="text-center space-y-3 mb-12">
+          <p className="text-sm font-semibold text-primary uppercase tracking-wider">Preguntas frecuentes</p>
+          <h2 className="text-3xl sm:text-4xl font-bold">¿Tienes dudas?</h2>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
-          {testimonios.map(({ nombre, clinica, texto, inicial, color }) => (
-            <div key={nombre} className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-4">
-              <div className="flex gap-0.5">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} size={14} className="fill-amber-400 text-amber-400" />
-                ))}
-              </div>
-              <p className="text-sm text-muted-foreground leading-relaxed">&ldquo;{texto}&rdquo;</p>
-              <div className="flex items-center gap-3 pt-1 border-t border-border">
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${color}`}>
-                  {inicial}
-                </div>
-                <div>
-                  <p className="text-sm font-semibold">{nombre}</p>
-                  <p className="text-xs text-muted-foreground">{clinica}</p>
-                </div>
-              </div>
-            </div>
+        <div className="space-y-3">
+          {faqs.map(({ q, a }) => (
+            <details key={q} className="group bg-card border border-border rounded-xl px-5 open:shadow-sm">
+              <summary className="flex items-center justify-between gap-4 py-4 cursor-pointer list-none font-medium text-sm [&::-webkit-details-marker]:hidden">
+                {q}
+                <ChevronDown size={18} className="shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+              </summary>
+              <p className="pb-4 text-sm text-muted-foreground leading-relaxed">{a}</p>
+            </details>
           ))}
         </div>
       </div>
@@ -576,10 +647,13 @@ export default function LandingPage() {
       <Hero />
       <Beneficios />
       <Demo />
-      <Testimonios />
+      <Modulos />
       <PricingPlans />
+      <Testimonials />
+      <PreguntasFrecuentes />
       <CTAFinal />
       <Footer />
+      <WhatsAppButton />
     </div>
   );
 }

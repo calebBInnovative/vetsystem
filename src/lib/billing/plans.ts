@@ -91,8 +91,31 @@ function modulesFrom(value: unknown, fallback: AppModule[]): AppModule[] {
   return Array.isArray(value) ? PLAN_MODULES.filter((m) => (value as unknown[]).includes(m)) : fallback;
 }
 
-/** Reads platform/plans, filling every missing or invalid field from DEFAULT_PLANS. */
+/** platform/plans.annualEnabled: the owner's switch to stop selling annual periods. Default on. */
+export function annualEnabled(data: Record<string, unknown> | undefined): boolean {
+  return data?.annualEnabled !== false;
+}
+
+/**
+ * The catalog as sold: with annual selling switched off, every annual price is
+ * dropped, so nothing can show it or charge it. The stored prices are kept for
+ * when the switch is turned back on (see parseStoredPlans).
+ */
 export function parsePlans(data: Record<string, unknown> | undefined): PlanCatalog {
+  const catalog = parseStoredPlans(data);
+  if (annualEnabled(data)) return catalog;
+  for (const id of PLAN_IDS) {
+    const plan = catalog[id];
+    plan.prices = { USD: { monthly: plan.prices.USD.monthly }, NIO: { monthly: plan.prices.NIO.monthly } };
+    for (const currency of ['USD', 'NIO'] as const) {
+      if (plan.prices[currency].monthly === undefined) delete plan.prices[currency].monthly;
+    }
+  }
+  return catalog;
+}
+
+/** Reads platform/plans as stored, filling every missing or invalid field from DEFAULT_PLANS. */
+export function parseStoredPlans(data: Record<string, unknown> | undefined): PlanCatalog {
   const raw = (data?.plans && typeof data.plans === 'object' ? data.plans : {}) as Record<string, unknown>;
   const catalog = {} as PlanCatalog;
   for (const id of PLAN_IDS) {
@@ -154,9 +177,24 @@ export async function fetchPlans(): Promise<PlanCatalog> {
   return parsePlans((await getDoc(doc(getFirestoreDb(), 'platform', 'plans'))).data());
 }
 
+export interface PlanSettings {
+  /** Stored prices, annual ones included even while annual selling is off. */
+  catalog: PlanCatalog;
+  annualEnabled: boolean;
+}
+
+/** Platform owner's editing view of platform/plans (/admin/plans). */
+export function subscribePlanSettings(onChange: (settings: PlanSettings) => void): Unsubscribe {
+  return onSnapshot(
+    doc(getFirestoreDb(), 'platform', 'plans'),
+    (snap) => onChange({ catalog: parseStoredPlans(snap.data()), annualEnabled: annualEnabled(snap.data()) }),
+    (err) => console.warn('[billing] plans listener failed:', err),
+  );
+}
+
 /** Platform owner only (firestore.rules). */
-export async function savePlans(catalog: PlanCatalog): Promise<void> {
-  await setDoc(doc(getFirestoreDb(), 'platform', 'plans'), { plans: catalog, updatedAt: serverTimestamp() });
+export async function savePlans({ catalog, annualEnabled }: PlanSettings): Promise<void> {
+  await setDoc(doc(getFirestoreDb(), 'platform', 'plans'), { plans: catalog, annualEnabled, updatedAt: serverTimestamp() });
 }
 
 /** Limits in force for this session, offline included. Demo and old sessions get their plan's defaults. */
