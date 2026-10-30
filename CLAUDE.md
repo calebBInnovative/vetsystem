@@ -419,6 +419,15 @@ npm run build
 firebase deploy --only hosting
 ```
 
+### CI (GitHub Actions) — the normal path
+A push to `master` deploys automatically:
+- `firebase-hosting-merge.yml` — Hosting, on every push.
+- `firebase-backend-deploy.yml` — Cloud Functions and/or Firestore rules + indexes, **only when
+  `functions/**`, `firestore.rules` or `firestore.indexes.json` changed**, and only the part that
+  changed. A manual run (Actions → "Run workflow") deploys both.
+- `functions/.env.vetsystem-b7675` is gitignored, so the backend workflow writes the production
+  params (`PAYMENT_PROVIDER_MODE=live`, …) itself. Change them in **both** places.
+
 ### Firebase project
 Project: `vetsystem` (Nicaragua). `firebase.json` uses `out/` as public dir with SPA-style rewrites for each route group.
 

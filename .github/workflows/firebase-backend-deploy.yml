@@ -1,0 +1,91 @@
+name: Deploy Cloud Functions and Firestore rules on merge
+
+# Hosting has its own workflow (firebase-hosting-merge.yml). This one runs only
+# when backend files change, and deploys only the part that changed.
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'functions/**'
+      - 'firestore.rules'
+      - 'firestore.indexes.json'
+      - '.github/workflows/firebase-backend-deploy.yml'
+  # Manual run from the Actions tab deploys everything (first setup, recovery).
+  workflow_dispatch:
+
+# Never run two backend deploys at once; a newer push waits for the current one.
+concurrency:
+  group: firebase-backend-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect what changed
+        id: changes
+        if: github.event_name == 'push'
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            functions:
+              - 'functions/**'
+            rules:
+              - 'firestore.rules'
+              - 'firestore.indexes.json'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install, build and test functions
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.functions == 'true'
+        working-directory: functions
+        run: |
+          npm ci
+          npm run build
+          npm test
+
+      # functions/.env.vetsystem-b7675 is gitignored, and without it every param
+      # falls back to its default — PAYMENT_PROVIDER_MODE=mock — which would
+      # silently turn live payments off. These values are not secrets (those are
+      # in Secret Manager); keep them in sync with the local file.
+      - name: Write production function params
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.functions == 'true'
+        working-directory: functions
+        run: |
+          cat > .env.vetsystem-b7675 <<'ENV'
+          PAYMENT_PROVIDER_MODE=live
+          RECURRENTE_LIVE_ENABLED=true
+          PAYMENT_RETURN_ORIGINS=https://vetsystem-b7675.web.app,https://vetsystem-b7675.firebaseapp.com,http://localhost:3000
+          ENV
+
+      - name: Build deploy targets
+        id: targets
+        run: |
+          manual="${{ github.event_name == 'workflow_dispatch' }}"
+          targets=()
+          if [ "$manual" = "true" ] || [ "${{ steps.changes.outputs.functions }}" = "true" ]; then
+            targets+=("functions")
+          fi
+          if [ "$manual" = "true" ] || [ "${{ steps.changes.outputs.rules }}" = "true" ]; then
+            targets+=("firestore:rules" "firestore:indexes")
+          fi
+          echo "only=$(IFS=,; echo "${targets[*]}")" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google Cloud
+        if: steps.targets.outputs.only != ''
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_VETSYSTEM_B7675 }}
+
+      # No --force: if a deploy would delete a function that is no longer in the
+      # source, it fails instead of deleting it unattended.
+      - name: Deploy
+        if: steps.targets.outputs.only != ''
+        run: npx --yes firebase-tools@14 deploy --only "${{ steps.targets.outputs.only }}" --project vetsystem-b7675 --non-interactive
