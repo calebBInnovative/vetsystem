@@ -21,6 +21,7 @@ import { db } from '@/lib/db/database';
 import { syncProvider } from './sync.config';
 import { toast } from 'sonner';
 import type { RemoteDoc } from './sync.provider';
+import { reportHandledError } from '@/lib/monitoring/report';
 
 async function isDemoSession(): Promise<boolean> {
   const s = await db.session.get('singleton');
@@ -130,8 +131,9 @@ class SyncService {
     window.addEventListener('focus',             this.onFocus);
 
     const cursor = await this.pullAll();
-    await this.flushWithReset();
     if (!this.started) return; // stop() was called while we were pulling
+    await this.flushWithReset();
+    if (!this.started) return;
     await this.subscribeAll(cursor);
   }
 
@@ -303,6 +305,7 @@ class SyncService {
 
             // Notify user when an item officially gets stuck (hits the attempt ceiling)
             if (newAttempts >= MAX_INTENTOS) {
+              reportHandledError(err, 'sync.push', { collection: item.collection });
               toast.error(
                 'Datos sin sincronizar. Revisa tu conexión o ve a Admin → Sync.',
                 { id: 'sync-stuck', duration: 10_000 },
@@ -362,6 +365,7 @@ class SyncService {
         // Subscription failed (network drop, auth expiry, etc.).
         // Remove the dead unsub from our list and reopen after a delay.
         console.warn(`[sync] subscription ${nombre} failed — will reopen:`, err.message);
+        if (this.started) reportHandledError(err, 'sync.subscribe', { collection: nombre });
         const idx = this.unsubscribers.indexOf(unsub);
         if (idx !== -1) this.unsubscribers.splice(idx, 1);
         // Reopen in 10 s unless the service was stopped. Checking `started`
@@ -402,6 +406,9 @@ class SyncService {
 
     try {
       for (const { nombre } of TABLAS_SYNC) {
+        // stop() (logout) while pulling: the remaining collections would only
+        // fail on permissions. Keep the old cursor so the next start resumes.
+        if (!this.started) return lastPull;
         try {
           const docs = await syncProvider.pull(nombre, rewindCursor(lastPull), clinicId);
           totalReads += 1 + docs.length;
@@ -410,9 +417,11 @@ class SyncService {
             await upsertRemoteDocs(nombre, docs, clinicId);
           }
         } catch (err) {
+          if (!this.started) return lastPull;
           pullErrored = true;
           const errMsg = err instanceof Error ? err.message : String(err);
           console.error(`[sync] pull ${nombre} failed:`, errMsg);
+          reportHandledError(err, 'sync.pull', { collection: nombre });
           // Show a toast so the user knows something went wrong
           toast.error(`Error al sincronizar "${nombre}". Revisa conexión.`, {
             id:       `sync-pull-${nombre}`,
@@ -457,6 +466,7 @@ class SyncService {
         }
       } catch (err) {
         console.error(`[sync] forcePull ${nombre} failed:`, err);
+        reportHandledError(err, 'sync.forcePull', { collection: nombre });
       }
     }
 

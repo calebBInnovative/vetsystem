@@ -23,6 +23,7 @@ import {
 import { httpsCallable } from 'firebase/functions';
 import { getFirebaseApp, getFirestoreDb, getFirebaseFunctions } from '@/lib/firebase/firebase.config';
 import { db } from '@/lib/db/database';
+import { syncService } from '@/lib/sync/sync.service';
 import type { SessionLocal, Permissions, UserRole } from '@/types/license';
 
 // ─── Firestore structure ──────────────────────────────────────────────────────
@@ -141,6 +142,9 @@ export const loginConGoogle = loginWithGoogle;
 
 /** Logout. Deletes local session from Dexie. */
 export async function logout(): Promise<void> {
+  // Stop sync first: once signed out, every pull and listener still running
+  // fails with "Missing or insufficient permissions".
+  syncService.stop();
   await firebaseSignOut(getAuth_());
   await db.session.delete('singleton');
 }
