@@ -185,7 +185,7 @@ function Hero() {
             </div>
 
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
-              {['14 días de prueba gratis', 'Cancela cuando quieras'].map((t) => (
+              {['7 días de prueba gratis', 'Cancela cuando quieras'].map((t) => (
                 <span key={t} className="flex items-center gap-1.5">
                   <Check size={13} className="text-primary" />
                   {t}
@@ -520,7 +520,7 @@ function Precios() {
             <span className={`text-sm font-medium ${anual ? 'text-foreground' : 'text-muted-foreground'}`}>
               Anual
               <span className="ml-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 dark:text-emerald-400 px-1.5 py-0.5 rounded-full">
-                prueba en demo o crea tu cuenta gratis por 14 días
+                prueba en demo o crea tu cuenta gratis por 7 días
               </span>
             </span>
           </div>
@@ -547,7 +547,7 @@ function Precios() {
 
               <div className="pt-3">
                 <Button className="w-full h-11 text-base" asChild>
-                  <Link href="/register">Comenzar 14 días gratis</Link>
+                  <Link href="/register">Comenzar 7 días gratis</Link>
                 </Button>
                 <p className="text-center text-xs text-muted-foreground mt-2">
                   Cancela cuando quieras
@@ -571,7 +571,7 @@ function CTAFinal() {
           Empieza hoy. Sin complicaciones.
         </h2>
         <p className="text-primary-foreground/80 text-lg max-w-lg mx-auto">
-          14 días gratis. Sin tarjeta. Sin contrato. Solo tu clínica funcionando mejor.
+          7 días gratis. Sin tarjeta. Sin contrato. Solo tu clínica funcionando mejor.
         </p>
         <Button
           size="lg"

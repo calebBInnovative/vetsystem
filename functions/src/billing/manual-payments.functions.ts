@@ -1,14 +1,11 @@
 import { getFirestore } from 'firebase-admin/firestore';
-import { getMessaging } from 'firebase-admin/messaging';
 import { logger } from 'firebase-functions';
 import { onCall, HttpsError, type CallableRequest } from 'firebase-functions/v2/https';
 import {
   ManualPaymentError, reportManualPayment as report, reviewManualPayment as review, type ReportResult,
 } from './manual-payments';
 import { isPlatformOwnerEmail } from './platform';
-
-/** Devices of the platform owner that accepted web push (written from /admin/payments). */
-export const PUSH_TOKENS_COLLECTION = 'platformPushTokens';
+import { pushToOwner } from './push';
 
 function payload(request: CallableRequest<unknown>): Record<string, unknown> {
   return request.data && typeof request.data === 'object' ? (request.data as Record<string, unknown>) : {};
@@ -21,36 +18,10 @@ function toHttpsError(err: unknown): HttpsError {
   return new HttpsError('internal', 'Unexpected billing error.');
 }
 
-interface OwnerPush { title: string; body: string; url: string; tag: string }
-
-/** Sends a web push to every registered device of the platform owner. */
-async function sendOwnerPush(push: OwnerPush): Promise<{ sent: number; failed: number }> {
-  const db = getFirestore();
-  const tokens = (await db.collection(PUSH_TOKENS_COLLECTION).get()).docs.map((d) => d.id);
-  if (tokens.length === 0) return { sent: 0, failed: 0 };
-
-  const response = await getMessaging().sendEachForMulticast({
-    tokens,
-    // Data-only: public/sw.js renders it, so the browser never shows it twice.
-    data: { ...push },
-    webpush: { headers: { Urgency: 'high', TTL: '86400' } },
-  });
-
-  // Forget devices that uninstalled or revoked permission.
-  const stale = response.responses.flatMap((r, i) =>
-    !r.success && ['messaging/registration-token-not-registered', 'messaging/invalid-argument']
-      .includes(r.error?.code ?? '') ? [tokens[i]] : []);
-  await Promise.all(stale.map((token) => db.collection(PUSH_TOKENS_COLLECTION).doc(token).delete()));
-  for (const r of response.responses) {
-    if (!r.success) logger.warn('[billing] push to a device failed', { code: r.error?.code });
-  }
-  return { sent: response.successCount, failed: response.failureCount };
-}
-
 /** Best effort: a failed push must never fail the payment report itself. */
 async function notifyOwner(result: ReportResult, clinicName: string): Promise<void> {
   try {
-    await sendOwnerPush({
+    await pushToOwner(getFirestore(), {
       title: 'Nuevo pago por confirmar',
       body:  `${clinicName} · ${result.currency} ${result.amount} · ${result.number}`,
       url:   '/admin/payments/',
@@ -99,7 +70,7 @@ export const sendOwnerTestPush = onCall({ cors: true, timeoutSeconds: 60 }, asyn
   const requested = Number(payload(request).delaySeconds ?? 0);
   const delay = Number.isFinite(requested) ? Math.min(Math.max(requested, 0), 15) : 0;
   if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay * 1000));
-  const result = await sendOwnerPush({
+  const result = await pushToOwner(getFirestore(), {
     title: 'Prueba de VetSystem',
     body:  'Las notificaciones de pagos llegan a este dispositivo.',
     url:   '/admin/payments/',

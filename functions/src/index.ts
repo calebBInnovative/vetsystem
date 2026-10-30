@@ -19,3 +19,6 @@ export { registerClinic } from './clinics/clinic.functions';
 
 // Manual payments (bank transfer / Kash): report, owner review, owner push alerts.
 export { reportManualPayment, reviewManualPayment, sendOwnerTestPush } from './billing/manual-payments.functions';
+
+// Expiry reminders: daily push to clinics about to expire, and an on-demand send.
+export { notifyExpiringLicenses, sendExpiryReminderNow } from './billing/reminders.functions';

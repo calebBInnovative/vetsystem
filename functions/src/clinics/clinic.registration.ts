@@ -7,7 +7,7 @@ import { FieldValue, type Firestore } from 'firebase-admin/firestore';
  * platform owner can do that.
  */
 
-export const TRIAL_DAYS = 14;
+export const TRIAL_DAYS = 7;
 
 /** Clinic ids that a registration must never claim. */
 const RESERVED_CLINIC_IDS = new Set(['demo', '_']);

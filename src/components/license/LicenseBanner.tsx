@@ -6,6 +6,7 @@ import { LICENSE_MESSAGES, estaBloquada } from '@/lib/license/license.service';
 import { useSubscription, SUBSCRIPTION_PLAN } from '@/hooks/useSubscription';
 import { useBillingConfig } from '@/hooks/useBillingConfig';
 import { ManualPaymentModal } from '@/components/billing/ManualPaymentPanel';
+import { EnableRemindersButton } from '@/components/billing/EnableRemindersButton';
 import { WifiOff, AlertTriangle, Lock, CreditCard, X, Loader2, Landmark, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LicenseMode } from '@/types/license';
@@ -128,10 +129,16 @@ export function LicenseBanner() {
           <CreditCard size={14} className="shrink-0" />
           <div className="flex-1 min-w-0">
             <span className="font-medium">
-              Tu suscripción vence {daysUntilExpiry === 0 ? 'hoy' : daysUntilExpiry === 1 ? 'mañana' : `en ${daysUntilExpiry} días`}
+              {session?.plan === 'Trial' ? 'Tu prueba gratis vence' : 'Tu suscripción vence'}{' '}
+              {daysUntilExpiry === 0 ? 'hoy' : daysUntilExpiry === 1 ? 'mañana' : `en ${daysUntilExpiry} días`}
             </span>
-            <span className="opacity-80"> — renueva para no perder el acceso. Los días se suman a tu fecha actual.</span>
+            <span className="opacity-80">
+              {session?.plan === 'Trial'
+                ? ` — activa tu plan (${SUBSCRIPTION_PLAN.priceLabel} por ${SUBSCRIPTION_PLAN.durationDays} días) para seguir usando VetSystem.`
+                : ' — renueva para no perder el acceso. Los días se suman a tu fecha actual.'}
+            </span>
           </div>
+          <EnableRemindersButton variant="strip" />
           <PayButtons variant="strip" onTransfer={openTransfer} />
           <button type="button" onClick={() => setClosed(true)} className="shrink-0 opacity-60 hover:opacity-100 transition-opacity">
             <X size={14} />

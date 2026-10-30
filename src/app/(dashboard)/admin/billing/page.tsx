@@ -3,12 +3,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, BellRing, Loader2, Lock, RefreshCw, X } from 'lucide-react';
+import { ArrowLeft, BellRing, CalendarClock, Loader2, Lock, RefreshCw, Send, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { isPlatformOwner } from '@/lib/usage/usage.service';
 import {
-  listClinicBilling, scheduleBillingNotice, clearBillingNotice, type ClinicBillingRow,
+  listClinicBilling, scheduleBillingNotice, clearBillingNotice, setLicenseExpiration, sendExpiryReminderNow,
+  type ClinicBillingRow,
 } from '@/lib/billing/billing-notice.service';
 import { cn } from '@/lib/utils';
 
@@ -38,6 +39,7 @@ export default function BillingNoticePage() {
   const [custom,   setCustom]   = useState(() => toLocalInput(Date.now() + 60 * 60_000));
   const [blocking, setBlocking] = useState(false);
   const [busy,     setBusy]     = useState(false);
+  const [expiry,   setExpiry]   = useState(() => toLocalInput(Date.now() + 86_400_000).slice(0, 10));
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -116,6 +118,39 @@ export default function BillingNoticePage() {
     }
   }
 
+  async function handleExpiry() {
+    if (!confirm(`¿Cambiar el vencimiento de ${ids.length} clínica(s) al ${expiry}?`)) return;
+    setBusy(true);
+    try {
+      await setLicenseExpiration(ids, expiry);
+      toast.success(`Vencimiento cambiado al ${expiry} para ${ids.length} clínica(s)`);
+      await load();
+    } catch (err) {
+      console.error('[billing] expiry change failed:', err);
+      toast.error('No se pudo cambiar el vencimiento');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleReminder() {
+    setBusy(true);
+    try {
+      const results = await sendExpiryReminderNow(ids);
+      const sent = results.reduce((n, r) => n + r.sent, 0);
+      const noDevice = results.filter((r) => !r.skipped && r.sent === 0).length;
+      const notDue = results.filter((r) => r.skipped === 'no-reminder').length;
+      if (sent > 0) toast.success(`Recordatorio enviado a ${sent} dispositivo(s).`);
+      if (noDevice > 0) toast.info(`${noDevice} clínica(s) no tienen avisos activados en ningún dispositivo.`);
+      if (notDue > 0) toast.info(`${notDue} clínica(s) no vencen en los próximos 3 días: no se envió nada.`);
+    } catch (err) {
+      console.error('[billing] reminder failed:', err);
+      toast.error('No se pudo enviar el recordatorio');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="max-w-2xl mx-auto space-y-5">
       <div className="flex items-start gap-3">
@@ -179,6 +214,27 @@ export default function BillingNoticePage() {
           </Button>
           <Button onClick={handleClear} variant="outline" disabled={busy || ids.length === 0} className="gap-2">
             <X size={14} /> Quitar aviso ({ids.length})
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Expiration and reminders ─────────────────────────────────────── */}
+      <div className="bg-card rounded-2xl border border-border p-5 space-y-3">
+        <div>
+          <p className="text-sm font-medium flex items-center gap-1.5"><CalendarClock size={14} /> Vencimiento y recordatorios</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Las clínicas reciben un recordatorio automático 3 días antes, un día antes y el día que vencen
+            (9:00 a. m.), en los dispositivos donde activaron los avisos.
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)}
+            className="rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+          <Button onClick={handleExpiry} variant="outline" disabled={busy || ids.length === 0} className="gap-2 flex-1">
+            <CalendarClock size={14} /> Cambiar vencimiento ({ids.length})
+          </Button>
+          <Button onClick={handleReminder} variant="outline" disabled={busy || ids.length === 0} className="gap-2 flex-1">
+            <Send size={14} /> Enviar recordatorio ahora ({ids.length})
           </Button>
         </div>
       </div>

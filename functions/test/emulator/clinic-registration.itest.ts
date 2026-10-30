@@ -14,7 +14,7 @@ const db = getFirestore();
 const NOW = Date.UTC(2026, 9, 20);
 
 describe('registerClinic (emulator)', () => {
-  it('creates the clinic, a 14-day trial license and an admin user', async () => {
+  it('creates the clinic, a 7-day trial license and an admin user', async () => {
     const result = await registerClinic(db, {
       uid: 'reg-owner-1', email: 'owner@example.com', clinicName: 'Clínica Norte', userName: 'Ana', phone: '8888-0000',
     }, { now: NOW });
@@ -22,7 +22,7 @@ describe('registerClinic (emulator)', () => {
     assert.deepEqual(result, { clinicId: 'clinica-norte', created: true });
     const license = (await db.doc('clinics/clinica-norte/license/data').get()).data();
     assert.equal(license?.plan, 'Trial');
-    assert.equal(license?.expirationDate, '2026-11-03');
+    assert.equal(license?.expirationDate, '2026-10-27');
     assert.equal(license?.subscription, true);
     const user = (await db.doc('users/reg-owner-1').get()).data();
     assert.equal(user?.role, 'admin');

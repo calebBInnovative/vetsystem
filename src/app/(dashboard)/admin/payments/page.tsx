@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { isPlatformOwner } from '@/lib/usage/usage.service';
 import {
-  PUSH_SUPPORTED_KEY, enableOwnerPush, formatMoney, needsHomeScreenInstall, reviewManualPayment, sendOwnerTestPush,
+  PUSH_SETUP_MESSAGES, PUSH_SUPPORTED_KEY, enableOwnerPush, formatMoney, needsHomeScreenInstall, reviewManualPayment, sendOwnerTestPush,
   saveBillingConfig, subscribeBillingConfig, subscribeInvoicesByStatus,
   type BillingConfig, type InvoiceStatus, type PaymentCurrency, type SubscriptionInvoice,
 } from '@/lib/billing/manual-payments';
@@ -193,13 +193,7 @@ function PushButton() {
     setState('busy');
     try {
       const result = await enableOwnerPush();
-      const messages = {
-        enabled:          'Notificaciones activadas en este dispositivo.',
-        denied:           'El navegador bloqueó las notificaciones. Actívalas en la configuración del sitio.',
-        unsupported:      'Este navegador no admite notificaciones push.',
-        'not-configured': 'Falta la clave VAPID (NEXT_PUBLIC_FIREBASE_VAPID_KEY).',
-      } as const;
-      (result === 'enabled' ? toast.success : toast.error)(messages[result]);
+      (result === 'enabled' ? toast.success : toast.error)(PUSH_SETUP_MESSAGES[result]);
       setState(result === 'enabled' ? 'on' : 'idle');
     } catch (err) {
       console.error('[payments] push setup failed:', err);

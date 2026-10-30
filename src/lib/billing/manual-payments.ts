@@ -234,11 +234,17 @@ export async function sendOwnerTestPush(delaySeconds = 10): Promise<{ sent: numb
   return (await fn({ delaySeconds })).data;
 }
 
+export type PushSetupResult = 'enabled' | 'denied' | 'unsupported' | 'not-configured';
+
+type PushTarget =
+  | { kind: 'owner' }
+  | { kind: 'clinic'; clinicId: string; uid: string };
+
 /**
  * Asks permission, registers this device with Firebase Cloud Messaging through
- * public/sw.js and stores the token so reportManualPayment can push to it.
+ * public/sw.js and stores the token where the server looks for it.
  */
-export async function enableOwnerPush(): Promise<'enabled' | 'denied' | 'unsupported' | 'not-configured'> {
+async function registerDevicePush(target: PushTarget): Promise<PushSetupResult> {
   if (!PUSH_SUPPORTED_KEY) return 'not-configured';
   if (typeof Notification === 'undefined' || !('serviceWorker' in navigator)) return 'unsupported';
   // Ask first, while still inside the tap: iOS ignores a permission request that
@@ -253,9 +259,28 @@ export async function enableOwnerPush(): Promise<'enabled' | 'denied' | 'unsuppo
     vapidKey: PUSH_SUPPORTED_KEY,
     serviceWorkerRegistration: registration,
   });
-  await setDoc(doc(getFirestoreDb(), 'platformPushTokens', token), {
-    createdAt: serverTimestamp(),
-    userAgent: navigator.userAgent.slice(0, 200),
-  });
+  const device = { createdAt: serverTimestamp(), userAgent: navigator.userAgent.slice(0, 200) };
+  if (target.kind === 'owner') {
+    await setDoc(doc(getFirestoreDb(), 'platformPushTokens', token), device);
+  } else {
+    await setDoc(doc(getFirestoreDb(), 'clinicPushTokens', token), { ...device, clinicId: target.clinicId, uid: target.uid });
+  }
   return 'enabled';
 }
+
+/** Platform owner: alerts about reported payments on this device. */
+export function enableOwnerPush(): Promise<PushSetupResult> {
+  return registerDevicePush({ kind: 'owner' });
+}
+
+/** Clinic user: expiry reminders for their clinic on this device. */
+export function enableClinicPush(clinicId: string, uid: string): Promise<PushSetupResult> {
+  return registerDevicePush({ kind: 'clinic', clinicId, uid });
+}
+
+export const PUSH_SETUP_MESSAGES: Record<PushSetupResult, string> = {
+  enabled:          'Notificaciones activadas en este dispositivo.',
+  denied:           'El navegador bloqueó las notificaciones. Actívalas en la configuración del sitio.',
+  unsupported:      'Este navegador no admite notificaciones push.',
+  'not-configured': 'Las notificaciones no están configuradas todavía.',
+};

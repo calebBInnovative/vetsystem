@@ -179,3 +179,18 @@ describe('manual payments', () => {
   });
 });
 
+describe('clinic push tokens', () => {
+  it('a user registers their own device for their own clinic only', async () => {
+    const db = as('recep-a');
+    await assertSucceeds(setDoc(doc(db, 'clinicPushTokens/tok-1'), { uid: 'recep-a', clinicId: 'clinic-a' }));
+    await assertFails(setDoc(doc(db, 'clinicPushTokens/tok-2'), { uid: 'recep-a', clinicId: 'clinic-b' }));
+    await assertFails(setDoc(doc(db, 'clinicPushTokens/tok-3'), { uid: 'owner-a', clinicId: 'clinic-a' }));
+  });
+
+  it("nobody reads another user's device token", async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'clinicPushTokens/tok-x'), { uid: 'owner-a', clinicId: 'clinic-a' }));
+    await assertFails(getDoc(doc(as('recep-a'), 'clinicPushTokens/tok-x')));
+    await assertSucceeds(getDoc(doc(as('owner-a'), 'clinicPushTokens/tok-x')));
+  });
+});
+

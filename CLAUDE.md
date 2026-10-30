@@ -511,7 +511,7 @@ Clinic subscriptions are paid through Recurrente from Cloud Functions in
 - Price: **US$20 / 30 days** (`monthly`). The UI label lives in `SUBSCRIPTION_PLAN`
   (`src/hooks/useSubscription.ts`) and must match `recurrente.plans.ts`.
 - **The browser never writes a license.** New clinics are created by the `registerClinic`
-  callable (`functions/src/clinics/`), which also grants the 14-day trial. `firestore.rules`
+  callable (`functions/src/clinics/`), which also grants the 7-day trial (`TRIAL_DAYS`). `firestore.rules`
   lets only the platform owner write `clinics/{id}/license/data`; clinic managers may change
   just `clinicName`. Users cannot change their own `role`, `clinicId` or `permissions`.
   Rules tests: `npm run test:rules`.

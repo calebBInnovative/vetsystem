@@ -143,6 +143,16 @@ service cloud.firestore {
       allow read, write: if isPlatformOwner();
     }
 
+    // Web push tokens of clinic users' devices (expiry reminders). A user registers
+    // only their own device for their own clinic; the server reads them to send.
+    match /clinicPushTokens/{token} {
+      allow create, update: if isAuth()
+                            && request.resource.data.uid == request.auth.uid
+                            && request.resource.data.clinicId == userClinicId();
+      allow read, delete:   if isAuth()
+                            && (resource.data.uid == request.auth.uid || isPlatformOwner());
+    }
+
     // ── Public supplier catalog ───────────────────────────────────────────────
     // Any authenticated user can read (used in /import → Catálogo tab).
     // Only master role can add / edit / delete entries.

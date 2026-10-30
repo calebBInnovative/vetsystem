@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription, SUBSCRIPTION_PLAN } from '@/hooks/useSubscription';
 import { useBillingConfig } from '@/hooks/useBillingConfig';
 import { ManualPaymentPanel } from '@/components/billing/ManualPaymentPanel';
+import { EnableRemindersButton } from '@/components/billing/EnableRemindersButton';
 import { formatMoney, subscribeClinicInvoices, type SubscriptionInvoice } from '@/lib/billing/manual-payments';
 import { isPlatformOwner } from '@/lib/usage/usage.service';
 import { Button } from '@/components/ui/button';
@@ -819,6 +820,13 @@ function TabPlan() {
               Pagar con tarjeta
             </Button>
           )}
+        </Card>
+      )}
+
+      {/* Expiry reminders on this device */}
+      {!session?.isDemo && (
+        <Card titulo="Avisos de vencimiento" desc="Recibe una notificación en este dispositivo 3 días antes, un día antes y el día que vence tu suscripción.">
+          <EnableRemindersButton />
         </Card>
       )}
 

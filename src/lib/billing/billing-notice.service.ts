@@ -1,5 +1,6 @@
 import { doc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
-import { getFirestoreDb } from '@/lib/firebase/firebase.config';
+import { httpsCallable } from 'firebase/functions';
+import { getFirebaseFunctions, getFirestoreDb } from '@/lib/firebase/firebase.config';
 import { listAllClinics } from '@/lib/usage/usage.service';
 
 /**
@@ -69,3 +70,29 @@ async function writeNotice(clinicIds: string[], notice: BillingNotice | null): P
   }
   await batch.commit();
 }
+
+/** Moves the license expiration of each clinic to `date` (YYYY-MM-DD). Platform owner only. */
+export async function setLicenseExpiration(clinicIds: string[], date: string): Promise<void> {
+  if (clinicIds.length === 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+  const fs = getFirestoreDb();
+  const batch = writeBatch(fs);
+  for (const clinicId of clinicIds) {
+    batch.set(
+      doc(fs, 'clinics', clinicId, 'license', 'data'),
+      { expirationDate: date, updatedAt: serverTimestamp() },
+      { merge: true },
+    );
+  }
+  await batch.commit();
+}
+
+export interface ReminderResult { clinicId: string; days: number; sent: number; skipped?: string }
+
+/** Pushes each clinic its expiry reminder right now (to devices with notifications on). */
+export async function sendExpiryReminderNow(clinicIds: string[]): Promise<ReminderResult[]> {
+  const fn = httpsCallable<{ clinicIds: string[] }, { results: ReminderResult[] }>(
+    getFirebaseFunctions(), 'sendExpiryReminderNow',
+  );
+  return (await fn({ clinicIds })).data.results;
+}
+
