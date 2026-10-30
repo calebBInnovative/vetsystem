@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { Star } from 'lucide-react';
-import { fetchLandingContent, type Testimonial } from '@/lib/marketing/landing';
+import { useLandingContent } from '@/hooks/useLandingContent';
 import { cn } from '@/lib/utils';
 
 const AVATAR_COLORS = [
@@ -19,16 +18,7 @@ const AVATAR_COLORS = [
  * never shows placeholder quotes.
  */
 export function Testimonials() {
-  const [items, setItems] = useState<Testimonial[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchLandingContent()
-      .then((c) => { if (!cancelled) setItems(c.testimonials.filter((t) => t.visible)); })
-      .catch(() => { /* offline: the section stays hidden */ });
-    return () => { cancelled = true; };
-  }, []);
-
+  const items = useLandingContent()?.testimonials.filter((t) => t.visible) ?? [];
   if (items.length === 0) return null;
 
   return (

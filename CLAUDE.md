@@ -287,8 +287,10 @@ is recorded. A converted quote keeps its own number and stores the resulting `sa
 `/landing` is edited from the admin, not in code (platform owner only):
 - Plans and prices → `/admin/plans` (`platform/plans`, incl. the `annualEnabled` switch — off drops every
   annual price in `parsePlans()` on client and server alike).
-- Testimonials and their photos → `/admin/landing` (`platform/landing`; photos in Storage `landing/`,
-  resized to a 320px JPEG in the browser). No visible testimonial → the section is hidden.
+- Hero copy, FAQ and testimonials (+ photos) → `/admin/landing` (`platform/landing`; photos in Storage
+  `landing/`, resized to a 320px JPEG in the browser). A missing hero/FAQ falls back to `DEFAULT_HERO` /
+  `DEFAULT_FAQS`; no visible FAQ or testimonial → that section is hidden. One read per page load
+  (`useLandingContent`).
 - WhatsApp button → `platform/contact`, mirrored from the owner's WhatsApp by `saveBillingConfig()`.
 
 All three docs are public-read, owner-write (`firestore.rules`, `storage.rules`; tests in `tests/rules/`).

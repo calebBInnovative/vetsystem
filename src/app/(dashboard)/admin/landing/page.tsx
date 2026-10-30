@@ -1,20 +1,27 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowDown, ArrowLeft, ArrowUp, Camera, ExternalLink, Loader2, Plus, Save, Star, Trash2, X } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Loader2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { isPlatformOwner } from '@/lib/usage/usage.service';
 import {
-  MAX_TESTIMONIALS, PHOTO_ACCEPT, QUOTE_MAX_LENGTH, deleteTestimonialPhotos, newTestimonial, photoProblem,
-  saveLandingContent, subscribeLandingContent, uploadTestimonialPhoto, type Testimonial,
+  deleteTestimonialPhotos, saveLandingContent, subscribeLandingContent, type LandingContent,
 } from '@/lib/marketing/landing';
+import { HeroEditor } from '@/components/admin/landing/HeroEditor';
+import { FaqEditor } from '@/components/admin/landing/FaqEditor';
+import { TestimonialsEditor } from '@/components/admin/landing/TestimonialsEditor';
 import { cn } from '@/lib/utils';
 
-const INPUT = 'w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
+type Tab = 'hero' | 'faqs' | 'testimonials';
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'hero', label: 'Portada' },
+  { id: 'faqs', label: 'Preguntas' },
+  { id: 'testimonials', label: 'Testimonios' },
+];
 
 export default function LandingAdminPage() {
   const router = useRouter();
@@ -22,7 +29,8 @@ export default function LandingAdminPage() {
   // The screen is a convenience; firestore.rules is what restricts the write.
   const platformOwner = isPlatformOwner(session?.email);
 
-  const [testimonials, setTestimonials] = useState<Testimonial[] | null>(null);
+  const [content, setContent] = useState<LandingContent | null>(null);
+  const [tab, setTab] = useState<Tab>('hero');
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
@@ -38,70 +46,47 @@ export default function LandingAdminPage() {
     if (!platformOwner || dirty) return;
     return subscribeLandingContent((c) => {
       savedPhotos.current = c.testimonials.map((t) => t.photoPath).filter(Boolean);
-      setTestimonials(c.testimonials);
+      setContent(c);
     });
   }, [platformOwner, dirty]);
 
-  function edit(next: Testimonial[]) {
-    setDirty(true);
-    setTestimonials(next);
-  }
-
-  function update(id: string, patch: Partial<Testimonial>) {
-    if (testimonials) edit(testimonials.map((t) => (t.id === id ? { ...t, ...patch } : t)));
-  }
-
-  function move(index: number, delta: -1 | 1) {
-    if (!testimonials) return;
-    const next = [...testimonials];
-    [next[index], next[index + delta]] = [next[index + delta], next[index]];
-    edit(next);
-  }
-
-  async function choosePhoto(id: string, file: File | undefined) {
-    if (!file) return;
-    const problem = photoProblem(file);
-    if (problem) { toast.error(problem); return; }
-    setUploadingId(id);
-    try {
-      const photo = await uploadTestimonialPhoto(file);
-      // Functional update: other edits may have happened during the upload.
+  /** Updater for one section, for the editors. */
+  function section<K extends keyof LandingContent>(key: K) {
+    return (updater: (prev: LandingContent[K]) => LandingContent[K]) => {
       setDirty(true);
-      setTestimonials((list) => list && list.map((t) => (t.id === id ? { ...t, ...photo } : t)));
-    } catch (err) {
-      console.error('[landing] photo upload failed:', err);
-      toast.error('No se pudo subir la foto');
-    } finally {
-      setUploadingId(null);
-    }
+      setContent((c) => c && { ...c, [key]: updater(c[key]) });
+    };
   }
 
   async function save() {
-    if (!testimonials) return;
-    const incomplete = testimonials.filter((t) => !t.name.trim() || !t.quote.trim()).length;
-    if (incomplete > 0) {
+    if (!content) return;
+    if (content.faqs.some((f) => !f.question.trim() || !f.answer.trim())) {
+      setTab('faqs');
+      toast.error('Cada pregunta necesita pregunta y respuesta (o bórrala)');
+      return;
+    }
+    if (content.testimonials.some((t) => !t.name.trim() || !t.quote.trim())) {
+      setTab('testimonials');
       toast.error('Cada testimonio necesita nombre y texto (o bórralo)');
       return;
     }
     setSaving(true);
     try {
-      await saveLandingContent({ testimonials });
-      const kept = new Set(testimonials.map((t) => t.photoPath));
+      await saveLandingContent(content);
+      const kept = new Set(content.testimonials.map((t) => t.photoPath));
       void deleteTestimonialPhotos(savedPhotos.current.filter((p) => !kept.has(p)));
       savedPhotos.current = [...kept].filter(Boolean);
       setDirty(false);
-      toast.success('Testimonios guardados. Ya se ven en la página principal.');
+      toast.success('Guardado. Ya se ve en la página principal.');
     } catch (err) {
       console.error('[landing] save failed:', err);
-      toast.error('No se pudieron guardar los testimonios');
+      toast.error('No se pudo guardar');
     } finally {
       setSaving(false);
     }
   }
 
   if (!platformOwner) return null;
-
-  const visibleCount = testimonials?.filter((t) => t.visible).length ?? 0;
 
   return (
     <div className="max-w-3xl mx-auto space-y-5">
@@ -119,112 +104,30 @@ export default function LandingAdminPage() {
             </a>
           </p>
         </div>
-        <Button onClick={save} disabled={!dirty || saving || !!uploadingId || !testimonials} className="gap-1.5">
+        <Button onClick={save} disabled={!dirty || saving || !!uploadingId || !content} className="gap-1.5">
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Guardar
         </Button>
       </div>
 
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">Testimonios</h2>
-          <p className="text-xs text-muted-foreground">
-            {visibleCount === 0
-              ? 'Sin testimonios visibles, la sección no aparece en la página.'
-              : `${visibleCount} visible${visibleCount === 1 ? '' : 's'} en la página, en este orden.`}
-            {' '}Usa solo testimonios reales, con permiso de la clínica.
-          </p>
-        </div>
-        <Button variant="outline" size="sm" className="gap-1.5 shrink-0"
-          disabled={!testimonials || testimonials.length >= MAX_TESTIMONIALS}
-          onClick={() => testimonials && edit([...testimonials, newTestimonial()])}>
-          <Plus size={14} /> Agregar
-        </Button>
+      <div className="inline-flex bg-muted rounded-xl p-1 gap-1" role="tablist">
+        {TABS.map(({ id, label }) => (
+          <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
+            className={cn('px-4 py-1.5 rounded-lg text-sm font-medium transition-all',
+              tab === id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
+            {label}
+          </button>
+        ))}
       </div>
 
-      {!testimonials ? (
+      {!content ? (
         <div className="flex justify-center py-10"><Loader2 size={18} className="animate-spin text-muted-foreground" /></div>
-      ) : testimonials.length === 0 ? (
-        <div className="bg-card rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          Aún no hay testimonios. Agrega el primero con el botón de arriba.
-        </div>
+      ) : tab === 'hero' ? (
+        <HeroEditor hero={content.hero} onChange={section('hero')} />
+      ) : tab === 'faqs' ? (
+        <FaqEditor faqs={content.faqs} onChange={section('faqs')} />
       ) : (
-        <div className="space-y-4">
-          {testimonials.map((t, index) => (
-            <section key={t.id} className={cn('bg-card rounded-2xl border border-border p-5 space-y-3', !t.visible && 'opacity-70')}>
-              <div className="flex items-center gap-2">
-                <div className="flex gap-0.5" role="radiogroup" aria-label="Estrellas">
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <button key={n} type="button" role="radio" aria-checked={t.rating === n} aria-label={`${n} estrellas`}
-                      onClick={() => update(t.id, { rating: n })}>
-                      <Star size={16} className={n <= t.rating ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/40'} />
-                    </button>
-                  ))}
-                </div>
-                <label className="ml-auto flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={t.visible} onChange={(e) => update(t.id, { visible: e.target.checked })} />
-                  Visible
-                </label>
-                <button type="button" disabled={index === 0} onClick={() => move(index, -1)}
-                  className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-30" aria-label="Subir">
-                  <ArrowUp size={14} />
-                </button>
-                <button type="button" disabled={index === testimonials.length - 1} onClick={() => move(index, 1)}
-                  className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-30" aria-label="Bajar">
-                  <ArrowDown size={14} />
-                </button>
-                <button type="button" onClick={() => edit(testimonials.filter((x) => x.id !== t.id))}
-                  className="p-1.5 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive" aria-label="Borrar">
-                  <Trash2 size={14} />
-                </button>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="relative w-14 h-14 shrink-0 rounded-full bg-muted overflow-hidden flex items-center justify-center text-muted-foreground">
-                  {uploadingId === t.id ? <Loader2 size={18} className="animate-spin" />
-                    : t.photoUrl ? <Image src={t.photoUrl} alt={t.name} fill sizes="56px" className="object-cover" />
-                    : <Camera size={18} />}
-                </div>
-                <label className={cn('cursor-pointer text-sm font-medium text-primary hover:underline', uploadingId && 'pointer-events-none opacity-50')}>
-                  {t.photoUrl ? 'Cambiar foto' : 'Subir foto'}
-                  <input type="file" accept={PHOTO_ACCEPT} className="sr-only"
-                    onChange={(e) => { void choosePhoto(t.id, e.target.files?.[0]); e.target.value = ''; }} />
-                </label>
-                {t.photoUrl && (
-                  <button type="button" onClick={() => update(t.id, { photoUrl: '', photoPath: '' })}
-                    className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-destructive">
-                    <X size={14} /> Quitar
-                  </button>
-                )}
-                <span className="text-xs text-muted-foreground ml-auto hidden sm:block">Opcional. Se recorta en cuadrado.</span>
-              </div>
-
-              <div className="grid sm:grid-cols-3 gap-2">
-                <label className="space-y-1">
-                  <span className="text-xs font-medium">Nombre</span>
-                  <input value={t.name} onChange={(e) => update(t.id, { name: e.target.value })} maxLength={80}
-                    placeholder="Dra. Sofía Martínez" className={INPUT} />
-                </label>
-                <label className="space-y-1">
-                  <span className="text-xs font-medium">Clínica</span>
-                  <input value={t.clinic} onChange={(e) => update(t.id, { clinic: e.target.value })} maxLength={80}
-                    placeholder="Veterinaria San Francisco" className={INPUT} />
-                </label>
-                <label className="space-y-1">
-                  <span className="text-xs font-medium">Ciudad</span>
-                  <input value={t.city} onChange={(e) => update(t.id, { city: e.target.value })} maxLength={40}
-                    placeholder="León" className={INPUT} />
-                </label>
-              </div>
-
-              <label className="block space-y-1">
-                <span className="text-xs font-medium">Testimonio</span>
-                <textarea value={t.quote} onChange={(e) => update(t.id, { quote: e.target.value })} maxLength={QUOTE_MAX_LENGTH}
-                  rows={3} placeholder="Lo que la clínica dice de VetSystem…" className={cn(INPUT, 'resize-y')} />
-                <span className="block text-right text-[11px] text-muted-foreground">{t.quote.length}/{QUOTE_MAX_LENGTH}</span>
-              </label>
-            </section>
-          ))}
-        </div>
+        <TestimonialsEditor testimonials={content.testimonials} onChange={section('testimonials')}
+          uploadingId={uploadingId} onUploading={setUploadingId} />
       )}
     </div>
   );

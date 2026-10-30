@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ThemeSwitcher } from '@/components/themes/ThemeSwitcher';
 import {
   WifiOff, FileText, Package, Receipt,
-  ChevronRight, Menu, X, Check, ChevronDown,
+  ChevronRight, Menu, X, Check,
   Stethoscope, CalendarDays, ShoppingCart, ClipboardList, Wallet, Megaphone,
   MessageCircle, BarChart3, FileUp, Users, Smartphone, Bell,
 } from 'lucide-react';
@@ -14,6 +14,10 @@ import { VetSystemIcon, VetSystemWordmark, PAW_BG_WHITE, PAW_BG_TEAL } from '@/c
 import { PricingPlans } from '@/components/marketing/PricingPlans';
 import { WhatsAppButton } from '@/components/marketing/WhatsAppButton';
 import { Testimonials } from '@/components/marketing/Testimonials';
+import { Faq } from '@/components/marketing/Faq';
+import { useLandingContent } from '@/hooks/useLandingContent';
+import { DEFAULT_HERO, splitHeroTitle } from '@/lib/marketing/landing';
+import { cn } from '@/lib/utils';
 
 // ─── Navbar ──────────────────────────────────────────────────────────────────
 
@@ -156,48 +160,55 @@ function DashboardMockup() {
 }
 
 function Hero() {
+  const content = useLandingContent();
+  const hero = content?.hero ?? DEFAULT_HERO;
+  // A slow connection gets the default copy rather than an empty hero.
+  const [slow, setSlow] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setSlow(true), 1500); return () => clearTimeout(t); }, []);
+  const [before, highlight, after] = splitHeroTitle(hero);
+
   return (
     <section className="min-h-screen flex items-center pt-16">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 w-full py-20">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
 
-          <div className="space-y-8">
+          {/* Default copy is in the static HTML (SEO); it fades in once the saved copy has loaded. */}
+          <div className={cn('space-y-8 transition-opacity duration-300', content || slow ? 'opacity-100' : 'opacity-0')}>
             <div className="inline-flex items-center gap-2 bg-primary/10 text-primary text-xs font-semibold px-3 py-1.5 rounded-full">
               <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-              Hecho para clínicas en Nicaragua
+              {hero.badge}
             </div>
 
             <h1 className="text-4xl sm:text-5xl font-extrabold leading-tight tracking-tight">
-              El sistema veterinario todo en uno que{' '}
-              <span className="text-primary">Nicaragua</span>{' '}
-              estaba esperando
+              {before}<span className="text-primary">{highlight}</span>{after}
             </h1>
 
             <p className="text-lg text-muted-foreground leading-relaxed max-w-md">
-              Gestiona pacientes, citas, inventario y cobros — aunque no tengas internet.
-              Simple, rápido y diseñado para la realidad de nuestras clínicas.
+              {hero.subtitle}
             </p>
 
             <div className="flex flex-wrap gap-3">
               <Button size="lg" className="h-12 px-8 text-base gap-2" asChild>
                 <Link href="/register">
-                  Comenzar gratis
+                  {hero.primaryCta}
                   <ChevronRight size={16} />
                 </Link>
               </Button>
               <Button variant="outline" size="lg" className="h-12 px-8 text-base" asChild>
-                <Link href="/demo">Probar demo</Link>
+                <Link href="/demo">{hero.secondaryCta}</Link>
               </Button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
-              {['7 días de prueba gratis', 'Cancela cuando quieras'].map((t) => (
-                <span key={t} className="flex items-center gap-1.5">
-                  <Check size={13} className="text-primary" />
-                  {t}
-                </span>
-              ))}
-            </div>
+            {hero.trustPoints.length > 0 && (
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
+                {hero.trustPoints.map((t) => (
+                  <span key={t} className="flex items-center gap-1.5">
+                    <Check size={13} className="text-primary" />
+                    {t}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="hidden lg:block">
@@ -490,79 +501,6 @@ function Modulos() {
   );
 }
 
-// ─── Preguntas frecuentes ─────────────────────────────────────────────────────
-
-const faqs = [
-  {
-    q: '¿Necesito tarjeta para probarlo?',
-    a: 'No. Tienes 7 días gratis con todo incluido y sin tarjeta. Al terminar eliges el plan que mejor le quede a tu clínica.',
-  },
-  {
-    q: '¿Puedo verlo antes de crear una cuenta?',
-    a: 'Sí. El demo abre el sistema completo con datos de ejemplo, sin registrarte.',
-  },
-  {
-    q: '¿Qué pasa si se va el internet?',
-    a: 'Sigues atendiendo, registrando consultas y cobrando. Todo se guarda en tu equipo y se sincroniza cuando vuelve la conexión. Si pasas más de 30 días sin conectarte, el sistema queda en solo lectura hasta que vuelvas a sincronizar.',
-  },
-  {
-    q: '¿Tengo que instalar algo?',
-    a: 'No. Funciona desde el navegador en computadora, tablet o celular. Si quieres, puedes agregarlo como app a tu pantalla de inicio.',
-  },
-  {
-    q: '¿Cómo pago la suscripción?',
-    a: 'Por transferencia bancaria o Kash. Reportas el pago desde el sistema y tu plan se activa en cuanto lo confirmamos.',
-  },
-  {
-    q: '¿Puedo pasar mis datos desde Excel?',
-    a: 'Sí, puedes importar tu catálogo de productos y servicios desde un archivo de Excel en lugar de escribirlo a mano.',
-  },
-  {
-    q: '¿Puede usarlo todo mi equipo?',
-    a: 'Sí. Cada persona entra con su propio usuario y rol (administración, veterinario o recepción), con permisos por módulo. La cantidad de usuarios depende del plan.',
-  },
-  {
-    q: '¿Mis datos están seguros?',
-    a: 'Se respaldan en la nube de Google (Firebase) y cada clínica solo puede ver su propia información.',
-  },
-  {
-    q: '¿Hay contrato o permanencia?',
-    a: 'No. Pagas mes a mes o por año y puedes dejar de usarlo cuando quieras.',
-  },
-];
-
-const faqJsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'FAQPage',
-  mainEntity: faqs.map(({ q, a }) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })),
-};
-
-function PreguntasFrecuentes() {
-  return (
-    <section id="preguntas" className="py-24">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
-      <div className="max-w-3xl mx-auto px-4 sm:px-6">
-        <div className="text-center space-y-3 mb-12">
-          <p className="text-sm font-semibold text-primary uppercase tracking-wider">Preguntas frecuentes</p>
-          <h2 className="text-3xl sm:text-4xl font-bold">¿Tienes dudas?</h2>
-        </div>
-
-        <div className="space-y-3">
-          {faqs.map(({ q, a }) => (
-            <details key={q} className="group bg-card border border-border rounded-xl px-5 open:shadow-sm">
-              <summary className="flex items-center justify-between gap-4 py-4 cursor-pointer list-none font-medium text-sm [&::-webkit-details-marker]:hidden">
-                {q}
-                <ChevronDown size={18} className="shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
-              </summary>
-              <p className="pb-4 text-sm text-muted-foreground leading-relaxed">{a}</p>
-            </details>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 // ─── CTA Final ────────────────────────────────────────────────────────────────
 
 function CTAFinal() {
@@ -650,7 +588,7 @@ export default function LandingPage() {
       <Modulos />
       <PricingPlans />
       <Testimonials />
-      <PreguntasFrecuentes />
+      <Faq />
       <CTAFinal />
       <Footer />
       <WhatsAppButton />

@@ -25,14 +25,76 @@ export interface Testimonial {
   photoPath: string;
 }
 
+export interface HeroContent {
+  /** Small pill above the title */
+  badge: string;
+  title: string;
+  /** Part of the title drawn in the brand color; ignored when the title does not contain it. */
+  highlight: string;
+  subtitle: string;
+  /** Sign-up button text */
+  primaryCta: string;
+  /** Live demo button text */
+  secondaryCta: string;
+  /** Short reassurances under the buttons (max HERO_MAX_TRUST_POINTS) */
+  trustPoints: string[];
+}
+
+export interface Faq {
+  id: string;
+  question: string;
+  answer: string;
+  visible: boolean;
+}
+
 export interface LandingContent {
+  hero: HeroContent;
+  faqs: Faq[];
   testimonials: Testimonial[];
 }
 
 export const MAX_TESTIMONIALS = 12;
 export const QUOTE_MAX_LENGTH = 400;
+export const MAX_FAQS = 15;
+export const ANSWER_MAX_LENGTH = 600;
+export const HERO_MAX_TRUST_POINTS = 3;
+export const HERO_LIMITS = { badge: 60, title: 120, highlight: 40, subtitle: 240, primaryCta: 30, secondaryCta: 30, trustPoint: 40 } as const;
 
-const EMPTY_LANDING: LandingContent = { testimonials: [] };
+/** What the landing shows until the owner saves something else. */
+export const DEFAULT_HERO: HeroContent = {
+  badge: 'Hecho para clínicas en Nicaragua',
+  title: 'El sistema veterinario todo en uno que Nicaragua estaba esperando',
+  highlight: 'Nicaragua',
+  subtitle: 'Gestiona pacientes, citas, inventario y cobros — aunque no tengas internet. Simple, rápido y diseñado para la realidad de nuestras clínicas.',
+  primaryCta: 'Comenzar gratis',
+  secondaryCta: 'Probar demo',
+  trustPoints: ['7 días de prueba gratis', 'Cancela cuando quieras'],
+};
+
+const faq = (id: string, question: string, answer: string): Faq => ({ id, question, answer, visible: true });
+
+export const DEFAULT_FAQS: Faq[] = [
+  faq('card', '¿Necesito tarjeta para probarlo?',
+    'No. Tienes 7 días gratis con todo incluido y sin tarjeta. Al terminar eliges el plan que mejor le quede a tu clínica.'),
+  faq('demo', '¿Puedo verlo antes de crear una cuenta?',
+    'Sí. El demo abre el sistema completo con datos de ejemplo, sin registrarte.'),
+  faq('offline', '¿Qué pasa si se va el internet?',
+    'Sigues atendiendo, registrando consultas y cobrando. Todo se guarda en tu equipo y se sincroniza cuando vuelve la conexión. Si pasas más de 30 días sin conectarte, el sistema queda en solo lectura hasta que vuelvas a sincronizar.'),
+  faq('install', '¿Tengo que instalar algo?',
+    'No. Funciona desde el navegador en computadora, tablet o celular. Si quieres, puedes agregarlo como app a tu pantalla de inicio.'),
+  faq('payment', '¿Cómo pago la suscripción?',
+    'Por transferencia bancaria o Kash. Reportas el pago desde el sistema y tu plan se activa en cuanto lo confirmamos.'),
+  faq('excel', '¿Puedo pasar mis datos desde Excel?',
+    'Sí, puedes importar tu catálogo de productos y servicios desde un archivo de Excel en lugar de escribirlo a mano.'),
+  faq('team', '¿Puede usarlo todo mi equipo?',
+    'Sí. Cada persona entra con su propio usuario y rol (administración, veterinario o recepción), con permisos por módulo. La cantidad de usuarios depende del plan.'),
+  faq('security', '¿Mis datos están seguros?',
+    'Se respaldan en la nube de Google (Firebase) y cada clínica solo puede ver su propia información.'),
+  faq('contract', '¿Hay contrato o permanencia?',
+    'No. Pagas mes a mes o por año y puedes dejar de usarlo cuando quieras.'),
+];
+
+export const DEFAULT_LANDING: LandingContent = { hero: DEFAULT_HERO, faqs: DEFAULT_FAQS, testimonials: [] };
 
 function text(value: unknown, max: number): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
@@ -67,21 +129,72 @@ function parsePhoto(r: Record<string, unknown>): Pick<Testimonial, 'photoUrl' | 
   return PHOTO_PATH.test(photoPath) && PHOTO_URL.test(photoUrl) ? { photoUrl, photoPath } : { photoUrl: '', photoPath: '' };
 }
 
-export function parseLanding(data: Record<string, unknown> | undefined): LandingContent {
-  if (!data) return EMPTY_LANDING;
-  const list = Array.isArray(data.testimonials) ? data.testimonials : [];
+/** Every hero field falls back to its default when missing or blank, so the hero is never empty. */
+function parseHero(value: unknown): HeroContent {
+  if (!value || typeof value !== 'object') return DEFAULT_HERO;
+  const r = value as Record<string, unknown>;
+  const field = (key: Exclude<keyof HeroContent, 'trustPoints' | 'highlight'>) =>
+    text(r[key], HERO_LIMITS[key]) || DEFAULT_HERO[key];
   return {
-    testimonials: list.map(parseTestimonial).filter((t): t is Testimonial => t !== null).slice(0, MAX_TESTIMONIALS),
+    badge: field('badge'),
+    title: field('title'),
+    // A blank highlight is a choice (no colored words), not a missing field.
+    highlight: typeof r.highlight === 'string' ? text(r.highlight, HERO_LIMITS.highlight) : DEFAULT_HERO.highlight,
+    subtitle: field('subtitle'),
+    primaryCta: field('primaryCta'),
+    secondaryCta: field('secondaryCta'),
+    trustPoints: Array.isArray(r.trustPoints)
+      ? r.trustPoints.map((t) => text(t, HERO_LIMITS.trustPoint)).filter(Boolean).slice(0, HERO_MAX_TRUST_POINTS)
+      : DEFAULT_HERO.trustPoints,
   };
+}
+
+function parseFaq(value: unknown): Faq | null {
+  if (!value || typeof value !== 'object') return null;
+  const r = value as Record<string, unknown>;
+  const question = text(r.question, 160);
+  const answer = text(r.answer, ANSWER_MAX_LENGTH);
+  if (!question || !answer) return null;
+  return { id: text(r.id, 40) || crypto.randomUUID(), question, answer, visible: r.visible !== false };
+}
+
+function parseList<T>(value: unknown, parse: (v: unknown) => T | null, max: number): T[] {
+  return (Array.isArray(value) ? value : []).map(parse).filter((t): t is T => t !== null).slice(0, max);
+}
+
+/** Missing sections take their defaults; a saved empty list stays empty. */
+export function parseLanding(data: Record<string, unknown> | undefined): LandingContent {
+  if (!data) return DEFAULT_LANDING;
+  return {
+    hero: parseHero(data.hero),
+    faqs: Array.isArray(data.faqs) ? parseList(data.faqs, parseFaq, MAX_FAQS) : DEFAULT_FAQS,
+    testimonials: parseList(data.testimonials, parseTestimonial, MAX_TESTIMONIALS),
+  };
+}
+
+/** Splits the title around the highlighted words (case-sensitive, first match). */
+export function splitHeroTitle(hero: Pick<HeroContent, 'title' | 'highlight'>): [string, string, string] {
+  const at = hero.highlight ? hero.title.indexOf(hero.highlight) : -1;
+  if (at < 0) return [hero.title, '', ''];
+  return [hero.title.slice(0, at), hero.highlight, hero.title.slice(at + hero.highlight.length)];
+}
+
+export function newFaq(): Faq {
+  return { id: crypto.randomUUID(), question: '', answer: '', visible: true };
 }
 
 export function newTestimonial(): Testimonial {
   return { id: crypto.randomUUID(), name: '', clinic: '', city: '', quote: '', rating: 5, visible: true, photoUrl: '', photoPath: '' };
 }
 
-/** One-off read for the public landing page. */
-export async function fetchLandingContent(): Promise<LandingContent> {
-  return parseLanding((await getDoc(doc(getFirestoreDb(), 'platform', 'landing'))).data());
+let landingRead: Promise<LandingContent> | null = null;
+
+/** One read per page load, shared by every landing section; a failed read is retried next call. */
+export function fetchLandingContent(): Promise<LandingContent> {
+  landingRead ??= getDoc(doc(getFirestoreDb(), 'platform', 'landing'))
+    .then((snap) => parseLanding(snap.data()))
+    .catch((err) => { landingRead = null; throw err; });
+  return landingRead;
 }
 
 /** Platform owner's live view (/admin/landing). */
@@ -93,13 +206,10 @@ export function subscribeLandingContent(onChange: (content: LandingContent) => v
   );
 }
 
-/** Platform owner only (firestore.rules). Incomplete testimonials (no name or quote) are dropped. */
+/** Platform owner only (firestore.rules). Saved through the same parsing the landing reads with. */
 export async function saveLandingContent(content: LandingContent): Promise<void> {
-  const testimonials = content.testimonials
-    .map(parseTestimonial)
-    .filter((t): t is Testimonial => t !== null)
-    .slice(0, MAX_TESTIMONIALS);
-  await setDoc(doc(getFirestoreDb(), 'platform', 'landing'), { testimonials, updatedAt: serverTimestamp() });
+  const clean = parseLanding({ ...content });
+  await setDoc(doc(getFirestoreDb(), 'platform', 'landing'), { ...clean, updatedAt: serverTimestamp() });
 }
 
 // ─── Photos ───────────────────────────────────────────────────────────────────
