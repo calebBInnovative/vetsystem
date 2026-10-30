@@ -158,6 +158,8 @@ describe('manual payments', () => {
 
   it('clinics read the plan catalog but only the platform owner sets prices and limits', async () => {
     await assertSucceeds(getDoc(doc(as('recep-a'), 'platform/plans')));
+    await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(), 'platform/plans')));
+    await assertFails(setDoc(doc(env.unauthenticatedContext().firestore(), 'platform/plans'), { plans: {} }));
     await assertFails(setDoc(doc(as('owner-a'), 'platform/plans'), { plans: { basic: { prices: { USD: { monthly: 1 } } } } }));
     await assertSucceeds(setDoc(doc(as('platform', PLATFORM_OWNER_EMAIL), 'platform/plans'), { plans: {} }));
   });

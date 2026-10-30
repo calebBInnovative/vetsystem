@@ -1,4 +1,4 @@
-import { doc, onSnapshot, serverTimestamp, setDoc, type Unsubscribe } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, serverTimestamp, setDoc, type Unsubscribe } from 'firebase/firestore';
 import { getFirestoreDb } from '@/lib/firebase/firebase.config';
 import type { AppModule, SessionLocal } from '@/types/license';
 
@@ -147,6 +147,11 @@ export function subscribePlans(onChange: (catalog: PlanCatalog) => void): Unsubs
     (snap) => onChange(parsePlans(snap.data())),
     (err) => console.warn('[billing] plans listener failed:', err),
   );
+}
+
+/** One-off read for public pages (no sign-in needed: platform/plans is public in firestore.rules). */
+export async function fetchPlans(): Promise<PlanCatalog> {
+  return parsePlans((await getDoc(doc(getFirestoreDb(), 'platform', 'plans'))).data());
 }
 
 /** Platform owner only (firestore.rules). */

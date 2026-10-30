@@ -132,10 +132,11 @@ service cloud.firestore {
       allow write: if isPlatformOwner();
     }
 
-    // Plan catalog (prices and limits, docs/pricing/pricing-strategy.md): every
-    // clinic reads it to choose a plan; only the platform owner edits it.
+    // Plan catalog (prices and limits, docs/pricing/pricing-strategy.md). Public:
+    // the landing page shows it to visitors, and it holds nothing that is not
+    // already advertised. Only the platform owner edits it.
     match /platform/plans {
-      allow read:  if isAuth();
+      allow read:  if true;
       allow write: if isPlatformOwner();
     }
 
