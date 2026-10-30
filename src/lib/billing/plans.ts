@@ -1,0 +1,165 @@
+import { doc, onSnapshot, serverTimestamp, setDoc, type Unsubscribe } from 'firebase/firestore';
+import { getFirestoreDb } from '@/lib/firebase/firebase.config';
+import type { AppModule, SessionLocal } from '@/types/license';
+
+/**
+ * Subscription plans on the client: the catalog the platform owner edits in
+ * /admin/plans (platform/plans) and the limits a clinic works under.
+ *
+ * Mirrors functions/src/billing/plans.ts (defaults and parsing) — keep both
+ * identical. The server alone decides what a plan costs; this copy exists so
+ * the app can show plans and enforce limits, including offline.
+ */
+
+export const PLAN_IDS = ['basic', 'professional', 'clinic'] as const;
+export type PlanId = typeof PLAN_IDS[number];
+
+export type BillingPeriod = 'monthly' | 'annual';
+export const PERIOD_DAYS: Record<BillingPeriod, number> = { monthly: 30, annual: 365 };
+
+export type PlanCurrency = 'USD' | 'NIO';
+
+/** Every module a plan can switch off, with its label for the owner's editor. */
+export const PLAN_MODULE_LABELS: Record<AppModule, string> = {
+  patients:      'Pacientes',
+  schedule:      'Agenda',
+  consultations: 'Consultas',
+  sales:         'Ventas (POS)',
+  quotes:        'Cotizaciones',
+  inventory:     'Inventario',
+  services:      'Servicios',
+  invoices:      'Facturas',
+  finances:      'Finanzas y egresos',
+  promotions:    'Promociones',
+  import:        'Importar / exportar',
+};
+const PLAN_MODULES = Object.keys(PLAN_MODULE_LABELS) as AppModule[];
+
+export interface PlanLimits {
+  /** null = unlimited */
+  maxUsers: number | null;
+  /** Active (not deleted) patients; null = unlimited */
+  maxPatients: number | null;
+  modules: AppModule[];
+}
+
+export interface PlanConfig extends PlanLimits {
+  id: PlanId;
+  name: string;
+  /** Price per currency and period; a missing price means "not sold in that currency/period" */
+  prices: Record<PlanCurrency, Partial<Record<BillingPeriod, number>>>;
+  active: boolean;
+}
+
+export type PlanCatalog = Record<PlanId, PlanConfig>;
+
+const BASIC_MODULES: AppModule[] = ['patients', 'schedule', 'consultations', 'sales', 'quotes', 'inventory', 'services'];
+
+export const DEFAULT_PLANS: PlanCatalog = {
+  basic: {
+    id: 'basic', name: 'Básico', active: true,
+    prices: { USD: { monthly: 12, annual: 120 }, NIO: {} },
+    maxUsers: 2, maxPatients: 500, modules: BASIC_MODULES,
+  },
+  professional: {
+    id: 'professional', name: 'Profesional', active: true,
+    prices: { USD: { monthly: 20, annual: 200 }, NIO: {} },
+    maxUsers: 5, maxPatients: null, modules: PLAN_MODULES,
+  },
+  clinic: {
+    id: 'clinic', name: 'Clínica', active: true,
+    prices: { USD: { monthly: 35, annual: 350 }, NIO: {} },
+    maxUsers: 15, maxPatients: null, modules: PLAN_MODULES,
+  },
+};
+
+/** 'monthly' (the single plan before tiers) and a trial both mean Professional. */
+export function planIdOf(licensePlan: unknown): PlanId {
+  return (PLAN_IDS as readonly unknown[]).includes(licensePlan) ? licensePlan as PlanId : 'professional';
+}
+
+function positive(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function limit(value: unknown, fallback: number | null): number | null {
+  if (value === null) return null;
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+function modulesFrom(value: unknown, fallback: AppModule[]): AppModule[] {
+  return Array.isArray(value) ? PLAN_MODULES.filter((m) => (value as unknown[]).includes(m)) : fallback;
+}
+
+/** Reads platform/plans, filling every missing or invalid field from DEFAULT_PLANS. */
+export function parsePlans(data: Record<string, unknown> | undefined): PlanCatalog {
+  const raw = (data?.plans && typeof data.plans === 'object' ? data.plans : {}) as Record<string, unknown>;
+  const catalog = {} as PlanCatalog;
+  for (const id of PLAN_IDS) {
+    const base = DEFAULT_PLANS[id];
+    const r = (raw[id] && typeof raw[id] === 'object' ? raw[id] : {}) as Record<string, unknown>;
+    const rawPrices = (r.prices && typeof r.prices === 'object' ? r.prices : null) as Record<string, unknown> | null;
+    const prices = {} as PlanConfig['prices'];
+    for (const currency of ['USD', 'NIO'] as const) {
+      const c = (rawPrices?.[currency] && typeof rawPrices[currency] === 'object' ? rawPrices[currency] : null) as Record<string, unknown> | null;
+      prices[currency] = c
+        ? Object.fromEntries((['monthly', 'annual'] as const).flatMap((p) => positive(c[p]) ? [[p, positive(c[p])]] : []))
+        : { ...base.prices[currency] };
+    }
+    catalog[id] = {
+      id,
+      name:        typeof r.name === 'string' && r.name.trim() ? r.name.trim().slice(0, 40) : base.name,
+      active:      typeof r.active === 'boolean' ? r.active : base.active,
+      prices,
+      maxUsers:    'maxUsers' in r ? limit(r.maxUsers, base.maxUsers) : base.maxUsers,
+      maxPatients: 'maxPatients' in r ? limit(r.maxPatients, base.maxPatients) : base.maxPatients,
+      modules:     modulesFrom(r.modules, base.modules),
+    };
+  }
+  return catalog;
+}
+
+/**
+ * Limits a clinic works under: the ones copied to its license when it paid, or
+ * the defaults of its plan for licenses that predate plans (and trials).
+ */
+export function limitsFromLicense(license: Record<string, unknown>): PlanLimits {
+  const base = DEFAULT_PLANS[planIdOf(license.plan)];
+  const l = (license.limits && typeof license.limits === 'object' ? license.limits : null) as Record<string, unknown> | null;
+  if (!l) return { maxUsers: base.maxUsers, maxPatients: base.maxPatients, modules: [...base.modules] };
+  return {
+    maxUsers:    'maxUsers' in l ? limit(l.maxUsers, base.maxUsers) : base.maxUsers,
+    maxPatients: 'maxPatients' in l ? limit(l.maxPatients, base.maxPatients) : base.maxPatients,
+    modules:     modulesFrom(l.modules, base.modules),
+  };
+}
+
+/** Plan name for a license.plan value, as the clinic sees it. */
+export function planLabel(licensePlan: string | undefined, catalog: PlanCatalog = DEFAULT_PLANS): string {
+  if (licensePlan === 'Trial') return 'Prueba gratis';
+  return catalog[planIdOf(licensePlan)].name;
+}
+
+/** Live plan catalog; DEFAULT_PLANS until the owner saves one. */
+export function subscribePlans(onChange: (catalog: PlanCatalog) => void): Unsubscribe {
+  return onSnapshot(
+    doc(getFirestoreDb(), 'platform', 'plans'),
+    (snap) => onChange(parsePlans(snap.data())),
+    (err) => console.warn('[billing] plans listener failed:', err),
+  );
+}
+
+/** Platform owner only (firestore.rules). */
+export async function savePlans(catalog: PlanCatalog): Promise<void> {
+  await setDoc(doc(getFirestoreDb(), 'platform', 'plans'), { plans: catalog, updatedAt: serverTimestamp() });
+}
+
+/** Limits in force for this session, offline included. Demo and old sessions get their plan's defaults. */
+export function sessionLimits(session: Pick<SessionLocal, 'plan' | 'planLimits' | 'isDemo'> | null): PlanLimits {
+  if (session?.planLimits) return session.planLimits;
+  return limitsFromLicense({ plan: session?.isDemo ? 'clinic' : session?.plan });
+}
+
+export function planAllowsModule(session: Pick<SessionLocal, 'plan' | 'planLimits' | 'isDemo'> | null, module: AppModule): boolean {
+  return sessionLimits(session).modules.includes(module);
+}

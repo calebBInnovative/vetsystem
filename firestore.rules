@@ -132,6 +132,13 @@ service cloud.firestore {
       allow write: if isPlatformOwner();
     }
 
+    // Plan catalog (prices and limits, docs/pricing/pricing-strategy.md): every
+    // clinic reads it to choose a plan; only the platform owner edits it.
+    match /platform/plans {
+      allow read:  if isAuth();
+      allow write: if isPlatformOwner();
+    }
+
     match /subscriptionInvoices/{invoiceId} {
       allow read:  if isPlatformOwner()
                    || (isAuth() && resource.data.clinicId == userClinicId());

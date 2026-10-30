@@ -25,6 +25,7 @@ import { getFirebaseApp, getFirestoreDb, getFirebaseFunctions } from '@/lib/fire
 import { db } from '@/lib/db/database';
 import { syncService } from '@/lib/sync/sync.service';
 import type { SessionLocal, Permissions, UserRole } from '@/types/license';
+import { limitsFromLicense } from '@/lib/billing/plans';
 
 // ─── Firestore structure ──────────────────────────────────────────────────────
 //
@@ -527,12 +528,12 @@ function _devLicense() {
 }
 
 /**
- * Maps the license's billing state (billingNotice, graceUntil, lastPaymentAt) to the flat session
+ * Maps the license's billing state (billingNotice, graceUntil, lastPaymentAt, plan limits) to the flat session
  * fields. Absent or null = not set, so a cleared notice also clears the session.
  */
 export function billingStateFields(
   license: Record<string, unknown>,
-): Pick<SessionLocal, 'billingNoticeAt' | 'billingNoticeBlocking' | 'graceUntil' | 'lastPaymentAt'> {
+): Pick<SessionLocal, 'billingNoticeAt' | 'billingNoticeBlocking' | 'graceUntil' | 'lastPaymentAt' | 'planLimits' | 'planPeriod'> {
   const notice = license.billingNotice as { at?: unknown; blocking?: unknown } | null | undefined;
   const hasNotice = !!notice && typeof notice.at === 'number';
   return {
@@ -540,6 +541,8 @@ export function billingStateFields(
     billingNoticeBlocking: hasNotice ? notice.blocking === true : undefined,
     graceUntil:            typeof license.graceUntil === 'number' ? license.graceUntil : undefined,
     lastPaymentAt:         typeof license.lastPaymentAt === 'number' ? license.lastPaymentAt : undefined,
+    planLimits:            limitsFromLicense(license),
+    planPeriod:            license.planPeriod === 'annual' ? 'annual' : license.planPeriod === 'monthly' ? 'monthly' : undefined,
   };
 }
 

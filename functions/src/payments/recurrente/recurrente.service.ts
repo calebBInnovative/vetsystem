@@ -385,6 +385,9 @@ export class PaymentService {
         expirationDate: extendExpiration(carriedExpiration, payment.durationDays, now),
         billingNotice:  null,
         lastPaymentAt:  now,
+        // Card sells the legacy 'monthly' plan (= Professional): drop limits a
+        // previous plan left behind so Professional's defaults apply.
+        limits:         null,
       });
     }
     return 'paid';

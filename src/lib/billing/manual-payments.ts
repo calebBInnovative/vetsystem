@@ -5,6 +5,7 @@ import {
 import { httpsCallable } from 'firebase/functions';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { getFirebaseApp, getFirebaseFunctions, getFirestoreDb, getStorageBucket } from '@/lib/firebase/firebase.config';
+import type { BillingPeriod, PlanId } from './plans';
 
 /**
  * Client side of manual payments (bank transfer / Kash). The server owns every
@@ -54,6 +55,9 @@ export interface SubscriptionInvoice {
   originBank?: string | null;
   transferType?: TransferType | null;
   receiptPath?: string | null;
+  /** Plan bought; absent on reports made before plans existed (= professional, monthly) */
+  planId?: PlanId;
+  period?: BillingPeriod;
   reportedBy: { uid: string; email: string | null; name: string | null };
   status: InvoiceStatus;
   periodDays: number;
@@ -167,6 +171,8 @@ export interface ReportPaymentInput {
   originBank?: string;
   transferType?: TransferType;
   receiptPath?: string;
+  planId: PlanId;
+  period: BillingPeriod;
 }
 
 export interface ReportPaymentResult {

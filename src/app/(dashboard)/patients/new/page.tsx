@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { PacienteForm } from '@/components/patients/PatientForm';
-import { createPatient } from '@/hooks/usePatients';
+import { PlanLimitError, createPatient } from '@/hooks/usePatients';
 import { type PacienteFormData } from '@/lib/validations/patient.schema';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
@@ -18,13 +18,13 @@ export default function NewPatientPage() {
     setCargando(true);
     try {
       const id = await createPatient(datos);
-      toast.success('Patient registrado', {
+      toast.success('Paciente registrado', {
         description: `${datos.name} fue registrado correctamente.`,
       });
       router.push(`/patients/${id}`);
-    } catch {
-      toast.error('Error al guardar', {
-        description: 'No se pudo registrar el paciente. Intenta de nuevo.',
+    } catch (err) {
+      toast.error(err instanceof PlanLimitError ? 'Límite del plan' : 'Error al guardar', {
+        description: err instanceof PlanLimitError ? err.message : 'No se pudo registrar el paciente. Intenta de nuevo.',
       });
       setCargando(false);
     }

@@ -26,10 +26,16 @@ describe('manual payments (emulator)', () => {
         { id: 'bac', type: 'bank', label: 'BAC', holder: 'Owner', account: '123', currency: 'NIO', enabled: true },
         { id: 'lafise', type: 'bank', label: 'LAFISE', holder: 'Owner', account: '456', currency: 'USD', enabled: false },
       ],
-      prices: { USD: 20, NIO: 735 },
       graceDays: 3,
     });
-    for (const clinic of ['mp-a', 'mp-b']) {
+    // Only what differs from DEFAULT_PLANS: córdoba prices, and Clinic not on sale.
+    await db.doc('platform/plans').set({
+      plans: {
+        professional: { prices: { USD: { monthly: 20, annual: 200 }, NIO: { monthly: 735 } } },
+        clinic:       { active: false },
+      },
+    });
+    for (const clinic of ['mp-a', 'mp-b', 'mp-c']) {
       await db.doc(`clinics/${clinic}`).set({ name: `Clinic ${clinic}` });
       await db.doc(`clinics/${clinic}/license/data`).set({
         plan: 'Trial', expirationDate: '2027-06-01', subscription: true, billingNotice: { at: NOW - DAY, blocking: true },
@@ -38,6 +44,7 @@ describe('manual payments (emulator)', () => {
     await db.doc('users/mp-owner-a').set({ clinicId: 'mp-a', role: 'admin', name: 'Ana' });
     await db.doc('users/mp-owner-b').set({ clinicId: 'mp-b', role: 'admin', name: 'Beto' });
     await db.doc('users/mp-recep-a').set({ clinicId: 'mp-a', role: 'reception' });
+    await db.doc('users/mp-owner-c').set({ clinicId: 'mp-c', role: 'master', name: 'Carla' });
   });
 
   let firstInvoiceId = '';
@@ -95,7 +102,9 @@ describe('manual payments (emulator)', () => {
     assert.deepEqual(result, { status: 'confirmed', newExpirationDate: '2026-11-28' });
 
     const license = (await db.doc('clinics/mp-a/license/data').get()).data();
-    assert.equal(license?.plan, 'monthly');
+    assert.equal(license?.plan, 'professional', 'a report without planId buys Professional, as before plans existed');
+    assert.equal(license?.planPeriod, 'monthly');
+    assert.equal(license?.limits.maxUsers, 5);
     assert.equal(license?.expirationDate, '2026-11-28', 'not added on top of the old free license');
     assert.equal(license?.billingNotice, null);
     assert.equal(license?.graceUntil, null);
@@ -135,6 +144,34 @@ describe('manual payments (emulator)', () => {
     await reportManualPayment(db, {
       uid: 'mp-owner-b', email: null, methodId: 'bac', payerReference: 'FAKE-1', paidOn: '2026-10-29',
     }, NOW);
+  });
+
+  it('sells the chosen plan and period, and copies its limits to the license', async () => {
+    const report = await reportManualPayment(db, {
+      uid: 'mp-owner-c', email: null, methodId: 'kash', payerReference: 'KX-ANNUAL', paidOn: '2026-10-29',
+      planId: 'basic', period: 'annual',
+    }, NOW);
+    assert.equal(report.amount, 120);
+    const result = await reviewManualPayment(db, { invoiceId: report.invoiceId, decision: 'confirm', reviewer: 'owner' }, NOW);
+    assert.equal(result.newExpirationDate, '2027-10-29', '365 days from today');
+
+    const license = (await db.doc('clinics/mp-c/license/data').get()).data();
+    assert.equal(license?.plan, 'basic');
+    assert.equal(license?.planPeriod, 'annual');
+    assert.equal(license?.limits.maxPatients, 500);
+    assert.ok(!license?.limits.modules.includes('finances'));
+  });
+
+  it('refuses inactive plans, unpriced currencies and unknown plans', async () => {
+    await assert.rejects(reportManualPayment(db, {
+      uid: 'mp-owner-c', email: null, methodId: 'kash', payerReference: 'KX-CLINIC', paidOn: '2026-10-29', planId: 'clinic',
+    }, NOW), isCode('invalid-argument'));
+    await assert.rejects(reportManualPayment(db, {
+      uid: 'mp-owner-c', email: null, methodId: 'bac', payerReference: 'BAC-BASIC', paidOn: '2026-10-29', planId: 'basic',
+    }, NOW), isCode('failed-precondition'), 'Basic has no córdoba price');
+    await assert.rejects(reportManualPayment(db, {
+      uid: 'mp-owner-c', email: null, methodId: 'kash', payerReference: 'KX-GOLD', paidOn: '2026-10-29', planId: 'gold',
+    }, NOW), isCode('invalid-argument'));
   });
 
   it('numbers invoices sequentially per year', async () => {

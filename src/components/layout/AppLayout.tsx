@@ -19,6 +19,8 @@ import { isPlatformOwner } from '@/lib/usage/usage.service';
 import { TourGuide } from '@/components/common/TourGuide';
 import { puedeEscribir } from '@/lib/license/license.service';
 import { ThemeSwitcher } from '@/components/themes/ThemeSwitcher';
+import { PlanUpgradeRequired } from '@/components/license/PlanUpgradeRequired';
+import { planAllowsModule } from '@/lib/billing/plans';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -39,7 +41,7 @@ import {
   BarChart3, Settings, DollarSign, Stethoscope, Receipt,
   ClipboardList, ShoppingBag, Tag, Shield, Database, LogOut, ChevronDown,
   FlaskConical, PlayCircle, UserCircle, Loader2, CheckCircle2, Phone,
-  Wallet, Bell, FileSpreadsheet, MessageCircle, FileText, Landmark, BellRing,
+  Wallet, Bell, FileSpreadsheet, MessageCircle, FileText, Landmark, BellRing, Layers,
 } from 'lucide-react';
 import {
   Popover, PopoverContent, PopoverTrigger,
@@ -420,6 +422,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   function tieneAcceso(modulo?: AppModule): boolean {
     if (!modulo) return true;
     if (!session) return false;
+    // The plan applies to every role, master and admin included.
+    if (!planAllowsModule(session, modulo)) return false;
     if (session.role === 'master' || session.role === 'admin') return true;
     // null permissions for a staff user means the Firestore doc was missing the field — grant default access
     if (session.permissions === null) return true;
@@ -455,6 +459,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     const lastPull = localStorage.getItem(key);
     if (lastPull && lastPull !== '0') setInitialSyncing(false);
   }, [session?.clinicId, session?.uid, isDemo]);
+
+  // A module outside the clinic's plan stays out even when reached by URL.
+  const blockedModule = session && !isDemo
+    ? menuItems.find((item) => item.modulo && pathname.startsWith(item.href) && !planAllowsModule(session, item.modulo))?.modulo
+    : undefined;
 
   // Header subscription alert (pill next to the bell)
   const subscriptionExpiry = useSubscriptionExpiry();
@@ -738,6 +747,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                             </Link>
                           </DropdownMenuItem>
                         )}
+                        {isPlatformOwner(session.email) && (
+                          <DropdownMenuItem asChild>
+                            <Link href="/admin/plans" className="flex items-center gap-2 cursor-pointer">
+                              <Layers size={14} />
+                              Planes
+                            </Link>
+                          </DropdownMenuItem>
+                        )}
                         {(esMaster || process.env.NODE_ENV === 'development') && (
                           <DropdownMenuItem asChild>
                             <Link href="/dev/seed" className="flex items-center gap-2 cursor-pointer">
@@ -862,7 +879,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* Contenido */}
         <main className="flex-1 overflow-auto p-6 print:p-0">
-          {children}
+          {blockedModule ? <PlanUpgradeRequired module={blockedModule} /> : children}
         </main>
       </div>
 

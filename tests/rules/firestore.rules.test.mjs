@@ -156,6 +156,16 @@ describe('manual payments', () => {
     await assertSucceeds(setDoc(doc(as('platform', PLATFORM_OWNER_EMAIL), 'platform/billing'), { prices: { USD: 20 } }, { merge: true }));
   });
 
+  it('clinics read the plan catalog but only the platform owner sets prices and limits', async () => {
+    await assertSucceeds(getDoc(doc(as('recep-a'), 'platform/plans')));
+    await assertFails(setDoc(doc(as('owner-a'), 'platform/plans'), { plans: { basic: { prices: { USD: { monthly: 1 } } } } }));
+    await assertSucceeds(setDoc(doc(as('platform', PLATFORM_OWNER_EMAIL), 'platform/plans'), { plans: {} }));
+  });
+
+  it('a clinic manager cannot raise its own plan limits', async () => {
+    await assertFails(setDoc(doc(as('owner-a'), 'clinics/clinic-a/license/data'), { limits: { maxUsers: 999 } }, { merge: true }));
+  });
+
   it('a clinic reads only its own invoices and can never write one', async () => {
     await assertSucceeds(getDoc(doc(as('owner-a'), 'subscriptionInvoices/inv-a')));
     await assertFails(getDoc(doc(as('owner-a'), 'subscriptionInvoices/inv-b')));

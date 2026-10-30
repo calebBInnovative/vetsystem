@@ -1,6 +1,7 @@
 import { doc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { getFirebaseFunctions, getFirestoreDb } from '@/lib/firebase/firebase.config';
+import type { PlanConfig } from '@/lib/billing/plans';
 import { listAllClinics } from '@/lib/usage/usage.service';
 
 /**
@@ -80,6 +81,28 @@ export async function setLicenseExpiration(clinicIds: string[], date: string): P
     batch.set(
       doc(fs, 'clinics', clinicId, 'license', 'data'),
       { expirationDate: date, updatedAt: serverTimestamp() },
+      { merge: true },
+    );
+  }
+  await batch.commit();
+}
+
+/**
+ * Platform owner: puts clinics on a plan without a payment (migration, a gift, a
+ * test). Copies the plan's current limits to the license, like a payment does.
+ */
+export async function setLicensePlan(clinicIds: string[], plan: PlanConfig): Promise<void> {
+  if (clinicIds.length === 0) return;
+  const fs = getFirestoreDb();
+  const batch = writeBatch(fs);
+  for (const clinicId of clinicIds) {
+    batch.set(
+      doc(fs, 'clinics', clinicId, 'license', 'data'),
+      {
+        plan:      plan.id,
+        limits:    { maxUsers: plan.maxUsers, maxPatients: plan.maxPatients, modules: plan.modules },
+        updatedAt: serverTimestamp(),
+      },
       { merge: true },
     );
   }

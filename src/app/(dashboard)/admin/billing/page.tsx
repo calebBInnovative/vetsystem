@@ -8,10 +8,11 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { isPlatformOwner } from '@/lib/usage/usage.service';
 import {
-  listClinicBilling, scheduleBillingNotice, clearBillingNotice, setLicenseExpiration, sendExpiryReminderNow,
+  listClinicBilling, scheduleBillingNotice, clearBillingNotice, setLicenseExpiration, sendExpiryReminderNow, setLicensePlan,
   type ClinicBillingRow,
 } from '@/lib/billing/billing-notice.service';
 import { cn } from '@/lib/utils';
+import { PLAN_IDS, planLabel, subscribePlans, type PlanCatalog, type PlanId } from '@/lib/billing/plans';
 
 type When = 'now' | 'in5' | 'custom';
 
@@ -40,6 +41,8 @@ export default function BillingNoticePage() {
   const [blocking, setBlocking] = useState(false);
   const [busy,     setBusy]     = useState(false);
   const [expiry,   setExpiry]   = useState(() => toLocalInput(Date.now() + 86_400_000).slice(0, 10));
+  const [planId,   setPlanId]   = useState<PlanId>('professional');
+  const [catalog,  setCatalog]  = useState<PlanCatalog | null>(null);
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -56,6 +59,7 @@ export default function BillingNoticePage() {
   }, []);
 
   useEffect(() => { if (platformOwner) void load(); }, [platformOwner, load]);
+  useEffect(() => (platformOwner ? subscribePlans(setCatalog) : undefined), [platformOwner]);
 
   // Re-render every 30 s so "programado" turns into "activo" on screen
   useEffect(() => {
@@ -113,6 +117,23 @@ export default function BillingNoticePage() {
     } catch (err) {
       console.error('[billing] clear failed:', err);
       toast.error('No se pudo quitar el aviso');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePlan() {
+    if (!catalog) return;
+    const plan = catalog[planId];
+    if (!confirm(`¿Poner ${ids.length} clínica(s) en el plan ${plan.name}? No cambia su vencimiento.`)) return;
+    setBusy(true);
+    try {
+      await setLicensePlan(ids, plan);
+      toast.success(`Plan ${plan.name} aplicado a ${ids.length} clínica(s)`);
+      await load();
+    } catch (err) {
+      console.error('[billing] plan change failed:', err);
+      toast.error('No se pudo cambiar el plan');
     } finally {
       setBusy(false);
     }
@@ -244,6 +265,26 @@ export default function BillingNoticePage() {
         </div>
       </div>
 
+      {/* ── Plan ───────────────────────────────────────────────────────────── */}
+      <div className="bg-card rounded-2xl border border-border p-5 space-y-3">
+        <div>
+          <p className="text-sm font-medium">Plan de la clínica</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Cambia el plan sin cobrar (migración, cortesía o pruebas). Aplica sus límites actuales; el
+            vencimiento no cambia.
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <select value={planId} onChange={(e) => setPlanId(e.target.value as PlanId)}
+            className="rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+            {PLAN_IDS.map((id) => <option key={id} value={id}>{catalog?.[id].name ?? id}</option>)}
+          </select>
+          <Button onClick={handlePlan} variant="outline" disabled={busy || ids.length === 0 || !catalog} className="gap-2 flex-1">
+            Aplicar plan ({ids.length})
+          </Button>
+        </div>
+      </div>
+
       {/* ── Clinics ──────────────────────────────────────────────────────── */}
       <div className="bg-card rounded-2xl border border-border overflow-hidden">
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-muted/40 text-xs">
@@ -275,7 +316,7 @@ export default function BillingNoticePage() {
                         {row.id === ownClinicId && <span className="ml-1.5 text-xs text-muted-foreground">(tu clínica)</span>}
                       </p>
                       <p className="text-xs text-muted-foreground font-mono truncate">
-                        {row.id} · {row.plan ?? 'sin licencia'} · vence {row.expirationDate ?? '—'}
+                        {row.id} · {row.plan ? planLabel(row.plan, catalog ?? undefined) : 'sin licencia'} · vence {row.expirationDate ?? '—'}
                       </p>
                     </div>
                     {row.notice && (

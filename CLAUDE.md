@@ -513,12 +513,25 @@ Clinic subscriptions are paid through Recurrente from Cloud Functions in
 - Live needs `PAYMENT_PROVIDER_MODE=live` **and** `RECURRENTE_LIVE_ENABLED=true`, a deployed
   runtime (refused in the emulator) and the secrets `RECURRENTE_SECRET_KEY` /
   `RECURRENTE_WEBHOOK_SECRET` in Secret Manager — never in `functions/.env`.
-- Prices live only in `recurrente.plans.ts`; the client sends a plan id, never an amount.
+- Card prices live only in `recurrente.plans.ts` (it sells the legacy `monthly` plan = Professional);
+  the client sends a plan id, never an amount. Manual payments price from **plans** (below).
 - A payment becomes `paid` only after `GET /checkouts/{id}` confirms it; webhook deliveries are
   deduplicated by `svix-id` in the same transaction that updates the payment and the license.
 - Tests: `cd functions && npm test` (no network) and `npm run test:emulator`.
-- Price: **US$20 / 30 days** (`monthly`). The UI label lives in `SUBSCRIPTION_PLAN`
-  (`src/hooks/useSubscription.ts`) and must match `recurrente.plans.ts`.
+- Card price: **US$20 / 30 days** (`monthly`). `SUBSCRIPTION_PLAN` (`src/hooks/useSubscription.ts`)
+  must match `recurrente.plans.ts`.
+- **Plans** (Básico / Profesional / Clínica — strategy in `docs/pricing/pricing-strategy.md`):
+  - Catalog in `platform/plans`, edited by the owner at `/admin/plans`: prices per currency (USD/NIO)
+    and period (monthly 30 d / annual 365 d), `maxUsers`, `maxPatients` (null = unlimited), `modules`.
+  - `functions/src/billing/plans.ts` and `src/lib/billing/plans.ts` mirror defaults and parsing —
+    keep identical. The server alone turns `planId` + `period` into an amount.
+  - On confirmation the invoice's frozen `limits` are copied to `license/data.limits` (+ `plan`,
+    `planPeriod`): catalog changes reach a clinic only with its next payment. Old `monthly` licenses
+    and trials resolve to Professional (`planIdOf`).
+  - Limits are cached in the Dexie session (`planLimits`) and enforced offline: modules hidden in the
+    menu and blocked by route in `AppLayout`, patients counted locally in `createPatient`, users
+    checked in Admin → Usuarios (soft — not in rules). The plan applies to master/admin too.
+  - The owner can set a clinic's plan without a payment in `/admin/billing` (`setLicensePlan`).
 - **The browser never writes a license.** New clinics are created by the `registerClinic`
   callable (`functions/src/clinics/`), which also grants the 7-day trial (`TRIAL_DAYS`). `firestore.rules`
   lets only the platform owner write `clinics/{id}/license/data`; clinic managers may change

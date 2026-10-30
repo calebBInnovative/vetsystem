@@ -7,6 +7,8 @@ import { Check, Copy, FileUp, Loader2, MessageCircle, Smartphone, Landmark, X } 
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBillingConfig } from '@/hooks/useBillingConfig';
+import { usePlans } from '@/hooks/usePlans';
+import { PLAN_IDS, planIdOf, type BillingPeriod, type PlanCatalog, type PlanId } from '@/lib/billing/plans';
 import {
   RECEIPT_ACCEPT, clinicPaymentReference, formatMoney, receiptProblem, reportErrorMessage, reportManualPayment,
   uploadPaymentReceipt, whatsappReportLink,
@@ -44,9 +46,17 @@ function CopyValue({ value, label }: { value: string; label: string }) {
 export function ManualPaymentPanel({ onDone }: { onDone?: () => void }) {
   const { session } = useAuth();
   const config = useBillingConfig();
+  const catalog = usePlans();
+
+  // Start on the clinic's current plan (a trial tries Professional), if still on sale.
+  const [planId, setPlanId] = useState<PlanId>(() => planIdOf(session?.plan));
+  const [period, setPeriod] = useState<BillingPeriod>('monthly');
+  const plan = catalog?.[planId];
+
+  // A channel shows only when it is set up and the chosen plan has a price in its currency.
   const methods = useMemo(
-    () => (config?.methods ?? []).filter((m) => m.enabled && m.account && config?.prices[m.currency]),
-    [config],
+    () => (config?.methods ?? []).filter((m) => m.enabled && m.account && plan?.prices[m.currency][period]),
+    [config, plan, period],
   );
 
   const [methodId, setMethodId] = useState<string>('');
@@ -60,29 +70,45 @@ export function ManualPaymentPanel({ onDone }: { onDone?: () => void }) {
   const [result, setResult] = useState<ReportPaymentResult | null>(null);
 
   useEffect(() => {
-    if (!methodId && methods.length > 0) setMethodId(methods[0].id);
+    if (methods.length > 0 && !methods.some((m) => m.id === methodId)) setMethodId(methods[0].id);
   }, [methods, methodId]);
 
+  useEffect(() => {
+    if (catalog && !catalog[planId].active) {
+      const firstActive = PLAN_IDS.find((id) => catalog[id].active);
+      if (firstActive) setPlanId(firstActive);
+    }
+  }, [catalog, planId]);
+
   if (!session) return null;
-  if (config === null) {
+  if (config === null || catalog === null || !plan) {
     return <div className="flex justify-center py-8"><Loader2 size={18} className="animate-spin text-muted-foreground" /></div>;
   }
+  const planPicker = <PlanPicker catalog={catalog} planId={planId} period={period} onPlan={setPlanId} onPeriod={setPeriod} />;
+
   if (methods.length === 0) {
-    // A method only shows once it is enabled, has an account and its currency has a price.
-    return isPlatformOwner(session.email) ? (
-      <p className="text-sm text-muted-foreground text-center py-6">
-        No hay métodos de pago activos: activa al menos uno con su número de cuenta y el precio de su moneda en{' '}
-        <Link href="/admin/payments" className="underline text-foreground">Pagos de clínicas → Configuración</Link>.
-      </p>
-    ) : (
-      <p className="text-sm text-muted-foreground text-center py-6">
-        Los pagos por transferencia aún no están configurados. Contacta a soporte de VetSystem.
-      </p>
+    // A method only shows once it is enabled, has an account and the plan has a price in its currency.
+    return (
+      <div className="space-y-4">
+        {planPicker}
+        {isPlatformOwner(session.email) ? (
+          <p className="text-sm text-muted-foreground text-center py-4">
+            No hay forma de pagar este plan: activa un método con su número de cuenta en{' '}
+            <Link href="/admin/payments" className="underline text-foreground">Pagos de clínicas → Configuración</Link>
+            {' '}y revisa que el plan tenga precio en esa moneda en{' '}
+            <Link href="/admin/plans" className="underline text-foreground">Planes</Link>.
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground text-center py-4">
+            Este plan no se puede pagar por transferencia todavía. Elige otro o contacta a soporte de VetSystem.
+          </p>
+        )}
+      </div>
     );
   }
 
   const method: PaymentMethodConfig = methods.find((m) => m.id === methodId) ?? methods[0];
-  const amount = config.prices[method.currency] ?? 0;
+  const amount = plan.prices[method.currency][period] ?? 0;
   const reference = clinicPaymentReference(session.clinicId);
   const isBank = method.type === 'bank';
 
@@ -116,6 +142,8 @@ export function ManualPaymentPanel({ onDone }: { onDone?: () => void }) {
         originBank:     isBank && originBank.trim() ? originBank.trim() : undefined,
         transferType:   isBank && transferType ? transferType : undefined,
         receiptPath,
+        planId,
+        period,
       });
       setResult(res);
       toast.success('Pago reportado. Tu acceso sigue activo mientras lo confirmamos.');
@@ -159,6 +187,8 @@ export function ManualPaymentPanel({ onDone }: { onDone?: () => void }) {
 
   return (
     <form onSubmit={submit} className="space-y-4">
+      {planPicker}
+
       {/* 1 · How to pay */}
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">1 · Elige cómo pagar</p>
@@ -172,7 +202,7 @@ export function ManualPaymentPanel({ onDone }: { onDone?: () => void }) {
           ))}
         </div>
         <div className="rounded-xl bg-muted/50 px-4 py-3 space-y-1.5 text-sm">
-          <div className="flex justify-between gap-3"><span className="text-muted-foreground">Monto</span>
+          <div className="flex justify-between gap-3"><span className="text-muted-foreground">Monto · {plan.name} {period === 'annual' ? 'anual' : 'mensual'}</span>
             <span className="font-semibold">{formatMoney(amount, method.currency)}</span></div>
           <div className="flex justify-between gap-3"><span className="text-muted-foreground">{method.type === 'kash' ? 'Celular Kash' : `Cuenta ${method.label} (${method.currency})`}</span>
             <CopyValue value={method.account} label="cuenta" /></div>
@@ -263,6 +293,57 @@ export function ManualPaymentPanel({ onDone }: { onDone?: () => void }) {
         Ya pagué — reportar pago
       </Button>
     </form>
+  );
+}
+
+function limitLabel(value: number | null, noun: string): string {
+  return value === null ? `${noun} ilimitados` : `Hasta ${value} ${noun}`;
+}
+
+/** Plan cards and the monthly / annual switch. Prices shown in USD, the reference currency. */
+function PlanPicker({ catalog, planId, period, onPlan, onPeriod }: {
+  catalog: PlanCatalog; planId: PlanId; period: BillingPeriod;
+  onPlan: (id: PlanId) => void; onPeriod: (p: BillingPeriod) => void;
+}) {
+  const active = PLAN_IDS.filter((id) => catalog[id].active);
+  const anyAnnual = active.some((id) => catalog[id].prices.USD.annual || catalog[id].prices.NIO.annual);
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tu plan</p>
+        {anyAnnual && (
+          <div className="flex rounded-lg border border-border p-0.5 text-xs">
+            {(['monthly', 'annual'] as const).map((p) => (
+              <button key={p} type="button" onClick={() => onPeriod(p)}
+                className={cn('px-2.5 py-1 rounded-md font-medium transition-colors',
+                  period === p ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}>
+                {p === 'monthly' ? 'Mensual' : 'Anual'}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className={cn('grid gap-2', active.length === 3 ? 'grid-cols-3' : 'grid-cols-2')}>
+        {active.map((id) => {
+          const p = catalog[id];
+          const price = p.prices.USD[period];
+          return (
+            <button key={id} type="button" onClick={() => onPlan(id)}
+              className={cn('rounded-xl border px-2 py-2.5 text-left transition-colors space-y-1',
+                id === planId ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted')}>
+              <p className={cn('text-sm font-semibold', id === planId && 'text-primary')}>{p.name}</p>
+              <p className="text-xs font-medium">
+                {price ? `${formatMoney(price, 'USD')}/${period === 'annual' ? 'año' : 'mes'}` : 'No disponible'}
+              </p>
+              <p className="text-[10px] text-muted-foreground leading-tight">
+                {limitLabel(p.maxUsers, 'usuarios')} · {limitLabel(p.maxPatients, 'pacientes')}
+              </p>
+            </button>
+          );
+        })}
+      </div>
+      {period === 'annual' && <p className="text-[11px] text-muted-foreground">El plan anual da 365 días de acceso.</p>}
+    </div>
   );
 }
 

@@ -1,3 +1,5 @@
+import type { BillingPeriod, PlanLimits } from '@/lib/billing/plans';
+
 // ─── License and local session types ─────────────────────────────────────────
 
 export type LicenseMode =
@@ -79,6 +81,13 @@ export interface SessionLocal {
    * can show it offline; expirationDate stays the source of truth for access.
    */
   lastPaymentAt?:         number;
+  /**
+   * Limits of the clinic's plan (users, patients, modules), cached so they are
+   * enforced offline. Read through sessionLimits(); absent on old sessions.
+   */
+  planLimits?:            PlanLimits;
+  /** 'monthly' | 'annual' of the last paid period */
+  planPeriod?:            BillingPeriod;
 }
 
 export interface LicenseInfo {

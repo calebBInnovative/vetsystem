@@ -11,7 +11,8 @@ import {
   type NuevoUsuario, type UsuarioFirestore,
 } from '@/lib/auth/auth.service';
 import { useAuth } from '@/contexts/AuthContext';
-import { useSubscription, SUBSCRIPTION_PLAN } from '@/hooks/useSubscription';
+import { useSubscription } from '@/hooks/useSubscription';
+import { PLAN_MODULE_LABELS, planLabel, sessionLimits } from '@/lib/billing/plans';
 import { useBillingConfig } from '@/hooks/useBillingConfig';
 import { ManualPaymentPanel } from '@/components/billing/ManualPaymentPanel';
 import { EnableRemindersButton } from '@/components/billing/EnableRemindersButton';
@@ -25,7 +26,7 @@ import {
   Loader2, Sprout, Trash2, CheckCircle2, AlertCircle,
   CloudUpload, RefreshCw, Database, Wifi, WifiOff, AlertTriangle,
   UserPlus, Users, KeyRound, ShieldAlert, Pencil, KeySquare, Phone,
-  BookOpen, ChevronRight, Activity, CreditCard, BellRing, Landmark,
+  BookOpen, ChevronRight, Activity, CreditCard, BellRing, Landmark, Layers,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AppModule, Permissions, UserRole } from '@/types/license';
@@ -269,9 +270,18 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
 
   useEffect(() => { cargarUsuarios(); }, [cargarUsuarios]);
 
+  // Plan cap on team size (soft: enforced here, not in firestore.rules)
+  const { maxUsers } = sessionLimits(session);
+  const atUserLimit = maxUsers !== null && !cargandoU && usuarios.length >= maxUsers;
+
   // ── Create ─────────────────────────────────────────────────────────────────
   async function handleCrear(e: React.FormEvent) {
     e.preventDefault();
+    if (atUserLimit) {
+      setMensajeCrear(`Tu plan permite hasta ${maxUsers} usuarios. Cambia de plan en la pestaña Plan para agregar más.`);
+      setAccionCrear('error');
+      return;
+    }
     setAccionCrear('loading'); setMensajeCrear('');
     try {
       await crearUsuario({ ...form, clinicId });
@@ -416,7 +426,10 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
       </Card>
 
       {/* ── Create user form ── */}
-      <Card titulo="Crear usuario del equipo" desc="Se crea en Firebase Auth + Firestore. Requiere internet.">
+      <Card
+        titulo="Crear usuario del equipo"
+        desc={`Se crea en Firebase Auth + Firestore. Requiere internet.${maxUsers !== null && !cargandoU ? ` Usuarios: ${usuarios.length} de ${maxUsers} en tu plan.` : ''}`}
+      >
         <form onSubmit={handleCrear} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -488,9 +501,9 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
             </p>
           )}
 
-          <Button type="submit" disabled={accionCrear === 'loading'} className="w-full gap-2">
+          <Button type="submit" disabled={accionCrear === 'loading' || atUserLimit} className="w-full gap-2">
             {accionCrear === 'loading' ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
-            Crear usuario
+            {atUserLimit ? 'Límite de usuarios del plan alcanzado' : 'Crear usuario'}
           </Button>
           <ResultadoBox accion={accionCrear} mensaje={mensajeCrear} />
         </form>
@@ -764,6 +777,7 @@ function TabPlan() {
   const days    = license.daysUntilExpiry;
   const expired = session?.subscription === false || (days !== null && days < 0);
   const isTrial = session?.plan === 'Trial';
+  const limits  = sessionLimits(session);
 
   // State for the platform owner's license editor
   const [lic, setLic] = useState({
@@ -798,7 +812,10 @@ function TabPlan() {
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-xl bg-muted/40 px-4 py-3">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Plan</p>
-            <p className="text-sm font-semibold">{isTrial ? 'Prueba' : session?.plan === 'monthly' ? SUBSCRIPTION_PLAN.name : (session?.plan ?? '—')}</p>
+            <p className="text-sm font-semibold">
+              {isTrial ? `Prueba (${planLabel('professional')})` : planLabel(session?.plan)}
+              {!isTrial && session?.planPeriod === 'annual' ? ' · anual' : ''}
+            </p>
           </div>
           <div className="rounded-xl bg-muted/40 px-4 py-3">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Estado</p>
@@ -818,6 +835,17 @@ function TabPlan() {
               )}
             </p>
           </div>
+          <div className="rounded-xl bg-muted/40 px-4 py-3 col-span-2">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Incluye</p>
+            <p className="text-xs">
+              {limits.maxUsers === null ? 'Usuarios ilimitados' : `Hasta ${limits.maxUsers} usuarios`}
+              {' · '}
+              {limits.maxPatients === null ? 'pacientes ilimitados' : `hasta ${limits.maxPatients} pacientes`}
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              {limits.modules.map((m) => PLAN_MODULE_LABELS[m]).join(', ')}
+            </p>
+          </div>
         </div>
       </Card>
 
@@ -825,17 +853,18 @@ function TabPlan() {
       {!session?.isDemo && (
         <Card
           titulo={expired ? 'Reactivar suscripción' : 'Pagar o renovar'}
-          desc={`${SUBSCRIPTION_PLAN.name}: ${SUBSCRIPTION_PLAN.priceLabel} por ${SUBSCRIPTION_PLAN.durationDays} días de acceso completo.`}
+          desc="Elige tu plan: mensual (30 días) o anual (365 días)."
         >
           <p className="text-xs text-muted-foreground">
-            Si pagas antes de que venza, los {SUBSCRIPTION_PLAN.durationDays} días se suman a tu fecha
-            actual: no pierdes ningún día.
+            Si pagas antes de que venza, los días se suman a tu fecha actual: no pierdes ningún día.
+            Al cambiar de plan, el nuevo aplica cuando confirmamos tu pago.
           </p>
           <ManualPaymentPanel />
           {billingConfig?.cardEnabled && (
             <Button onClick={startCheckout} disabled={checkoutLoading} variant="outline" className="w-full gap-2">
               {checkoutLoading ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />}
-              Pagar con tarjeta
+              {/* Card checkout sells only the plan in recurrente.plans.ts */}
+              Pagar con tarjeta (Profesional mensual)
             </Button>
           )}
         </Card>
@@ -895,6 +924,9 @@ function TabPlan() {
             </Button>
             <Button onClick={() => router.push('/admin/billing')} variant="outline" className="gap-2">
               <BellRing size={14} /> Programar cobros
+            </Button>
+            <Button onClick={() => router.push('/admin/plans')} variant="outline" className="gap-2">
+              <Layers size={14} /> Planes y precios
             </Button>
           </div>
         </Card>

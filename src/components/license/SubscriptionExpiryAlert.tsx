@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { CreditCard, Landmark } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { SUBSCRIPTION_PLAN } from '@/hooks/useSubscription';
 import { cn } from '@/lib/utils';
 
 /** Admin → Plan: payment methods, card checkout and payment history in one place. */
@@ -103,7 +102,7 @@ export function SubscriptionExpiryBellItem({ expiry }: { expiry: SubscriptionExp
         {expiry.canPay ? (
           <Link href={PLAN_TAB_HREF}
             className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline">
-            <Landmark size={11} /> Pagar {SUBSCRIPTION_PLAN.priceLabel} →
+            <Landmark size={11} /> Ver planes y pagar →
           </Link>
         ) : (
           <p className="text-[11px] text-muted-foreground">Avisa al administrador de la clínica para renovar.</p>

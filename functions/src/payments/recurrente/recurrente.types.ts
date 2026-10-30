@@ -143,6 +143,11 @@ export interface LicenseData {
   billingNotice?: BillingNotice | null;
   /** ms timestamp of the last confirmed payment; cached offline by the app */
   lastPaymentAt?: number;
+  /**
+   * Plan limits copied at payment time (functions/src/billing/plans.ts). null
+   * clears them, so the defaults of `plan` apply.
+   */
+  limits?: null;
 }
 
 export interface UserProfile {

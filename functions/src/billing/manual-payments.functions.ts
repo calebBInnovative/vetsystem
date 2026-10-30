@@ -33,7 +33,8 @@ async function notifyOwner(result: ReportResult, clinicName: string): Promise<vo
 }
 
 // ─── reportManualPayment ──────────────────────────────────────────────────────
-// Input:  { methodId, payerReference, paidOn: 'YYYY-MM-DD', note?, originBank?, transferType?, receiptPath? }
+// Input:  { methodId, payerReference, paidOn: 'YYYY-MM-DD', note?, originBank?, transferType?, receiptPath?,
+//          planId?: 'basic' | 'professional' | 'clinic', period?: 'monthly' | 'annual' }
 // Output: { invoiceId, number, reference, amount, currency, graceUntil }
 
 export const reportManualPayment = onCall({ cors: true }, async (request) => {
@@ -51,6 +52,8 @@ export const reportManualPayment = onCall({ cors: true }, async (request) => {
       originBank:     data.originBank,
       transferType:   data.transferType,
       receiptPath:    data.receiptPath,
+      planId:         data.planId,
+      period:         data.period,
     });
     const invoice = await db.collection('subscriptionInvoices').doc(result.invoiceId).get();
     logger.info('[billing] manual payment reported', { invoiceId: result.invoiceId, clinicId: invoice.get('clinicId') });

@@ -6,6 +6,7 @@
 
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, getClinicaId, type SyncQueueItem } from '@/lib/db/database';
+import { sessionLimits } from '@/lib/billing/plans';
 import type { PatientLocal, OwnerLocal, PatientWithOwner } from '@/types/patient';
 import type { PacienteFormData } from '@/lib/validations/patient.schema';
 
@@ -82,9 +83,31 @@ export function usePatient(id: string) {
 // MUTATIONS
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Thrown when the clinic's plan allows no more of something; message is for the user. */
+export class PlanLimitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PlanLimitError';
+  }
+}
+
+/**
+ * Plan cap on active patients, checked against the local DB so it works offline.
+ * A soft cap: two devices creating offline at the same time can pass it by a few.
+ */
+async function assertPatientLimit(clinicId: string): Promise<void> {
+  const { maxPatients } = sessionLimits((await db.session.get('singleton')) ?? null);
+  if (maxPatients === null) return;
+  const count = await db.patients.where('clinicId').equals(clinicId).filter((p) => !p.deletedAt).count();
+  if (count >= maxPatients) {
+    throw new PlanLimitError(`Tu plan permite hasta ${maxPatients} pacientes. Cambia de plan en Administración → Plan para registrar más.`);
+  }
+}
+
 export async function createPatient(data: PacienteFormData): Promise<string> {
   const now      = Date.now();
   const clinicId = await getClinicaId();
+  await assertPatientLimit(clinicId);
 
   // ── 1. Manage owner ────────────────────────────────────────────────────────
   const existingOwner = await db.owners

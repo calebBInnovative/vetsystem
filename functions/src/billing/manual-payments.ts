@@ -1,5 +1,9 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { extendExpiration } from '../payments/recurrente/recurrente.service';
+import {
+  PERIOD_DAYS, PLANS_PATH, isBillingPeriod, isPlanId, parsePlans, planLimits,
+  type BillingPeriod, type PlanId, type PlanLimits,
+} from './plans';
 
 /**
  * Manual payments: a clinic pays by bank transfer or Kash and reports it; the
@@ -19,8 +23,6 @@ export const BILLING_CONFIG_PATH = 'platform/billing';
 export const COUNTERS_PATH = 'platform/counters';
 export const INVOICES_COLLECTION = 'subscriptionInvoices';
 
-/** Days of access a confirmed manual payment adds — same as the card plan. */
-export const MANUAL_PERIOD_DAYS = 30;
 export const DEFAULT_GRACE_DAYS = 3;
 const MAX_GRACE_DAYS = 7;
 
@@ -91,6 +93,11 @@ export interface SubscriptionInvoice {
   receiptPath: string | null;
   reportedBy: { uid: string; email: string | null; name: string | null };
   status: InvoiceStatus;
+  /** Plan bought; absent on reports made before plans existed (= professional, monthly) */
+  planId?: PlanId;
+  period?: BillingPeriod;
+  /** Limits frozen at report time and copied to the license on confirmation */
+  limits?: PlanLimits;
   periodDays: number;
   /** ms timestamp until which the report keeps the clinic working, or null */
   graceUntil: number | null;
@@ -206,6 +213,9 @@ export interface ReportInput {
   originBank?: unknown;
   transferType?: unknown;
   receiptPath?: unknown;
+  /** Defaults to professional / monthly, what clients sent before plans existed */
+  planId?: unknown;
+  period?: unknown;
 }
 
 export interface ReportResult {
@@ -226,6 +236,10 @@ export async function reportManualPayment(db: Firestore, input: ReportInput, now
   const note   = typeof input.note === 'string' && input.note.trim() ? input.note.trim().slice(0, 500) : null;
   const originBank = optionalText(input.originBank, 'originBank', 60);
   const transfer   = transferType(input.transferType);
+  const planId = input.planId === undefined ? 'professional' : input.planId;
+  const period = input.period === undefined ? 'monthly' : input.period;
+  if (!isPlanId(planId)) throw new ManualPaymentError('invalid-argument', 'planId is not valid.');
+  if (!isBillingPeriod(period)) throw new ManualPaymentError('invalid-argument', 'period must be monthly or annual.');
 
   return db.runTransaction(async (tx) => {
     const userSnap = await tx.get(db.collection('users').doc(input.uid));
@@ -241,8 +255,10 @@ export async function reportManualPayment(db: Firestore, input: ReportInput, now
     const config = parseBillingConfig((await tx.get(db.doc(BILLING_CONFIG_PATH))).data());
     const method = config.methods.find((m) => m.id === methodId && m.enabled);
     if (!method) throw new ManualPaymentError('invalid-argument', 'Payment method is not available.');
-    const amount = config.prices[method.currency];
-    if (!amount) throw new ManualPaymentError('failed-precondition', 'No price is configured for this currency.');
+    const plan = parsePlans((await tx.get(db.doc(PLANS_PATH))).data())[planId];
+    if (!plan.active) throw new ManualPaymentError('invalid-argument', 'Plan is not available.');
+    const amount = plan.prices[method.currency][period];
+    if (!amount) throw new ManualPaymentError('failed-precondition', 'No price is configured for this plan, currency and period.');
 
     const invoices = db.collection(INVOICES_COLLECTION);
     const pending = await tx.get(invoices.where('clinicId', '==', clinicId).where('status', '==', 'pending').limit(1));
@@ -292,7 +308,10 @@ export async function reportManualPayment(db: Firestore, input: ReportInput, now
       receiptPath,
       reportedBy:        { uid: input.uid, email: input.email, name: (userSnap.get('name') as string | undefined) ?? null },
       status:            'pending',
-      periodDays:        MANUAL_PERIOD_DAYS,
+      planId,
+      period,
+      limits:            planLimits(plan),
+      periodDays:        PERIOD_DAYS[period],
       graceUntil,
       createdAt:         now,
       reviewedAt:        null,
@@ -360,7 +379,11 @@ export async function reviewManualPayment(db: Firestore, input: ReviewInput, now
     const newExpirationDate = extendExpiration(carried, invoice.periodDays, now);
     tx.set(licenseRef, {
       subscription:   true,
-      plan:           'monthly',
+      plan:           invoice.planId ?? 'professional',
+      planPeriod:     invoice.period ?? 'monthly',
+      // Limits as sold, not as the catalog says today: a later price or limit
+      // change reaches the clinic only with its next payment.
+      ...(invoice.limits ? { limits: invoice.limits } : { limits: FieldValue.delete() }),
       expirationDate: newExpirationDate,
       billingNotice:  null,
       graceUntil:     null,

@@ -91,7 +91,7 @@ describe('live mode (fake Recurrente API, no network)', () => {
     assert.equal(record.fulfilledAt, NOW);
     // The trial had expired on 2026-10-01, so 30 days are counted from today.
     assert.deepEqual(env.repository.licenses.get('clinic-a'), {
-      subscription: true, plan: 'monthly', expirationDate: '2026-11-08', billingNotice: null, lastPaymentAt: NOW,
+      subscription: true, plan: 'monthly', expirationDate: '2026-11-08', billingNotice: null, lastPaymentAt: NOW, limits: null,
     });
 
     const again = await deliverLive(env.service, intentEvent(env.api, checkoutId, 'intent.succeeded'));

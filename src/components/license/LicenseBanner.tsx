@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { LICENSE_MESSAGES, estaBloquada } from '@/lib/license/license.service';
-import { useSubscription, SUBSCRIPTION_PLAN } from '@/hooks/useSubscription';
+import { useSubscription } from '@/hooks/useSubscription';
 import { useBillingConfig } from '@/hooks/useBillingConfig';
 import { ManualPaymentModal } from '@/components/billing/ManualPaymentPanel';
 import { EnableRemindersButton } from '@/components/billing/EnableRemindersButton';
@@ -49,7 +49,7 @@ function PayButtons({ variant, onTransfer }: { variant: 'strip' | 'lock'; onTran
     return (
       <>
         <button type="button" onClick={onTransfer} className={STRIP_BUTTON}>
-          <Landmark size={11} /> Pagar {SUBSCRIPTION_PLAN.priceLabel}
+          <Landmark size={11} /> Pagar
         </button>
         {card && (
           <button type="button" onClick={startCheckout} disabled={loading} className={STRIP_BUTTON}>
@@ -124,7 +124,7 @@ export function LicenseBanner() {
           <CreditCard size={14} className="shrink-0" />
           <div className="flex-1 min-w-0">
             <span className="font-medium">Activa tu suscripción</span>
-            <span className="opacity-80"> — {SUBSCRIPTION_PLAN.priceLabel} por {SUBSCRIPTION_PLAN.durationDays} días para seguir usando VetSystem.</span>
+            <span className="opacity-80"> — elige tu plan y paga para seguir usando VetSystem.</span>
           </div>
           <PayButtons variant="strip" onTransfer={openTransfer} />
           <button type="button" onClick={() => snoozeNotice(Date.now() + URGENT_SNOOZE_MS)} title="Ocultar por 4 horas"
@@ -151,7 +151,7 @@ export function LicenseBanner() {
             </span>
             <span className="opacity-80">
               {session?.plan === 'Trial'
-                ? ` — activa tu plan (${SUBSCRIPTION_PLAN.priceLabel} por ${SUBSCRIPTION_PLAN.durationDays} días) para seguir usando VetSystem.`
+                ? ' — elige tu plan para seguir usando VetSystem.'
                 : ' — renueva para no perder el acceso. Los días se suman a tu fecha actual.'}
             </span>
           </div>
@@ -171,7 +171,7 @@ export function LicenseBanner() {
 
   // A blocking billing notice reuses the expired lock screen with its own wording
   const info = mode === 'expired' && billingDue
-    ? { ...LICENSE_MESSAGES.expired, titulo: 'Activa tu suscripción', desc: `Para seguir usando VetSystem, activa tu plan: ${SUBSCRIPTION_PLAN.priceLabel} por ${SUBSCRIPTION_PLAN.durationDays} días.` }
+    ? { ...LICENSE_MESSAGES.expired, titulo: 'Activa tu suscripción', desc: 'Para seguir usando VetSystem, elige tu plan y realiza el pago.' }
     : LICENSE_MESSAGES[mode];
   const Icon   = ICONS[mode] ?? null;
   const blocked = estaBloquada(mode);

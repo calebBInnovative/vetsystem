@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, Bell, BellRing, Check, FileText, Clock, Landmark, Loader2, Save, Smartphone, X,
+  ArrowLeft, Bell, BellRing, Check, FileText, Layers, Clock, Landmark, Loader2, Save, Smartphone, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -98,6 +99,9 @@ export default function PaymentsAdminPage() {
           <PushButton />
           <Button variant="outline" size="sm" onClick={() => router.push('/admin/billing')} className="gap-1.5">
             <BellRing size={14} /> Avisos de cobro
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => router.push('/admin/plans')} className="gap-1.5">
+            <Layers size={14} /> Planes
           </Button>
         </div>
       </div>
@@ -270,18 +274,15 @@ function ConfigForm() {
 
   const setMethod = (id: string, patch: Partial<BillingConfig['methods'][number]>) =>
     setConfig({ ...config, methods: config.methods.map((m) => (m.id === id ? { ...m, ...patch } : m)) });
-  const setPrice = (currency: PaymentCurrency, value: string) => {
-    const amount = Number(value);
-    setConfig({ ...config, prices: { ...config.prices, [currency]: value === '' || Number.isNaN(amount) ? undefined : amount } });
-  };
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!config) return;
-    const broken = config.methods.find((m) => m.enabled && (!m.account.trim() || !config.prices[m.currency]));
-    if (broken) { toast.error(`${broken.label}: falta el número de cuenta o el precio en ${broken.currency}.`); return; }
+    const broken = config.methods.find((m) => m.enabled && !m.account.trim());
+    if (broken) { toast.error(`${broken.label}: falta el número de cuenta.`); return; }
     setSaving(true);
     try {
+      // Prices moved to platform/plans; the legacy field is kept as stored, never edited here.
       await saveBillingConfig({ ...config, prices: Object.fromEntries(Object.entries(config.prices).filter(([, v]) => v)) });
       toast.success('Configuración guardada. Las clínicas ya ven los nuevos datos.');
     } catch (err) {
@@ -315,15 +316,13 @@ function ConfigForm() {
         ))}
       </div>
 
-      <div className="bg-card rounded-2xl border border-border p-5 space-y-3">
-        <p className="font-medium text-sm">Precio por 30 días</p>
-        <div className="grid grid-cols-2 gap-2">
-          <label className="space-y-1"><span className="text-xs font-medium">Dólares (US$)</span>
-            <input type="number" min="0" step="0.01" value={config.prices.USD ?? ''} onChange={(e) => setPrice('USD', e.target.value)} className={INPUT} /></label>
-          <label className="space-y-1"><span className="text-xs font-medium">Córdobas (C$)</span>
-            <input type="number" min="0" step="0.01" value={config.prices.NIO ?? ''} onChange={(e) => setPrice('NIO', e.target.value)} className={INPUT} /></label>
-        </div>
-        <p className="text-xs text-muted-foreground">Cada cuenta cobra en su moneda. Deja vacío el precio de una moneda que no uses.</p>
+      <div className="bg-card rounded-2xl border border-border p-5 space-y-2">
+        <p className="font-medium text-sm">Precios</p>
+        <p className="text-xs text-muted-foreground">
+          Cada cuenta cobra en su moneda el precio del plan que elija la clínica. Los precios en US$ y C$ de
+          cada plan se editan en{' '}
+          <Link href="/admin/plans" className="underline text-foreground">Planes</Link>.
+        </p>
       </div>
 
       <div className="bg-card rounded-2xl border border-border p-5 space-y-3">
