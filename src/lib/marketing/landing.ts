@@ -47,10 +47,46 @@ export interface Faq {
   visible: boolean;
 }
 
+/** One moment of the "a day without internet" timeline. */
+export interface OfflineStep {
+  id: string;
+  /** Free text, e.g. "7:30 a. m." */
+  time: string;
+  title: string;
+  text: string;
+}
+
+export interface OfflineDayContent {
+  visible: boolean;
+  title: string;
+  subtitle: string;
+  /** The last step is drawn as the moment the connection returns. */
+  steps: OfflineStep[];
+}
+
+export const SOCIAL_NETWORKS = ['facebook', 'instagram', 'tiktok', 'youtube'] as const;
+export type SocialNetwork = (typeof SOCIAL_NETWORKS)[number];
+export const SOCIAL_LABELS: Record<SocialNetwork, string> = {
+  facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube',
+};
+
+export interface FooterContent {
+  tagline: string;
+  /** '' hides the e-mail line */
+  email: string;
+  city: string;
+  /** Shows the sales WhatsApp from platform/contact (set in /admin/payments → Configuración). */
+  showWhatsapp: boolean;
+  /** https:// profile URLs; '' hides that network */
+  socials: Record<SocialNetwork, string>;
+}
+
 export interface LandingContent {
   hero: HeroContent;
+  offlineDay: OfflineDayContent;
   faqs: Faq[];
   testimonials: Testimonial[];
+  footer: FooterContent;
 }
 
 export const MAX_TESTIMONIALS = 12;
@@ -94,7 +130,37 @@ export const DEFAULT_FAQS: Faq[] = [
     'No. Pagas mes a mes o por año y puedes dejar de usarlo cuando quieras.'),
 ];
 
-export const DEFAULT_LANDING: LandingContent = { hero: DEFAULT_HERO, faqs: DEFAULT_FAQS, testimonials: [] };
+export const MAX_OFFLINE_STEPS = 6;
+export const OFFLINE_LIMITS = { title: 80, subtitle: 200, time: 16, stepTitle: 50, stepText: 200 } as const;
+
+const step = (id: string, time: string, title: string, text: string): OfflineStep => ({ id, time, title, text });
+
+export const DEFAULT_OFFLINE_DAY: OfflineDayContent = {
+  visible: true,
+  title: 'Un día sin internet en tu clínica',
+  subtitle: 'Se cae la conexión del barrio a primera hora. Así se ve tu día con VetSystem.',
+  steps: [
+    step('open', '7:30 a. m.', 'Abres la clínica', 'No hay internet. Abres VetSystem igual y la agenda del día ya está ahí.'),
+    step('consult', '9:00 a. m.', 'Consulta de Luna', 'Registras peso, diagnóstico y receta. Queda guardado en tu equipo al instante.'),
+    step('sale', '11:30 a. m.', 'Cobras y vendes', 'Cobras la consulta y una bolsa de concentrado. El inventario se descuenta solo.'),
+    step('stock', '2:00 p. m.', 'Aviso de stock bajo', 'El sistema te avisa que se están acabando las vacunas, sin depender de la nube.'),
+    step('sync', '4:45 p. m.', 'Vuelve la conexión', 'Todo lo del día se sincroniza solo con la nube. No tienes que hacer nada.'),
+  ],
+};
+
+export const FOOTER_LIMITS = { tagline: 160, email: 80, city: 60, social: 200 } as const;
+
+export const DEFAULT_FOOTER: FooterContent = {
+  tagline: 'El sistema de gestión veterinaria diseñado para emprendedores de Nicaragua.',
+  email: 'hola@vetsystem.app',
+  city: 'Managua, Nicaragua',
+  showWhatsapp: true,
+  socials: { facebook: '', instagram: '', tiktok: '', youtube: '' },
+};
+
+export const DEFAULT_LANDING: LandingContent = {
+  hero: DEFAULT_HERO, offlineDay: DEFAULT_OFFLINE_DAY, faqs: DEFAULT_FAQS, testimonials: [], footer: DEFAULT_FOOTER,
+};
 
 function text(value: unknown, max: number): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
@@ -158,6 +224,58 @@ function parseFaq(value: unknown): Faq | null {
   return { id: text(r.id, 40) || crypto.randomUUID(), question, answer, visible: r.visible !== false };
 }
 
+function parseStep(value: unknown): OfflineStep | null {
+  if (!value || typeof value !== 'object') return null;
+  const r = value as Record<string, unknown>;
+  const title = text(r.title, OFFLINE_LIMITS.stepTitle);
+  const body = text(r.text, OFFLINE_LIMITS.stepText);
+  if (!title || !body) return null;
+  return { id: text(r.id, 40) || crypto.randomUUID(), time: text(r.time, OFFLINE_LIMITS.time), title, text: body };
+}
+
+function parseOfflineDay(value: unknown): OfflineDayContent {
+  if (!value || typeof value !== 'object') return DEFAULT_OFFLINE_DAY;
+  const r = value as Record<string, unknown>;
+  return {
+    visible: r.visible !== false,
+    title: text(r.title, OFFLINE_LIMITS.title) || DEFAULT_OFFLINE_DAY.title,
+    subtitle: typeof r.subtitle === 'string' ? text(r.subtitle, OFFLINE_LIMITS.subtitle) : DEFAULT_OFFLINE_DAY.subtitle,
+    steps: Array.isArray(r.steps) ? parseList(r.steps, parseStep, MAX_OFFLINE_STEPS) : DEFAULT_OFFLINE_DAY.steps,
+  };
+}
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function validEmail(value: string): boolean {
+  return EMAIL.test(value);
+}
+
+/** Only https links are published, so a typo cannot turn into a javascript: or http link. */
+export function validSocialUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function parseFooter(value: unknown): FooterContent {
+  if (!value || typeof value !== 'object') return DEFAULT_FOOTER;
+  const r = value as Record<string, unknown>;
+  const rawSocials = (r.socials && typeof r.socials === 'object' ? r.socials : {}) as Record<string, unknown>;
+  const email = text(r.email, FOOTER_LIMITS.email);
+  return {
+    tagline: typeof r.tagline === 'string' ? text(r.tagline, FOOTER_LIMITS.tagline) : DEFAULT_FOOTER.tagline,
+    email: EMAIL.test(email) ? email : '',
+    city: typeof r.city === 'string' ? text(r.city, FOOTER_LIMITS.city) : DEFAULT_FOOTER.city,
+    showWhatsapp: r.showWhatsapp !== false,
+    socials: Object.fromEntries(SOCIAL_NETWORKS.map((n) => {
+      const url = text(rawSocials[n], FOOTER_LIMITS.social);
+      return [n, validSocialUrl(url) ? url : ''];
+    })) as Record<SocialNetwork, string>,
+  };
+}
+
 function parseList<T>(value: unknown, parse: (v: unknown) => T | null, max: number): T[] {
   return (Array.isArray(value) ? value : []).map(parse).filter((t): t is T => t !== null).slice(0, max);
 }
@@ -167,8 +285,10 @@ export function parseLanding(data: Record<string, unknown> | undefined): Landing
   if (!data) return DEFAULT_LANDING;
   return {
     hero: parseHero(data.hero),
+    offlineDay: parseOfflineDay(data.offlineDay),
     faqs: Array.isArray(data.faqs) ? parseList(data.faqs, parseFaq, MAX_FAQS) : DEFAULT_FAQS,
     testimonials: parseList(data.testimonials, parseTestimonial, MAX_TESTIMONIALS),
+    footer: parseFooter(data.footer),
   };
 }
 
@@ -177,6 +297,10 @@ export function splitHeroTitle(hero: Pick<HeroContent, 'title' | 'highlight'>): 
   const at = hero.highlight ? hero.title.indexOf(hero.highlight) : -1;
   if (at < 0) return [hero.title, '', ''];
   return [hero.title.slice(0, at), hero.highlight, hero.title.slice(at + hero.highlight.length)];
+}
+
+export function newOfflineStep(): OfflineStep {
+  return { id: crypto.randomUUID(), time: '', title: '', text: '' };
 }
 
 export function newFaq(): Faq {

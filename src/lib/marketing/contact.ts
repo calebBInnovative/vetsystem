@@ -11,9 +11,23 @@ export interface PublicContact {
   whatsapp: string;
 }
 
-export async function fetchPublicContact(): Promise<PublicContact> {
-  const data = (await getDoc(doc(getFirestoreDb(), 'platform', 'contact'))).data();
-  return { whatsapp: typeof data?.whatsapp === 'string' ? data.whatsapp.replace(/\D/g, '') : '' };
+let contactRead: Promise<PublicContact> | null = null;
+
+/** One read per page load (floating button and footer); a failed read is retried next call. */
+export function fetchPublicContact(): Promise<PublicContact> {
+  contactRead ??= getDoc(doc(getFirestoreDb(), 'platform', 'contact'))
+    .then((snap) => {
+      const data = snap.data();
+      return { whatsapp: typeof data?.whatsapp === 'string' ? data.whatsapp.replace(/\D/g, '') : '' };
+    })
+    .catch((err) => { contactRead = null; throw err; });
+  return contactRead;
+}
+
+/** 50588880000 → +505 8888 0000 (Nicaraguan numbers); other numbers just get the "+". */
+export function formatWhatsapp(phone: string): string {
+  const m = /^505(\d{4})(\d{4})$/.exec(phone);
+  return m ? `+505 ${m[1]} ${m[2]}` : `+${phone}`;
 }
 
 export function whatsappChatUrl(phone: string, message: string): string {

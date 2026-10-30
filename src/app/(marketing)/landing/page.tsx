@@ -10,11 +10,13 @@ import {
   Stethoscope, CalendarDays, ShoppingCart, ClipboardList, Wallet, Megaphone,
   MessageCircle, BarChart3, FileUp, Users, Smartphone, Bell,
 } from 'lucide-react';
-import { VetSystemIcon, VetSystemWordmark, PAW_BG_WHITE, PAW_BG_TEAL } from '@/components/common/VetSystemLogo';
+import { VetSystemIcon, VetSystemWordmark, PAW_BG_WHITE } from '@/components/common/VetSystemLogo';
 import { PricingPlans } from '@/components/marketing/PricingPlans';
 import { WhatsAppButton } from '@/components/marketing/WhatsAppButton';
 import { Testimonials } from '@/components/marketing/Testimonials';
 import { Faq } from '@/components/marketing/Faq';
+import { OfflineDay } from '@/components/marketing/OfflineDay';
+import { SiteFooter } from '@/components/marketing/SiteFooter';
 import { useLandingContent } from '@/hooks/useLandingContent';
 import { DEFAULT_HERO, splitHeroTitle } from '@/lib/marketing/landing';
 import { cn } from '@/lib/utils';
@@ -531,51 +533,6 @@ function CTAFinal() {
   );
 }
 
-// ─── Footer ───────────────────────────────────────────────────────────────────
-
-function Footer() {
-  return (
-    <footer id="contacto" className="bg-muted/30 border-t border-border py-12" style={PAW_BG_TEAL}>
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="grid sm:grid-cols-3 gap-8 mb-10">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <VetSystemIcon size={28} />
-              <VetSystemWordmark size="base" />
-            </div>
-            <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
-              El sistema de gestión veterinaria diseñado para emprendedores de Nicaragua.
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            <p className="text-sm font-semibold">Acceso</p>
-            <div className="space-y-2 text-sm text-muted-foreground">
-              <Link href="/login" className="block hover:text-foreground transition-colors">Iniciar sesión</Link>
-              <Link href="/register" className="block hover:text-foreground transition-colors">Crear cuenta</Link>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <p className="text-sm font-semibold">Contacto</p>
-            <div className="space-y-2 text-sm text-muted-foreground">
-              <a href="mailto:hola@vetsystem.app" className="block hover:text-foreground transition-colors">
-                hola@vetsystem.app
-              </a>
-              <p>Managua, Nicaragua</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
-          <p>© {new Date().getFullYear()} VetSystem. Todos los derechos reservados.</p>
-          <p>Hecho con ❤️ en Nicaragua</p>
-        </div>
-      </div>
-    </footer>
-  );
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
@@ -583,6 +540,7 @@ export default function LandingPage() {
     <div className="min-h-screen bg-background text-foreground">
       <Navbar />
       <Hero />
+      <OfflineDay />
       <Beneficios />
       <Demo />
       <Modulos />
@@ -590,7 +548,7 @@ export default function LandingPage() {
       <Testimonials />
       <Faq />
       <CTAFinal />
-      <Footer />
+      <SiteFooter />
       <WhatsAppButton />
     </div>
   );

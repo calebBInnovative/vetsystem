@@ -8,19 +8,24 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { isPlatformOwner } from '@/lib/usage/usage.service';
 import {
-  deleteTestimonialPhotos, saveLandingContent, subscribeLandingContent, type LandingContent,
+  deleteTestimonialPhotos, saveLandingContent, subscribeLandingContent, validEmail, validSocialUrl, SOCIAL_NETWORKS,
+  type LandingContent,
 } from '@/lib/marketing/landing';
 import { HeroEditor } from '@/components/admin/landing/HeroEditor';
+import { OfflineDayEditor } from '@/components/admin/landing/OfflineDayEditor';
+import { FooterEditor } from '@/components/admin/landing/FooterEditor';
 import { FaqEditor } from '@/components/admin/landing/FaqEditor';
 import { TestimonialsEditor } from '@/components/admin/landing/TestimonialsEditor';
 import { cn } from '@/lib/utils';
 
-type Tab = 'hero' | 'faqs' | 'testimonials';
+type Tab = 'hero' | 'offlineDay' | 'faqs' | 'testimonials' | 'footer';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'hero', label: 'Portada' },
+  { id: 'offlineDay', label: 'Sin internet' },
   { id: 'faqs', label: 'Preguntas' },
   { id: 'testimonials', label: 'Testimonios' },
+  { id: 'footer', label: 'Contacto' },
 ];
 
 export default function LandingAdminPage() {
@@ -60,6 +65,21 @@ export default function LandingAdminPage() {
 
   async function save() {
     if (!content) return;
+    if (content.offlineDay.steps.some((s) => !s.title.trim() || !s.text.trim())) {
+      setTab('offlineDay');
+      toast.error('Cada momento necesita qué pasa y detalle (o bórralo)');
+      return;
+    }
+    if (SOCIAL_NETWORKS.some((n) => content.footer.socials[n].trim() && !validSocialUrl(content.footer.socials[n].trim()))) {
+      setTab('footer');
+      toast.error('Los enlaces de redes sociales deben empezar con https://');
+      return;
+    }
+    if (content.footer.email.trim() && !validEmail(content.footer.email.trim())) {
+      setTab('footer');
+      toast.error('El correo no es válido');
+      return;
+    }
     if (content.faqs.some((f) => !f.question.trim() || !f.answer.trim())) {
       setTab('faqs');
       toast.error('Cada pregunta necesita pregunta y respuesta (o bórrala)');
@@ -109,10 +129,10 @@ export default function LandingAdminPage() {
         </Button>
       </div>
 
-      <div className="inline-flex bg-muted rounded-xl p-1 gap-1" role="tablist">
+      <div className="flex max-w-full overflow-x-auto bg-muted rounded-xl p-1 gap-1 w-fit" role="tablist">
         {TABS.map(({ id, label }) => (
           <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
-            className={cn('px-4 py-1.5 rounded-lg text-sm font-medium transition-all',
+            className={cn('px-4 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap',
               tab === id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
             {label}
           </button>
@@ -123,6 +143,10 @@ export default function LandingAdminPage() {
         <div className="flex justify-center py-10"><Loader2 size={18} className="animate-spin text-muted-foreground" /></div>
       ) : tab === 'hero' ? (
         <HeroEditor hero={content.hero} onChange={section('hero')} />
+      ) : tab === 'offlineDay' ? (
+        <OfflineDayEditor day={content.offlineDay} onChange={section('offlineDay')} />
+      ) : tab === 'footer' ? (
+        <FooterEditor footer={content.footer} onChange={section('footer')} />
       ) : tab === 'faqs' ? (
         <FaqEditor faqs={content.faqs} onChange={section('faqs')} />
       ) : (
