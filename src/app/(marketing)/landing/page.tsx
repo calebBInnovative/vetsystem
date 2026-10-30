@@ -9,6 +9,7 @@ import {
   Star, ChevronRight, Menu, X, Check,
 } from 'lucide-react';
 import { VetSystemIcon, VetSystemWordmark, PAW_BG_WHITE, PAW_BG_TEAL } from '@/components/common/VetSystemLogo';
+import { PricingPlans } from '@/components/marketing/PricingPlans';
 
 // ─── Navbar ──────────────────────────────────────────────────────────────────
 
@@ -60,14 +61,14 @@ function Navbar() {
 
       {menuOpen && (
         <div className="md:hidden bg-background/95 backdrop-blur-md border-b border-border px-4 py-4 space-y-1">
-          {['#beneficios', '#demo', '#precios', '#contacto'].map((href) => (
+          {[['#beneficios', 'Beneficios'], ['#demo', 'El sistema'], ['#precios', 'Precios'], ['#contacto', 'Contacto']].map(([href, label]) => (
             <a
               key={href}
               href={href}
               onClick={() => setMenuOpen(false)}
-              className="block px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors capitalize"
+              className="block px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
-              {href.slice(1)}
+              {label}
             </a>
           ))}
           <div className="pt-3 flex flex-col gap-2 border-t border-border mt-2">
@@ -121,7 +122,7 @@ function DashboardMockup() {
             <div className="bg-muted/30 rounded-xl p-2">
               <p className="text-[10px] font-semibold text-muted-foreground mb-1.5">Citas del día</p>
               {[
-                ['Luna', 'Golden R.', '9:00', 'Consultation'],
+                ['Luna', 'Golden R.', '9:00', 'Consulta'],
                 ['Mochi', 'Persa', '10:30', 'Vacuna'],
                 ['Rex', 'Pastor A.', '11:00', 'Control'],
               ].map(([name, breed, time, type]) => (
@@ -209,7 +210,7 @@ const beneficios = [
   {
     icon: WifiOff,
     titulo: 'Permite funcionar sin internet',
-    desc: 'Atiende patients, registra consultas y cobra aunque se vaya la luz o el internet. Todo se sincroniza automáticamente cuando vuelve la conexión.',
+    desc: 'Atiende pacientes, registra consultas y cobra aunque se vaya la luz o el internet. Todo se sincroniza automáticamente cuando vuelve la conexión.',
     color: 'bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400',
   },
   {
@@ -301,7 +302,7 @@ function AgendaMockup() {
   const citas = [
     { hora: '08:00', nombre: 'Mochi', tipo: 'Vacuna', estado: 'Atendida', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400' },
     { hora: '09:30', nombre: 'Rex', tipo: 'Control', estado: 'En curso', color: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400' },
-    { hora: '10:00', nombre: 'Simba', tipo: 'Consultation', estado: 'Espera', color: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400' },
+    { hora: '10:00', nombre: 'Simba', tipo: 'Consulta', estado: 'Espera', color: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400' },
     { hora: '11:30', nombre: 'Canela', tipo: 'Revisión', estado: 'Espera', color: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400' },
   ];
   return (
@@ -343,12 +344,12 @@ function FacturaMockup() {
       <div className="px-4 py-3 border-b border-border bg-muted/40 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-purple-500" />
-          <span className="text-xs font-semibold">Invoice · FAC-2026-0042</span>
+          <span className="text-xs font-semibold">Factura · FAC-2026-0042</span>
         </div>
       </div>
       <div className="p-4 space-y-3">
         <div className="flex justify-between text-xs text-muted-foreground">
-          <span>Patient: Luna G.</span>
+          <span>Paciente: Luna G.</span>
           <span>24 jun 2026</span>
         </div>
         <div className="space-y-1">
@@ -419,6 +420,12 @@ function Demo() {
           {tab === 'agenda' && <AgendaMockup />}
           {tab === 'factura' && <FacturaMockup />}
         </div>
+
+        <div className="text-center mt-10">
+          <Button size="lg" variant="outline" className="h-12 px-8" asChild>
+            <Link href="/demo">Probar el demo sin registrarte</Link>
+          </Button>
+        </div>
       </div>
     </section>
   );
@@ -485,82 +492,6 @@ function Testimonios() {
   );
 }
 
-// ─── Precios ──────────────────────────────────────────────────────────────────
-
-const incluye = [
-  'Pacientes y historial clínico ilimitados',
-  'Agenda y citas',
-  'Inventario con alertas de stock',
-  'Facturación y control de cobros',
-  'Funciona sin internet',
-  'Usuarios ilimitados',
-  'Actualizaciones incluidas',
-  'Soporte por WhatsApp',
-];
-
-function Precios() {
-  const [anual, setAnual] = useState(false);
-
-  return (
-    <section id="precios" className="py-24">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="text-center space-y-3 mb-12">
-          <p className="text-sm font-semibold text-primary uppercase tracking-wider">Precios</p>
-          <h2 className="text-3xl sm:text-4xl font-bold">Simple y sin sorpresas</h2>
-          <p className="text-muted-foreground">Un solo plan. Todo incluido.</p>
-
-          <div className="flex items-center justify-center gap-3 pt-2">
-            <span className={`text-sm font-medium ${!anual ? 'text-foreground' : 'text-muted-foreground'}`}>Mensual</span>
-            <button
-              onClick={() => setAnual(!anual)}
-              className={`relative w-11 h-6 rounded-full transition-colors ${anual ? 'bg-primary' : 'bg-muted-foreground/30'}`}
-            >
-              <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${anual ? 'translate-x-6' : 'translate-x-1'}`} />
-            </button>
-            <span className={`text-sm font-medium ${anual ? 'text-foreground' : 'text-muted-foreground'}`}>
-              Anual
-              <span className="ml-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 dark:text-emerald-400 px-1.5 py-0.5 rounded-full">
-                prueba en demo o crea tu cuenta gratis por 7 días
-              </span>
-            </span>
-          </div>
-        </div>
-
-        <div className="max-w-sm mx-auto">
-          <div className="bg-card border-2 border-primary rounded-2xl shadow-xl overflow-hidden">
-            <div className="bg-primary px-6 py-4 text-primary-foreground text-center">
-              <p className="text-sm font-semibold opacity-80">Plan Completo</p>
-              <div className="flex items-baseline justify-center gap-1 mt-1">
-                <span className="text-4xl font-extrabold">${anual ? '12.50' : '15'}</span>
-                <span className="text-sm opacity-70">USD / mes</span>
-              </div>
-              {anual && <p className="text-xs opacity-70 mt-1">Facturado como $150/año</p>}
-            </div>
-
-            <div className="p-6 space-y-3">
-              {incluye.map((item) => (
-                <div key={item} className="flex items-center gap-2.5 text-sm">
-                  <Check size={16} className="text-primary shrink-0" />
-                  <span>{item}</span>
-                </div>
-              ))}
-
-              <div className="pt-3">
-                <Button className="w-full h-11 text-base" asChild>
-                  <Link href="/register">Comenzar 7 días gratis</Link>
-                </Button>
-                <p className="text-center text-xs text-muted-foreground mt-2">
-                  Cancela cuando quieras
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 // ─── CTA Final ────────────────────────────────────────────────────────────────
 
 function CTAFinal() {
@@ -580,6 +511,12 @@ function CTAFinal() {
         >
           <Link href="/register">Crear mi cuenta gratis</Link>
         </Button>
+        <p className="text-sm text-primary-foreground/80">
+          ¿Prefieres verlo primero?{' '}
+          <Link href="/demo" className="font-semibold underline underline-offset-4 hover:text-primary-foreground">
+            Prueba el demo
+          </Link>
+        </p>
       </div>
     </section>
   );
@@ -640,7 +577,7 @@ export default function LandingPage() {
       <Beneficios />
       <Demo />
       <Testimonios />
-      <Precios />
+      <PricingPlans />
       <CTAFinal />
       <Footer />
     </div>
