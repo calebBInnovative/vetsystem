@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, Bell, Check, Clock, Landmark, Loader2, Save, Smartphone, X,
+  ArrowLeft, Bell, BellRing, Check, Clock, Landmark, Loader2, Save, Smartphone, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -94,7 +94,12 @@ export default function PaymentsAdminPage() {
             Transferencias y Kash reportados. Revisa tu banca y confirma: la licencia se activa al instante.
           </p>
         </div>
-        <PushButton />
+        <div className="flex flex-col items-end gap-2">
+          <PushButton />
+          <Button variant="outline" size="sm" onClick={() => router.push('/admin/billing')} className="gap-1.5">
+            <BellRing size={14} /> Avisos de cobro
+          </Button>
+        </div>
       </div>
 
       <div className="flex gap-1 border-b border-border overflow-x-auto">

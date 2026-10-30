@@ -40,7 +40,7 @@ import {
   BarChart3, Settings, DollarSign, Stethoscope, Receipt,
   ClipboardList, ShoppingBag, Tag, Shield, Database, LogOut, ChevronDown,
   FlaskConical, PlayCircle, UserCircle, Loader2, CheckCircle2, Phone,
-  Wallet, Bell, FileSpreadsheet, MessageCircle, FileText, Landmark,
+  Wallet, Bell, FileSpreadsheet, MessageCircle, FileText, Landmark, BellRing,
 } from 'lucide-react';
 import {
   Popover, PopoverContent, PopoverTrigger,
@@ -729,6 +729,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                             <Link href="/admin/payments" className="flex items-center gap-2 cursor-pointer">
                               <Landmark size={14} />
                               Pagos de clínicas
+                            </Link>
+                          </DropdownMenuItem>
+                        )}
+                        {isPlatformOwner(session.email) && (
+                          <DropdownMenuItem asChild>
+                            <Link href="/admin/billing" className="flex items-center gap-2 cursor-pointer">
+                              <BellRing size={14} />
+                              Avisos de cobro
                             </Link>
                           </DropdownMenuItem>
                         )}

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, BellRing, CalendarClock, Loader2, Lock, RefreshCw, Send, X } from 'lucide-react';
+import { ArrowLeft, BellRing, CalendarClock, Landmark, Loader2, Lock, RefreshCw, Send, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { isPlatformOwner } from '@/lib/usage/usage.service';
@@ -165,9 +165,14 @@ export default function BillingNoticePage() {
             solo cuando pagan.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => void load()} className="gap-1.5">
-          <RefreshCw size={13} /> Actualizar
-        </Button>
+        <div className="flex flex-col items-end gap-2">
+          <Button variant="outline" size="sm" onClick={() => void load()} className="gap-1.5">
+            <RefreshCw size={13} /> Actualizar
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => router.push('/admin/payments')} className="gap-1.5">
+            <Landmark size={13} /> Pagos de clínicas
+          </Button>
+        </div>
       </div>
 
       {/* ── Controls ─────────────────────────────────────────────────────── */}
