@@ -1,7 +1,8 @@
 rules_version = '2';
 
 // Transfer receipts attached to manual payment reports (see
-// functions/src/billing/manual-payments.ts). Everything else is closed.
+// functions/src/billing/manual-payments.ts) and public landing photos.
+// Everything else is closed.
 service firebase.storage {
   match /b/{bucket}/o {
 
@@ -23,11 +24,25 @@ service firebase.storage {
       // Only clinic managers report payments, so only they upload receipts.
       // Create only: a receipt cannot be swapped after the owner has seen it.
       allow create: if belongsToClinic(clinicId)
+                    && resource == null
                     && userProfile().role in ['master', 'admin']
                     && request.resource.size < 5 * 1024 * 1024
                     && (request.resource.contentType.matches('image/.*')
                         || request.resource.contentType == 'application/pdf');
       allow read:   if isPlatformOwner() || belongsToClinic(clinicId);
+    }
+
+    // Landing page photos (testimonials) managed at /admin/landing. Public read:
+    // every visitor of the landing sees them. Only the platform owner uploads
+    // (already resized to a small JPEG by the client) or deletes them.
+    match /landing/{fileName} {
+      allow read:   if true;
+      allow create: if isPlatformOwner()
+                    && resource == null
+                    && fileName.matches('[a-f0-9]{32}[.]jpg')
+                    && request.resource.size < 1024 * 1024
+                    && request.resource.contentType == 'image/jpeg';
+      allow delete: if isPlatformOwner();
     }
 
     match /{allPaths=**} {

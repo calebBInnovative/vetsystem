@@ -1,15 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowDown, ArrowLeft, ArrowUp, ExternalLink, Loader2, Plus, Save, Star, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, Camera, ExternalLink, Loader2, Plus, Save, Star, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { isPlatformOwner } from '@/lib/usage/usage.service';
 import {
-  MAX_TESTIMONIALS, QUOTE_MAX_LENGTH, newTestimonial, saveLandingContent, subscribeLandingContent,
-  type Testimonial,
+  MAX_TESTIMONIALS, PHOTO_ACCEPT, QUOTE_MAX_LENGTH, deleteTestimonialPhotos, newTestimonial, photoProblem,
+  saveLandingContent, subscribeLandingContent, uploadTestimonialPhoto, type Testimonial,
 } from '@/lib/marketing/landing';
 import { cn } from '@/lib/utils';
 
@@ -24,6 +25,9 @@ export default function LandingAdminPage() {
   const [testimonials, setTestimonials] = useState<Testimonial[] | null>(null);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  // Photos referenced by the saved document: the ones gone after a save are deleted from Storage.
+  const savedPhotos = useRef<string[]>([]);
 
   useEffect(() => {
     if (!loading && !platformOwner) router.replace('/admin');
@@ -32,7 +36,10 @@ export default function LandingAdminPage() {
   // Live until the first edit, so unsaved changes are never overwritten.
   useEffect(() => {
     if (!platformOwner || dirty) return;
-    return subscribeLandingContent((c) => setTestimonials(c.testimonials));
+    return subscribeLandingContent((c) => {
+      savedPhotos.current = c.testimonials.map((t) => t.photoPath).filter(Boolean);
+      setTestimonials(c.testimonials);
+    });
   }, [platformOwner, dirty]);
 
   function edit(next: Testimonial[]) {
@@ -51,6 +58,24 @@ export default function LandingAdminPage() {
     edit(next);
   }
 
+  async function choosePhoto(id: string, file: File | undefined) {
+    if (!file) return;
+    const problem = photoProblem(file);
+    if (problem) { toast.error(problem); return; }
+    setUploadingId(id);
+    try {
+      const photo = await uploadTestimonialPhoto(file);
+      // Functional update: other edits may have happened during the upload.
+      setDirty(true);
+      setTestimonials((list) => list && list.map((t) => (t.id === id ? { ...t, ...photo } : t)));
+    } catch (err) {
+      console.error('[landing] photo upload failed:', err);
+      toast.error('No se pudo subir la foto');
+    } finally {
+      setUploadingId(null);
+    }
+  }
+
   async function save() {
     if (!testimonials) return;
     const incomplete = testimonials.filter((t) => !t.name.trim() || !t.quote.trim()).length;
@@ -61,6 +86,9 @@ export default function LandingAdminPage() {
     setSaving(true);
     try {
       await saveLandingContent({ testimonials });
+      const kept = new Set(testimonials.map((t) => t.photoPath));
+      void deleteTestimonialPhotos(savedPhotos.current.filter((p) => !kept.has(p)));
+      savedPhotos.current = [...kept].filter(Boolean);
       setDirty(false);
       toast.success('Testimonios guardados. Ya se ven en la página principal.');
     } catch (err) {
@@ -91,7 +119,7 @@ export default function LandingAdminPage() {
             </a>
           </p>
         </div>
-        <Button onClick={save} disabled={!dirty || saving || !testimonials} className="gap-1.5">
+        <Button onClick={save} disabled={!dirty || saving || !!uploadingId || !testimonials} className="gap-1.5">
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Guardar
         </Button>
       </div>
@@ -148,6 +176,26 @@ export default function LandingAdminPage() {
                   className="p-1.5 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive" aria-label="Borrar">
                   <Trash2 size={14} />
                 </button>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="relative w-14 h-14 shrink-0 rounded-full bg-muted overflow-hidden flex items-center justify-center text-muted-foreground">
+                  {uploadingId === t.id ? <Loader2 size={18} className="animate-spin" />
+                    : t.photoUrl ? <Image src={t.photoUrl} alt={t.name} fill sizes="56px" className="object-cover" />
+                    : <Camera size={18} />}
+                </div>
+                <label className={cn('cursor-pointer text-sm font-medium text-primary hover:underline', uploadingId && 'pointer-events-none opacity-50')}>
+                  {t.photoUrl ? 'Cambiar foto' : 'Subir foto'}
+                  <input type="file" accept={PHOTO_ACCEPT} className="sr-only"
+                    onChange={(e) => { void choosePhoto(t.id, e.target.files?.[0]); e.target.value = ''; }} />
+                </label>
+                {t.photoUrl && (
+                  <button type="button" onClick={() => update(t.id, { photoUrl: '', photoPath: '' })}
+                    className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-destructive">
+                    <X size={14} /> Quitar
+                  </button>
+                )}
+                <span className="text-xs text-muted-foreground ml-auto hidden sm:block">Opcional. Se recorta en cuadrado.</span>
               </div>
 
               <div className="grid sm:grid-cols-3 gap-2">

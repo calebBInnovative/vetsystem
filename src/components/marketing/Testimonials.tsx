@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { Star } from 'lucide-react';
 import { fetchLandingContent, type Testimonial } from '@/lib/marketing/landing';
 import { cn } from '@/lib/utils';
@@ -49,10 +50,14 @@ export function Testimonials() {
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">&ldquo;{t.quote}&rdquo;</p>
               <div className="flex items-center gap-3 pt-1 border-t border-border">
-                <div className={cn('w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0',
-                  AVATAR_COLORS[i % AVATAR_COLORS.length])}>
-                  {t.name.replace(/^(Dra?\.|Lic\.)\s*/i, '').charAt(0).toUpperCase()}
-                </div>
+                {t.photoUrl ? (
+                  <Image src={t.photoUrl} alt={t.name} width={40} height={40} className="w-10 h-10 rounded-full object-cover shrink-0" />
+                ) : (
+                  <div className={cn('w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0',
+                    AVATAR_COLORS[i % AVATAR_COLORS.length])}>
+                    {t.name.replace(/^(Dra?\.|Lic\.)\s*/i, '').charAt(0).toUpperCase()}
+                  </div>
+                )}
                 <div>
                   <p className="text-sm font-semibold">{t.name}</p>
                   <p className="text-xs text-muted-foreground">{[t.clinic, t.city].filter(Boolean).join(' · ')}</p>

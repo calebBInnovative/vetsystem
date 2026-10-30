@@ -282,6 +282,20 @@ is recorded. A converted quote keeps its own number and stores the resulting `sa
 
 ---
 
+## 10c. Landing Page Content
+
+`/landing` is edited from the admin, not in code (platform owner only):
+- Plans and prices → `/admin/plans` (`platform/plans`, incl. the `annualEnabled` switch — off drops every
+  annual price in `parsePlans()` on client and server alike).
+- Testimonials and their photos → `/admin/landing` (`platform/landing`; photos in Storage `landing/`,
+  resized to a 320px JPEG in the browser). No visible testimonial → the section is hidden.
+- WhatsApp button → `platform/contact`, mirrored from the owner's WhatsApp by `saveBillingConfig()`.
+
+All three docs are public-read, owner-write (`firestore.rules`, `storage.rules`; tests in `tests/rules/`).
+Competitors (okvet.co) are a benchmark only — keep our copy and layout original.
+
+---
+
 ## 11. Component Structure
 
 ```
