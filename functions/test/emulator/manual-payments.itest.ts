@@ -45,6 +45,7 @@ describe('manual payments (emulator)', () => {
   it('records a pending invoice with the configured price and grants the provisional grace', async () => {
     const result = await reportManualPayment(db, {
       uid: 'mp-owner-a', email: 'a@x.com', methodId: 'kash', payerReference: 'kx-1234', paidOn: '2026-10-29',
+      originBank: 'BAC', transferType: 'deferred', receiptPath: 'paymentReceipts/mp-a/receipt0001.png',
     }, NOW);
     firstInvoiceId = result.invoiceId;
 
@@ -58,6 +59,9 @@ describe('manual payments (emulator)', () => {
     assert.equal(invoice?.status, 'pending');
     assert.equal(invoice?.clinicName, 'Clinic mp-a');
     assert.equal(invoice?.reportedBy.name, 'Ana');
+    assert.equal(invoice?.originBank, 'BAC');
+    assert.equal(invoice?.transferType, 'deferred');
+    assert.equal(invoice?.receiptPath, 'paymentReceipts/mp-a/receipt0001.png');
     const license = (await db.doc('clinics/mp-a/license/data').get()).data();
     assert.equal(license?.graceUntil, NOW + 3 * DAY);
   });

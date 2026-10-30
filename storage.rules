@@ -1,0 +1,37 @@
+rules_version = '2';
+
+// Transfer receipts attached to manual payment reports (see
+// functions/src/billing/manual-payments.ts). Everything else is closed.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isPlatformOwner() {
+      return request.auth != null && request.auth.token.email == 'calebgtnbacon@gmail.com';
+    }
+
+    // Cross-service read of the user profile: the clinic comes from Firestore,
+    // never from the path the client chose.
+    function userProfile() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function belongsToClinic(clinicId) {
+      return request.auth != null && userProfile().clinicId == clinicId;
+    }
+
+    match /paymentReceipts/{clinicId}/{fileName} {
+      // Only clinic managers report payments, so only they upload receipts.
+      // Create only: a receipt cannot be swapped after the owner has seen it.
+      allow create: if belongsToClinic(clinicId)
+                    && userProfile().role in ['master', 'admin']
+                    && request.resource.size < 5 * 1024 * 1024
+                    && (request.resource.contentType.matches('image/.*')
+                        || request.resource.contentType == 'application/pdf');
+      allow read:   if isPlatformOwner() || belongsToClinic(clinicId);
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

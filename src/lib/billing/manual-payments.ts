@@ -3,7 +3,8 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { getFirebaseApp, getFirebaseFunctions, getFirestoreDb } from '@/lib/firebase/firebase.config';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import { getFirebaseApp, getFirebaseFunctions, getFirestoreDb, getStorageBucket } from '@/lib/firebase/firebase.config';
 
 /**
  * Client side of manual payments (bank transfer / Kash). The server owns every
@@ -13,6 +14,8 @@ import { getFirebaseApp, getFirebaseFunctions, getFirestoreDb } from '@/lib/fire
 export type PaymentMethodType = 'kash' | 'bank';
 export type PaymentCurrency = 'USD' | 'NIO';
 export type InvoiceStatus = 'pending' | 'confirmed' | 'rejected';
+/** ACH timing: a deferred transfer may only arrive the next business day. */
+export type TransferType = 'instant' | 'deferred';
 
 export interface PaymentMethodConfig {
   id: string;
@@ -47,6 +50,10 @@ export interface SubscriptionInvoice {
   payerReference: string;
   paidOn: string;
   note: string | null;
+  /** Absent on reports made before these fields existed */
+  originBank?: string | null;
+  transferType?: TransferType | null;
+  receiptPath?: string | null;
   reportedBy: { uid: string; email: string | null; name: string | null };
   status: InvoiceStatus;
   periodDays: number;
@@ -157,6 +164,9 @@ export interface ReportPaymentInput {
   payerReference: string;
   paidOn: string;
   note?: string;
+  originBank?: string;
+  transferType?: TransferType;
+  receiptPath?: string;
 }
 
 export interface ReportPaymentResult {
@@ -171,6 +181,39 @@ export interface ReportPaymentResult {
 export async function reportManualPayment(input: ReportPaymentInput): Promise<ReportPaymentResult> {
   const fn = httpsCallable<ReportPaymentInput, ReportPaymentResult>(getFirebaseFunctions(), 'reportManualPayment');
   return (await fn(input)).data;
+}
+
+// ─── Receipts (Firebase Storage) ──────────────────────────────────────────────
+
+/** Must match storage.rules and validReceiptPath() in the functions. */
+const RECEIPTS_FOLDER = 'paymentReceipts';
+export const RECEIPT_MAX_BYTES = 5 * 1024 * 1024;
+export const RECEIPT_ACCEPT = 'image/*,application/pdf';
+
+const RECEIPT_EXTENSIONS: Record<string, string> = {
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/heic': 'heic', 'application/pdf': 'pdf',
+};
+
+/** Why a file cannot be used as a receipt, or null when it can. */
+export function receiptProblem(file: File): string | null {
+  if (!RECEIPT_EXTENSIONS[file.type]) return 'Sube una foto (JPG, PNG) o un PDF del comprobante.';
+  if (file.size > RECEIPT_MAX_BYTES) return 'El archivo pesa más de 5 MB.';
+  return null;
+}
+
+/** Uploads the receipt to the clinic's folder and returns its path for reportManualPayment. */
+export async function uploadPaymentReceipt(clinicId: string, file: File): Promise<string> {
+  const ext = RECEIPT_EXTENSIONS[file.type];
+  if (!ext) throw new Error('Unsupported receipt type');
+  const name = crypto.randomUUID().replace(/-/g, '');
+  const path = `${RECEIPTS_FOLDER}/${clinicId}/${name}.${ext}`;
+  await uploadBytes(ref(getStorageBucket(), path), file, { contentType: file.type });
+  return path;
+}
+
+/** Signed download URL of a receipt (platform owner or the clinic itself). */
+export function receiptUrl(path: string): Promise<string> {
+  return getDownloadURL(ref(getStorageBucket(), path));
 }
 
 export async function reviewManualPayment(

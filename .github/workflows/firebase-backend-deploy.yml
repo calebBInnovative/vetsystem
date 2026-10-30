@@ -1,4 +1,4 @@
-name: Deploy Cloud Functions and Firestore rules on merge
+name: Deploy Cloud Functions, Firestore and Storage rules on merge
 
 # Hosting has its own workflow (firebase-hosting-merge.yml). This one runs only
 # when backend files change, and deploys only the part that changed.
@@ -10,6 +10,7 @@ on:
       - 'functions/**'
       - 'firestore.rules'
       - 'firestore.indexes.json'
+      - 'storage.rules'
       - '.github/workflows/firebase-backend-deploy.yml'
   # Manual run from the Actions tab deploys everything (first setup, recovery).
   workflow_dispatch:
@@ -36,6 +37,8 @@ jobs:
             rules:
               - 'firestore.rules'
               - 'firestore.indexes.json'
+            storage:
+              - 'storage.rules'
 
       - uses: actions/setup-node@v4
         with:
@@ -75,6 +78,9 @@ jobs:
           fi
           if [ "$manual" = "true" ] || [ "${{ steps.changes.outputs.rules }}" = "true" ]; then
             targets+=("firestore:rules" "firestore:indexes")
+          fi
+          if [ "$manual" = "true" ] || [ "${{ steps.changes.outputs.storage }}" = "true" ]; then
+            targets+=("storage")
           fi
           echo "only=$(IFS=,; echo "${targets[*]}")" >> "$GITHUB_OUTPUT"
 

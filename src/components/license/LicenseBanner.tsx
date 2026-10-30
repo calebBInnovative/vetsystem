@@ -7,12 +7,23 @@ import { useSubscription, SUBSCRIPTION_PLAN } from '@/hooks/useSubscription';
 import { useBillingConfig } from '@/hooks/useBillingConfig';
 import { ManualPaymentModal } from '@/components/billing/ManualPaymentPanel';
 import { EnableRemindersButton } from '@/components/billing/EnableRemindersButton';
+import { nextLocalMidnight, useSnooze } from '@/hooks/useSnooze';
 import { WifiOff, AlertTriangle, Lock, CreditCard, X, Loader2, Landmark, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LicenseMode } from '@/types/license';
 
 /** Days before expiration when the renewal notice starts showing. */
 const EXPIRY_NOTICE_DAYS = 5;
+
+/**
+ * How long a closed payment banner stays away. Early on it comes back the next
+ * day; on the last day (and for an owner's billing notice) every few hours, so
+ * closing it once cannot hide the deadline until the app locks.
+ */
+const URGENT_SNOOZE_MS = 4 * 60 * 60_000;
+function expirySnoozeUntil(daysLeft: number, now = Date.now()): number {
+  return daysLeft <= 1 ? now + URGENT_SNOOZE_MS : nextLocalMidnight(now);
+}
 
 const ICONS: Partial<Record<LicenseMode, React.FC<{ size?: number; className?: string }> | null>> = {
   soft_warning: WifiOff,
@@ -74,6 +85,11 @@ export function LicenseBanner() {
   const [paying, setPaying] = useState(false);
 
   const { mode, daysOffline, daysUntilExpiry, billingDue, inGrace } = license;
+
+  // Keyed by the deadline: a new expiration date or notice shows again at once.
+  const clinicKey = session && !session.isDemo ? session.clinicId : null;
+  const [noticeSnoozed, snoozeNotice] = useSnooze(clinicKey && session?.billingNoticeAt ? `notice-${clinicKey}-${session.billingNoticeAt}` : null);
+  const [expirySnoozed, snoozeExpiry] = useSnooze(clinicKey ? `expiry-${clinicKey}-${session?.expirationDate}` : null);
   const modal = <ManualPaymentModal open={paying} onClose={() => setPaying(false)} />;
   const openTransfer = () => setPaying(true);
 
@@ -99,9 +115,9 @@ export function LicenseBanner() {
   }
 
   // Billing notice scheduled by the platform owner (non-blocking variant).
-  // Dismissing hides it until the next page load, never for good.
+  // Closing it snoozes it for a few hours (see URGENT_SNOOZE_MS), never for good.
   if (billingDue && mode !== 'expired' && mode !== 'blocked') {
-    if (closed) return modal;
+    if (noticeSnoozed) return modal;
     return (
       <>
         <div className="flex items-center gap-3 px-4 py-2.5 border-b text-sm bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-950/40 dark:border-amber-700 dark:text-amber-300">
@@ -111,7 +127,8 @@ export function LicenseBanner() {
             <span className="opacity-80"> — {SUBSCRIPTION_PLAN.priceLabel} por {SUBSCRIPTION_PLAN.durationDays} días para seguir usando VetSystem.</span>
           </div>
           <PayButtons variant="strip" onTransfer={openTransfer} />
-          <button type="button" onClick={() => setClosed(true)} className="shrink-0 opacity-60 hover:opacity-100 transition-opacity">
+          <button type="button" onClick={() => snoozeNotice(Date.now() + URGENT_SNOOZE_MS)} title="Ocultar por 4 horas"
+            className="shrink-0 opacity-60 hover:opacity-100 transition-opacity">
             <X size={14} />
           </button>
         </div>
@@ -122,7 +139,7 @@ export function LicenseBanner() {
 
   // Expiring soon — the only banner a healthy, online clinic ever sees
   if (mode === 'normal') {
-    if (closed || daysUntilExpiry === null || daysUntilExpiry > EXPIRY_NOTICE_DAYS) return modal;
+    if (expirySnoozed || daysUntilExpiry === null || daysUntilExpiry > EXPIRY_NOTICE_DAYS) return modal;
     return (
       <>
         <div className="flex items-center gap-3 px-4 py-2.5 border-b text-sm bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-950/40 dark:border-amber-700 dark:text-amber-300">
@@ -140,7 +157,9 @@ export function LicenseBanner() {
           </div>
           <EnableRemindersButton variant="strip" />
           <PayButtons variant="strip" onTransfer={openTransfer} />
-          <button type="button" onClick={() => setClosed(true)} className="shrink-0 opacity-60 hover:opacity-100 transition-opacity">
+          <button type="button" onClick={() => snoozeExpiry(expirySnoozeUntil(daysUntilExpiry))}
+            title={daysUntilExpiry <= 1 ? 'Ocultar por 4 horas' : 'Ocultar hasta mañana'}
+            className="shrink-0 opacity-60 hover:opacity-100 transition-opacity">
             <X size={14} />
           </button>
         </div>

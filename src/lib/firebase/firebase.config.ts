@@ -2,8 +2,7 @@ import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { getFirestore, connectFirestoreEmulator, type Firestore } from 'firebase/firestore';
 import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import { getFunctions, connectFunctionsEmulator, type Functions } from 'firebase/functions';
-// TODO: enable when Firebase Storage plan is upgraded
-// import { getStorage, type FirebaseStorage } from 'firebase/storage';
+import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey:            process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
@@ -19,7 +18,7 @@ let app: FirebaseApp;
 let firestore: Firestore;
 let functions: Functions;
 let emulatorsConnected = false;
-// let storage: FirebaseStorage;
+let storage: FirebaseStorage;
 
 export function getFirebaseApp(): FirebaseApp {
   if (!app) {
@@ -51,10 +50,9 @@ export function getFirebaseFunctions(): Functions {
   return functions;
 }
 
-// TODO: enable when Firebase Storage plan is upgraded
-// export function getStorageBucket(): FirebaseStorage {
-//   if (!storage) {
-//     storage = getStorage(getFirebaseApp());
-//   }
-//   return storage;
-// }
+export function getStorageBucket(): FirebaseStorage {
+  if (!storage) {
+    storage = getStorage(getFirebaseApp());
+  }
+  return storage;
+}

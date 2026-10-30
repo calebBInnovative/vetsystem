@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { getFirebaseFunctions } from '@/lib/firebase/firebase.config';
 import { useAuth } from '@/contexts/AuthContext';
@@ -34,6 +34,21 @@ interface CreateCheckoutResult {
 export function useSubscription() {
   const { session } = useAuth();
   const [loading, setLoading] = useState(false);
+
+  // Coming back without paying — browser back (the page is restored from the
+  // back/forward cache with loading still true), or the checkout opened in
+  // another tab/browser as an installed PWA does — must re-enable the button.
+  useEffect(() => {
+    if (!loading) return;
+    const reset = () => setLoading(false);
+    const onVisible = () => { if (document.visibilityState === 'visible') reset(); };
+    window.addEventListener('pageshow', reset);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('pageshow', reset);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [loading]);
 
   async function startCheckout() {
     if (session?.isDemo) {

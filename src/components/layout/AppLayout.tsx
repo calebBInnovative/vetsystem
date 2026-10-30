@@ -13,7 +13,6 @@ import { LicenseBanner } from '@/components/license/LicenseBanner';
 import {
   SubscriptionExpiryBellItem, SubscriptionExpiryChip, useSubscriptionExpiry,
 } from '@/components/license/SubscriptionExpiryAlert';
-import { ManualPaymentModal } from '@/components/billing/ManualPaymentPanel';
 import { PaymentReturnHandler } from '@/components/license/PaymentReturnHandler';
 import { OwnerPaymentAlerts } from '@/components/billing/OwnerPaymentAlerts';
 import { isPlatformOwner } from '@/lib/usage/usage.service';
@@ -149,7 +148,7 @@ const menuItems: {
 
 // ── Bell notification ─────────────────────────────────────────────────────────
 
-function BellNotification({ onPaySubscription }: { onPaySubscription: () => void }) {
+function BellNotification() {
   const subscriptionExpiry          = useSubscriptionExpiry();
   const alertsExpenses              = useExpenseAlerts();
   const alertsCollab                = useCollaboratorAlerts();
@@ -254,7 +253,7 @@ function BellNotification({ onPaySubscription }: { onPaySubscription: () => void
 
             {/* Subscription expiring — first: it decides whether the app keeps working */}
             {subscriptionExpiry && (
-              <SubscriptionExpiryBellItem expiry={subscriptionExpiry} onPay={onPaySubscription} />
+              <SubscriptionExpiryBellItem expiry={subscriptionExpiry} />
             )}
 
             {/* Stock */}
@@ -457,9 +456,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     if (lastPull && lastPull !== '0') setInitialSyncing(false);
   }, [session?.clinicId, session?.uid, isDemo]);
 
-  // Header subscription alert (pill + bell); one modal shared by both entry points
+  // Header subscription alert (pill next to the bell)
   const subscriptionExpiry = useSubscriptionExpiry();
-  const [payingSubscription, setPayingSubscription] = useState(false);
 
   useEffect(() => {
     syncService.start().finally(() => setInitialSyncing(false));
@@ -664,10 +662,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               )}
               {!isDemo && <SyncIndicator />}
               {subscriptionExpiry && (
-                <SubscriptionExpiryChip expiry={subscriptionExpiry} onPay={() => setPayingSubscription(true)} />
+                <SubscriptionExpiryChip expiry={subscriptionExpiry} />
               )}
               <ThemeSwitcher />
-              <BellNotification onPaySubscription={() => setPayingSubscription(true)} />
+              <BellNotification />
 
               {/* ── User dropdown ── */}
               {session && (
@@ -779,7 +777,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
           </div>
         </header>
-        <ManualPaymentModal open={payingSubscription} onClose={() => setPayingSubscription(false)} />
 
         {/* Mi perfil modal */}
         <Dialog open={perfilOpen} onOpenChange={(o) => { if (!o) setPerfilOpen(false); }}>

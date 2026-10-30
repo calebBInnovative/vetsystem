@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { sembrarDatos, limpiarDatos } from '@/lib/dev/seed';
 import { getClinicId } from '@/lib/db/database';
 import { syncService, type SyncAllProgress } from '@/lib/sync/sync.service';
@@ -114,6 +114,11 @@ export default function AdminPage() {
         {esMaster && <EnvBadge />}
       </div>
 
+      {/* ?tab=plan — links from the expiry alerts and the push reminder */}
+      <Suspense fallback={null}>
+        <TabFromQuery valid={tabs.map((t) => t.key)} onTab={setTab} />
+      </Suspense>
+
       <div className="flex gap-1 border-b border-border overflow-x-auto">
         {tabs.map(({ key, label }) => (
           <button
@@ -201,6 +206,19 @@ function PermisosEditor({
       </div>
     </div>
   );
+}
+
+// ─── Deep link to a tab ───────────────────────────────────────────────────────
+// Reacts to the query string, so a link to ?tab=plan also works when /admin is
+// already open (the page does not remount on a same-route navigation).
+
+function TabFromQuery<T extends string>({ valid, onTab }: { valid: T[]; onTab: (tab: T) => void }) {
+  const requested = useSearchParams().get('tab');
+  const match = valid.find((t) => t === requested);
+  useEffect(() => {
+    if (match) onTab(match);
+  }, [match, onTab]);
+  return null;
 }
 
 // ─── Tab: Usuarios ────────────────────────────────────────────────────────────

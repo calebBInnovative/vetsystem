@@ -1,15 +1,18 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
-import { Check, Copy, Loader2, MessageCircle, Smartphone, Landmark, X } from 'lucide-react';
+import { Check, Copy, FileUp, Loader2, MessageCircle, Smartphone, Landmark, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBillingConfig } from '@/hooks/useBillingConfig';
 import {
-  clinicPaymentReference, formatMoney, reportErrorMessage, reportManualPayment, whatsappReportLink,
-  type PaymentMethodConfig, type ReportPaymentResult,
+  RECEIPT_ACCEPT, clinicPaymentReference, formatMoney, receiptProblem, reportErrorMessage, reportManualPayment,
+  uploadPaymentReceipt, whatsappReportLink,
+  type PaymentMethodConfig, type ReportPaymentResult, type TransferType,
 } from '@/lib/billing/manual-payments';
+import { isPlatformOwner } from '@/lib/usage/usage.service';
 import { cn } from '@/lib/utils';
 
 function todayLocal(): string {
@@ -50,6 +53,9 @@ export function ManualPaymentPanel({ onDone }: { onDone?: () => void }) {
   const [payerReference, setPayerReference] = useState('');
   const [paidOn, setPaidOn] = useState(todayLocal);
   const [note, setNote] = useState('');
+  const [originBank, setOriginBank] = useState('');
+  const [transferType, setTransferType] = useState<TransferType | ''>('');
+  const [receipt, setReceipt] = useState<File | null>(null);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<ReportPaymentResult | null>(null);
 
@@ -62,7 +68,13 @@ export function ManualPaymentPanel({ onDone }: { onDone?: () => void }) {
     return <div className="flex justify-center py-8"><Loader2 size={18} className="animate-spin text-muted-foreground" /></div>;
   }
   if (methods.length === 0) {
-    return (
+    // A method only shows once it is enabled, has an account and its currency has a price.
+    return isPlatformOwner(session.email) ? (
+      <p className="text-sm text-muted-foreground text-center py-6">
+        No hay métodos de pago activos: activa al menos uno con su número de cuenta y el precio de su moneda en{' '}
+        <Link href="/admin/payments" className="underline text-foreground">Pagos de clínicas → Configuración</Link>.
+      </p>
+    ) : (
       <p className="text-sm text-muted-foreground text-center py-6">
         Los pagos por transferencia aún no están configurados. Contacta a soporte de VetSystem.
       </p>
@@ -72,12 +84,39 @@ export function ManualPaymentPanel({ onDone }: { onDone?: () => void }) {
   const method: PaymentMethodConfig = methods.find((m) => m.id === methodId) ?? methods[0];
   const amount = config.prices[method.currency] ?? 0;
   const reference = clinicPaymentReference(session.clinicId);
+  const isBank = method.type === 'bank';
+
+  function pickReceipt(file: File | undefined) {
+    if (!file) return;
+    const problem = receiptProblem(file);
+    if (problem) { toast.error(problem); return; }
+    setReceipt(file);
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setSending(true);
     try {
-      const res = await reportManualPayment({ methodId: method.id, payerReference: payerReference.trim(), paidOn, note: note.trim() || undefined });
+      // Upload first: the report must point at a file that already exists.
+      let receiptPath: string | undefined;
+      if (receipt) {
+        try {
+          receiptPath = await uploadPaymentReceipt(session!.clinicId, receipt);
+        } catch (err) {
+          console.error('[billing] receipt upload failed:', err);
+          toast.error('No se pudo subir el comprobante. Intenta de nuevo o quítalo para reportar sin él.');
+          return;
+        }
+      }
+      const res = await reportManualPayment({
+        methodId:       method.id,
+        payerReference: payerReference.trim(),
+        paidOn,
+        note:           note.trim() || undefined,
+        originBank:     isBank && originBank.trim() ? originBank.trim() : undefined,
+        transferType:   isBank && transferType ? transferType : undefined,
+        receiptPath,
+      });
       setResult(res);
       toast.success('Pago reportado. Tu acceso sigue activo mientras lo confirmamos.');
     } catch (err) {
@@ -165,6 +204,53 @@ export function ManualPaymentPanel({ onDone }: { onDone?: () => void }) {
               className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
           </label>
         </div>
+        {isBank && (
+          <>
+            <label className="space-y-1 block">
+              <span className="text-xs font-medium">Banco desde el que pagaste</span>
+              <input required value={originBank} onChange={(e) => setOriginBank(e.target.value)} maxLength={60}
+                placeholder="Ej: BAC, LAFISE, Banpro, Avanz"
+                className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+            </label>
+            <div className="space-y-1">
+              <span className="text-xs font-medium">Tipo de transferencia</span>
+              <div className="grid grid-cols-2 gap-2">
+                {([['instant', 'Inmediata'], ['deferred', 'Diferida (ACH)']] as const).map(([value, label]) => (
+                  <button key={value} type="button" onClick={() => setTransferType(value)}
+                    className={cn('rounded-xl border px-3 py-2 text-sm font-medium transition-colors',
+                      transferType === value ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:bg-muted')}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {transferType === 'deferred' && (
+                <p className="text-[11px] text-muted-foreground">
+                  Las diferidas se acreditan por turnos y pueden tardar hasta el siguiente día hábil. Tu acceso sigue activo mientras tanto.
+                </p>
+              )}
+            </div>
+          </>
+        )}
+        <div className="space-y-1">
+          <span className="text-xs font-medium">Comprobante <span className="text-muted-foreground font-normal">(captura o PDF, recomendado)</span></span>
+          {receipt ? (
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-border px-3 py-2 text-sm">
+              <span className="truncate">{receipt.name}</span>
+              <button type="button" onClick={() => setReceipt(null)} className="text-muted-foreground hover:text-foreground" aria-label="Quitar comprobante">
+                <X size={14} />
+              </button>
+            </div>
+          ) : (
+            <label className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border px-3 py-3 text-sm text-muted-foreground hover:bg-muted cursor-pointer">
+              <FileUp size={14} /> Adjuntar comprobante
+              <input type="file" accept={RECEIPT_ACCEPT} className="sr-only"
+                onChange={(e) => { pickReceipt(e.target.files?.[0]); e.target.value = ''; }} />
+            </label>
+          )}
+          <p className="text-[11px] text-muted-foreground">
+            Que se vea la fecha, el monto, la cuenta destino y el estado (Aplicada / Exitosa).
+          </p>
+        </div>
         <label className="space-y-1 block">
           <span className="text-xs font-medium">Nota <span className="text-muted-foreground font-normal">(opcional)</span></span>
           <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={500}
@@ -172,7 +258,7 @@ export function ManualPaymentPanel({ onDone }: { onDone?: () => void }) {
         </label>
       </div>
 
-      <Button type="submit" disabled={sending || !payerReference.trim()} className="w-full gap-2">
+      <Button type="submit" disabled={sending || !payerReference.trim() || (isBank && (!originBank.trim() || !transferType))} className="w-full gap-2">
         {sending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
         Ya pagué — reportar pago
       </Button>

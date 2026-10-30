@@ -539,6 +539,11 @@ Clinic subscriptions are paid through Recurrente from Cloud Functions in
   - The owner confirms or rejects at `/admin/payments` (`reviewManualPayment`, owner-only).
     Confirming extends the license 30 days like a card payment; rejecting removes the grace.
   - One pending report per clinic; a receipt number cannot be reported twice.
+  - Bank reports also carry `originBank` and `transferType` (`instant` / `deferred` — a deferred ACH
+    transfer may only land the next business day, so the review screen warns before rejecting).
+  - Receipts (photo/PDF, ≤ 5 MB, optional) upload to Storage `paymentReceipts/{clinicId}/…` before the
+    report; `storage.rules` lets only that clinic's managers create them and the clinic + owner read.
+    `validReceiptPath()` refuses a path outside the reporting clinic's folder.
   - Alerts: a live toast while the owner has the app open (`OwnerPaymentAlerts`), and web push
     through FCM when it is closed (`platformPushTokens`, `public/sw.js` `push` handler; needs
     `NEXT_PUBLIC_FIREBASE_VAPID_KEY`).

@@ -60,6 +60,15 @@ export interface BillingConfig {
 
 export type InvoiceStatus = 'pending' | 'confirmed' | 'rejected';
 
+/**
+ * ACH timing the clinic chose. A deferred transfer settles in the next ACH
+ * cycles — up to the next business day — so it may not be in the account yet.
+ */
+export type TransferType = 'instant' | 'deferred';
+
+/** Where clinics upload transfer receipts: paymentReceipts/{clinicId}/{file} (see storage.rules). */
+export const RECEIPTS_FOLDER = 'paymentReceipts';
+
 export interface SubscriptionInvoice {
   id: string;
   number: string;
@@ -75,6 +84,11 @@ export interface SubscriptionInvoice {
   /** YYYY-MM-DD the clinic says it paid */
   paidOn: string;
   note: string | null;
+  /** Bank the money was sent from, as typed by the clinic */
+  originBank: string | null;
+  transferType: TransferType | null;
+  /** Storage path of the receipt screenshot / PDF, or null when none was attached */
+  receiptPath: string | null;
   reportedBy: { uid: string; email: string | null; name: string | null };
   status: InvoiceStatus;
   periodDays: number;
@@ -145,6 +159,31 @@ function requiredText(value: unknown, field: string, max: number): string {
   return text;
 }
 
+function optionalText(value: unknown, field: string, max: number): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string') throw new ManualPaymentError('invalid-argument', `${field} must be text.`);
+  const text = value.trim();
+  if (text.length > max) throw new ManualPaymentError('invalid-argument', `${field} is too long.`);
+  return text || null;
+}
+
+function transferType(value: unknown): TransferType | null {
+  if (value === undefined || value === null || value === '') return null;
+  if (value === 'instant' || value === 'deferred') return value;
+  throw new ManualPaymentError('invalid-argument', 'transferType must be instant or deferred.');
+}
+
+/** A receipt must sit in the reporting clinic's own folder, so nobody can attach another clinic's file. */
+export function validReceiptPath(value: unknown, clinicId: string): string | null {
+  if (value === undefined || value === null || value === '') return null;
+  const prefix = `${RECEIPTS_FOLDER}/${clinicId}/`;
+  if (typeof value !== 'string' || !value.startsWith(prefix)
+      || !/^[A-Za-z0-9_-]{8,64}\.(jpg|jpeg|png|webp|heic|pdf)$/.test(value.slice(prefix.length))) {
+    throw new ManualPaymentError('invalid-argument', 'receiptPath is not valid.');
+  }
+  return value;
+}
+
 function isoDate(value: unknown, now: number): string {
   const text = typeof value === 'string' ? value.trim() : '';
   if (!/^\d{4}-\d{2}-\d{2}$/.test(text) || Number.isNaN(Date.parse(`${text}T00:00:00Z`))) {
@@ -164,6 +203,9 @@ export interface ReportInput {
   payerReference: unknown;
   paidOn: unknown;
   note?: unknown;
+  originBank?: unknown;
+  transferType?: unknown;
+  receiptPath?: unknown;
 }
 
 export interface ReportResult {
@@ -182,6 +224,8 @@ export async function reportManualPayment(db: Firestore, input: ReportInput, now
   if (normalizedRef.length < 3) throw new ManualPaymentError('invalid-argument', 'payerReference is too short.');
   const paidOn = isoDate(input.paidOn, now);
   const note   = typeof input.note === 'string' && input.note.trim() ? input.note.trim().slice(0, 500) : null;
+  const originBank = optionalText(input.originBank, 'originBank', 60);
+  const transfer   = transferType(input.transferType);
 
   return db.runTransaction(async (tx) => {
     const userSnap = await tx.get(db.collection('users').doc(input.uid));
@@ -192,6 +236,7 @@ export async function reportManualPayment(db: Firestore, input: ReportInput, now
     }
     if (clinicId === 'demo') throw new ManualPaymentError('failed-precondition', 'Demo clinics cannot pay.');
     if (!MANAGER_ROLES.has(role)) throw new ManualPaymentError('permission-denied', 'Only clinic managers can report payments.');
+    const receiptPath = validReceiptPath(input.receiptPath, clinicId);
 
     const config = parseBillingConfig((await tx.get(db.doc(BILLING_CONFIG_PATH))).data());
     const method = config.methods.find((m) => m.id === methodId && m.enabled);
@@ -242,6 +287,9 @@ export async function reportManualPayment(db: Firestore, input: ReportInput, now
       payerReferenceKey: normalizedRef,
       paidOn,
       note,
+      originBank,
+      transferType:      transfer,
+      receiptPath,
       reportedBy:        { uid: input.uid, email: input.email, name: (userSnap.get('name') as string | undefined) ?? null },
       status:            'pending',
       periodDays:        MANUAL_PERIOD_DAYS,

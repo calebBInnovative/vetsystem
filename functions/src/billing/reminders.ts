@@ -41,7 +41,7 @@ export function buildExpiryReminder(license: LicenseSnapshot, days: number): Pus
   return {
     title: `${what} ${when}`,
     body:  'Paga por transferencia o Kash desde la app para no perder el acceso.',
-    url:   '/admin/',
+    url:   '/admin/?tab=plan',
     tag:   `expiry-${license.expirationDate}`,
   };
 }

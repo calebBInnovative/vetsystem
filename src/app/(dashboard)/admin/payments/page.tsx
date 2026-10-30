@@ -4,13 +4,13 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, Bell, BellRing, Check, Clock, Landmark, Loader2, Save, Smartphone, X,
+  ArrowLeft, Bell, BellRing, Check, FileText, Clock, Landmark, Loader2, Save, Smartphone, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { isPlatformOwner } from '@/lib/usage/usage.service';
 import {
-  PUSH_SETUP_MESSAGES, PUSH_SUPPORTED_KEY, enableOwnerPush, formatMoney, needsHomeScreenInstall, reviewManualPayment, sendOwnerTestPush,
+  PUSH_SETUP_MESSAGES, PUSH_SUPPORTED_KEY, enableOwnerPush, formatMoney, needsHomeScreenInstall, receiptUrl, reviewManualPayment, sendOwnerTestPush,
   saveBillingConfig, subscribeBillingConfig, subscribeInvoicesByStatus,
   type BillingConfig, type InvoiceStatus, type PaymentCurrency, type SubscriptionInvoice,
 } from '@/lib/billing/manual-payments';
@@ -140,6 +140,13 @@ export default function PaymentsAdminPage() {
                 <dt className="text-muted-foreground">Comprobante</dt><dd className="font-mono font-medium">{inv.payerReference}</dd>
                 <dt className="text-muted-foreground">Referencia</dt><dd className="font-mono">{inv.reference}</dd>
                 <dt className="text-muted-foreground">Fecha del pago</dt><dd>{inv.paidOn}</dd>
+                {inv.originBank && (
+                  <><dt className="text-muted-foreground">Banco de origen</dt><dd className="font-medium">{inv.originBank}</dd></>
+                )}
+                {inv.transferType && (
+                  <><dt className="text-muted-foreground">Transferencia</dt>
+                    <dd>{inv.transferType === 'instant' ? 'Inmediata' : 'Diferida (ACH)'}</dd></>
+                )}
                 <dt className="text-muted-foreground">Reportado</dt>
                 <dd className="truncate">{when(inv.createdAt)} · {inv.reportedBy.name ?? inv.reportedBy.email ?? '—'}</dd>
                 {inv.status === 'pending' && inv.graceUntil && (
@@ -157,6 +164,15 @@ export default function PaymentsAdminPage() {
                 )}
               </dl>
               {inv.note && <p className="text-xs bg-muted/50 rounded-lg px-3 py-2">“{inv.note}”</p>}
+              {inv.status === 'pending' && inv.transferType === 'deferred' && (
+                <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 rounded-lg px-3 py-2">
+                  Transferencia diferida: se acredita por ciclos ACH y puede aparecer hasta el siguiente día hábil.
+                  Si aún no la ves, revisa de nuevo antes de rechazarla.
+                </p>
+              )}
+              {inv.receiptPath
+                ? <ReceiptButton path={inv.receiptPath} />
+                : <p className="text-[11px] text-muted-foreground">Sin comprobante adjunto.</p>}
               {inv.status === 'pending' && (
                 <div className="flex gap-2">
                   <Button onClick={() => decide(inv, 'confirm')} disabled={busyId === inv.id} className="flex-1 gap-1.5">
@@ -326,5 +342,30 @@ function ConfigForm() {
         {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Guardar configuración
       </Button>
     </form>
+  );
+}
+
+/** Opens the attached receipt; the download URL is fetched on demand, never stored. */
+function ReceiptButton({ path }: { path: string }) {
+  const [opening, setOpening] = useState(false);
+  async function open() {
+    // Open the tab synchronously so popup blockers allow it, then point it at the file.
+    const tab = window.open('', '_blank');
+    setOpening(true);
+    try {
+      const url = await receiptUrl(path);
+      if (tab) tab.location.href = url; else window.location.href = url;
+    } catch (err) {
+      tab?.close();
+      console.error('[payments] receipt open failed:', err);
+      toast.error('No se pudo abrir el comprobante');
+    } finally {
+      setOpening(false);
+    }
+  }
+  return (
+    <Button type="button" variant="outline" size="sm" onClick={open} disabled={opening} className="gap-1.5">
+      {opening ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />} Ver comprobante
+    </Button>
   );
 }

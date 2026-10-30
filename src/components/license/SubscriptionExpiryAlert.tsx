@@ -1,9 +1,13 @@
 'use client';
 
+import Link from 'next/link';
 import { CreditCard, Landmark } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { SUBSCRIPTION_PLAN } from '@/hooks/useSubscription';
 import { cn } from '@/lib/utils';
+
+/** Admin → Plan: payment methods, card checkout and payment history in one place. */
+export const PLAN_TAB_HREF = '/admin/?tab=plan';
 
 /** Days before expiration when the header starts warning. */
 export const HEADER_NOTICE_DAYS = 3;
@@ -55,30 +59,29 @@ function tone(days: number): string {
     : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300';
 }
 
-/** Always-visible pill next to the bell. Managers open the payment modal from it. */
-export function SubscriptionExpiryChip({ expiry, onPay }: { expiry: SubscriptionExpiry; onPay: () => void }) {
+/** Always-visible pill next to the bell. Managers go to Admin → Plan from it. */
+export function SubscriptionExpiryChip({ expiry }: { expiry: SubscriptionExpiry }) {
   const label = `${expiry.isTrial ? 'Prueba' : 'Plan'} vence ${whenLabel(expiry.days)}`;
-  return (
-    <button
-      type="button"
-      onClick={expiry.canPay ? onPay : undefined}
-      disabled={!expiry.canPay}
-      title={expiry.canPay ? 'Pagar suscripción' : 'Avisa al administrador de la clínica para renovar'}
-      className={cn(
-        'flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full transition-opacity',
-        expiry.canPay ? 'hover:opacity-80' : 'cursor-default',
-        tone(expiry.days),
-      )}
-    >
+  const className = cn(
+    'flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full transition-opacity',
+    tone(expiry.days),
+  );
+  const content = (
+    <>
       <CreditCard size={12} className="shrink-0" />
       <span className="hidden sm:inline">{label}</span>
       <span className="sm:hidden">{expiry.days === 0 ? 'Hoy' : `${expiry.days}d`}</span>
-    </button>
+    </>
   );
+  // Staff cannot open Admin, so for them the pill only informs.
+  if (!expiry.canPay) {
+    return <span title="Avisa al administrador de la clínica para renovar" className={className}>{content}</span>;
+  }
+  return <Link href={PLAN_TAB_HREF} title="Ver formas de pago" className={cn(className, 'hover:opacity-80')}>{content}</Link>;
 }
 
 /** Section at the top of the bell popover, with the details and the pay action. */
-export function SubscriptionExpiryBellItem({ expiry, onPay }: { expiry: SubscriptionExpiry; onPay: () => void }) {
+export function SubscriptionExpiryBellItem({ expiry }: { expiry: SubscriptionExpiry }) {
   return (
     <>
       <li className="px-4 py-1.5 bg-muted/40">
@@ -98,10 +101,10 @@ export function SubscriptionExpiryBellItem({ expiry, onPay }: { expiry: Subscrip
           {expiry.lastPaymentAt ? ` · Último pago: ${formatDate(expiry.lastPaymentAt)}` : ''}
         </p>
         {expiry.canPay ? (
-          <button type="button" onClick={onPay}
+          <Link href={PLAN_TAB_HREF}
             className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline">
             <Landmark size={11} /> Pagar {SUBSCRIPTION_PLAN.priceLabel} →
-          </button>
+          </Link>
         ) : (
           <p className="text-[11px] text-muted-foreground">Avisa al administrador de la clínica para renovar.</p>
         )}
