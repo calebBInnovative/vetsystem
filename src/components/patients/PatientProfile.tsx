@@ -52,7 +52,8 @@ export function FichaPaciente() {
 
       {/* ── Header ─────────────────────────────────────── */}
       <div className="flex items-start gap-4">
-        <Link href="/patients">
+        {/* The phone app has its own back button in the top bar */}
+        <Link href="/patients" className="app:hidden">
           <Button variant="ghost" size="icon" className="-ml-2 mt-0.5">
             <ArrowLeft size={18} />
           </Button>

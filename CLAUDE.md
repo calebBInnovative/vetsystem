@@ -398,6 +398,9 @@ with ← back, dialogs as bottom sheets (CSS in `ui/dialog.tsx` keyed on `<html 
 the app is **installed** (standalone), the screen is phone-sized and the plan includes the `mobileApp`
 module ("App móvil", Profesional and Clínica by default). Básico gets the web layout plus an upsell.
 Preview in a normal tab: `localStorage.setItem('vetsys-app-mode-preview', '1')`.
+Per screen, use the `app:` Tailwind variant (`app:hidden`, `hidden app:flex`) — e.g. hide a page title the
+top bar already shows — and `<Fab>` for the screen's main action. Done so far: Agenda (WeekStrip), Pacientes,
+ficha del paciente, Vender (cart bar).
 
 **Adding a plan module:** add it to `PlanModule` (client) and `PLAN_MODULES` (server), bump `MODULE_SET`
 on both sides and list it in `LATE_MODULES`, so catalogs and licenses saved earlier still grant it from

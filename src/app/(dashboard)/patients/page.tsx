@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { Fab } from '@/components/layout/Fab';
 import { usePatients } from '@/hooks/usePatients';
 import { PacienteCard } from '@/components/patients/PatientCard';
 import { BuscadorPacientes } from '@/components/patients/PatientSearch';
@@ -19,8 +20,8 @@ export default function PatientsPage() {
   return (
     <div className="space-y-6">
 
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4">
+      {/* Header (the phone app shows the title in its top bar and "Nuevo" as a floating button) */}
+      <div className="flex items-center justify-between gap-4 app:hidden">
         <div>
           <h1 className="text-2xl font-bold">Pacientes</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
@@ -64,6 +65,7 @@ export default function PatientsPage() {
         </div>
       )}
 
+      <Fab href="/patients/new" icon={Plus} label="Nuevo paciente" />
     </div>
   );
 }

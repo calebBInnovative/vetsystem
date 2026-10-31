@@ -16,7 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { type PromotionLocal } from '@/types/promotion';
 import {
-  Search, Plus, Minus, Trash2, ShoppingCart,
+  Search, Plus, Minus, Trash2, ShoppingCart, ArrowLeft,
   CheckCircle2, X, Loader2, ChevronRight, Tag, ChevronDown,
   LayoutList, LayoutGrid, Pencil, FileText,
 } from 'lucide-react';
@@ -1033,10 +1033,21 @@ export default function SalesPage() {
   // ── Layout ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="h-[calc(100vh-4rem)] -m-4 sm:-m-6 flex flex-col">
+    <div className={cn('h-[calc(100vh-4rem)] -m-4 sm:-m-6 flex flex-col',
+      // Phone app: fill the space between the top bar and the tab bar, cancelling main's padding.
+      '[[data-app-mode]_&]:m-0 [[data-app-mode]_&]:-mx-4 [[data-app-mode]_&]:-mt-4 [[data-app-mode]_&]:-mb-[calc(5.5rem+env(safe-area-inset-bottom))]',
+      '[[data-app-mode]_&]:h-[calc(100dvh-7rem-1px-env(safe-area-inset-bottom))]')}>
+
+      {/* Phone app, cart open: a way back to the catalog instead of the header toggle */}
+      {view === 'carrito' && (
+        <button type="button" onClick={() => setView('products')}
+          className="hidden app:flex items-center gap-2 px-4 py-3 border-b border-border bg-card text-sm font-medium text-primary shrink-0">
+          <ArrowLeft size={16} /> Seguir agregando
+        </button>
+      )}
 
       {/* Header */}
-      <div className="px-4 py-3 border-b border-border bg-card flex items-center gap-3 shrink-0">
+      <div className="px-4 py-3 border-b border-border bg-card flex items-center gap-3 shrink-0 app:hidden">
         <div className="flex-1">
           <h1 className="font-bold text-base">Venta rápida</h1>
           <p className="text-xs text-muted-foreground">Productos · Sin necesidad de paciente</p>
@@ -1286,6 +1297,21 @@ export default function SalesPage() {
               )
             )}
           </div>
+
+          {/* Phone app: the cart as a bar above the tabs, always one tap away */}
+          {cart.length > 0 && (
+            <button type="button" onClick={() => setView('carrito')}
+              className="hidden app:flex items-center gap-3 mx-3 mb-3 rounded-2xl bg-primary px-4 py-3 text-primary-foreground shadow-lg shadow-primary/25 active:scale-[0.98] transition-transform shrink-0">
+              <span className="relative">
+                <ShoppingCart size={20} />
+                <span className="absolute -top-2 -right-2.5 min-w-5 h-5 px-1 rounded-full bg-primary-foreground text-primary text-[10px] font-bold flex items-center justify-center">
+                  {totalItems}
+                </span>
+              </span>
+              <span className="flex-1 text-left text-sm font-semibold pl-1">Ver carrito</span>
+              <span className="text-base font-bold">{fmt(total)}</span>
+            </button>
+          )}
         </div>
 
         {/* ── Panel derecho: carrito ────────────────────────────── */}

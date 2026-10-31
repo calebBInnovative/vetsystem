@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { AgendaDia } from '@/components/appointments/DaySchedule';
 import { CalendarioCitas } from '@/components/appointments/AppointmentCalendar';
+import { WeekStrip } from '@/components/appointments/WeekStrip';
+import { Fab } from '@/components/layout/Fab';
 import { Button } from '@/components/ui/button';
 import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, addDays, subDays, isToday, parseISO } from 'date-fns';
@@ -16,7 +18,8 @@ import { useAuth } from '@/contexts/AuthContext';
 function AgendaContent() {
   const { session } = useAuth();
   const searchParams = useSearchParams();
-  const hoy          = new Date().toISOString().slice(0, 10);
+  // Local day (Nicaragua is UTC-6): toISOString would jump to tomorrow after 6 p.m.
+  const hoy          = format(new Date(), 'yyyy-MM-dd');
   const fechaInicial = searchParams.get('fecha') ?? hoy;
 
   const [fecha, setFecha] = useState(fechaInicial);
@@ -26,14 +29,14 @@ function AgendaContent() {
 
   const irADia = (dias: number) => {
     const nueva = dias > 0 ? addDays(fechaObj, dias) : subDays(fechaObj, Math.abs(dias));
-    setFecha(nueva.toISOString().slice(0, 10));
+    setFecha(format(nueva, 'yyyy-MM-dd'));
   };
 
   return (
     <div className="space-y-5">
 
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4">
+      {/* Header (the phone app shows the title in its top bar and "Nueva cita" as a floating button) */}
+      <div className="flex items-center justify-between gap-4 app:hidden">
         <div>
           <h1 className="text-2xl font-bold">Agenda</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
@@ -61,9 +64,10 @@ function AgendaContent() {
       <div className="flex flex-col lg:flex-row gap-5 items-start">
 
         {/* ── Calendario mensual ─────────────────────────── */}
-        <div className="w-full lg:w-64 shrink-0">
+        <div className="w-full lg:w-64 shrink-0 app:hidden">
           <CalendarioCitas fecha={fecha} onFechaChange={setFecha} />
         </div>
+        <WeekStrip fecha={fecha} onFechaChange={setFecha} className="hidden app:block w-full" />
 
         {/* ── Vista del día seleccionado ─────────────────── */}
         <div className="flex-1 min-w-0 space-y-3">
@@ -107,6 +111,8 @@ function AgendaContent() {
           <AgendaDia fecha={fecha} />
         </div>
       </div>
+
+      <Fab href={`/schedule/new?fecha=${fecha}`} icon={Plus} label="Nueva cita" />
     </div>
   );
 }

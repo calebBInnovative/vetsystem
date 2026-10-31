@@ -46,7 +46,8 @@ interface Props {
 }
 
 export function CalendarioCitas({ fecha, onFechaChange }: Props) {
-  const hoy = new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const hoy = toIso(now.getFullYear(), now.getMonth(), now.getDate()); // local day, not UTC
 
   // Mes visible — sincronizado con la fecha seleccionada
   const [mesVista, setMesVista] = useState(() => {
