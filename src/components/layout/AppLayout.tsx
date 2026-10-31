@@ -1002,7 +1002,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </span>
             </div>
           )}
-          {blockedModule ? <PlanUpgradeRequired module={blockedModule} /> : children}
+          {/* Keyed by route so each screen fades in (phone app only) */}
+          <div key={pathname}
+            className={cn(appMode && 'animate-[app-page-in_180ms_ease-out] motion-reduce:animate-none')}>
+            {blockedModule ? <PlanUpgradeRequired module={blockedModule} /> : children}
+          </div>
         </main>
       </div>
 

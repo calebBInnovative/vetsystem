@@ -3,6 +3,13 @@
 /* Installed phone app (useAppMode sets <html data-app-mode>): `app:hidden`, `hidden app:flex`, … */
 @custom-variant app (&:where([data-app-mode], [data-app-mode] *));
 
+/* Phone app screen change: opacity only — a transform would re-anchor the
+   position:fixed elements inside pages (floating buttons, modals) mid-animation. */
+@keyframes app-page-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
