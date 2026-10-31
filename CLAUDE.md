@@ -401,7 +401,9 @@ Preview in a normal tab: `localStorage.setItem('vetsys-app-mode-preview', '1')`.
 Per screen, use the `app:` Tailwind variant (`app:hidden`, `hidden app:flex`) — e.g. hide a page title the
 top bar already shows — and `<Fab>` for the screen's main action. Full-height screens use `APP_MODE_FILL`
 (`components/layout/appModeLayout.ts`). Done so far: Agenda (WeekStrip), Pacientes, ficha del paciente, Vender
-(cart bar), Consultas, Inventario, Facturas, consulta en pasos ("Siguiente" → "Finalizar").
+(cart bar), Consultas, Inventario, Facturas, consulta en pasos ("Siguiente" → "Finalizar"). Finanzas, Reportes, Cotizaciones, Egresos,
+Promociones and Servicios hide their duplicated titles too. Gestures: `SwipeRow` (appointment cards: right =
+next status, left = cancel with "Deshacer") and pull-to-refresh on <main> (`usePullToRefresh`, runs a sync).
 
 **Adding a plan module:** add it to `PlanModule` (client) and `PLAN_MODULES` (server), bump `MODULE_SET`
 on both sides and list it in `LATE_MODULES`, so catalogs and licenses saved earlier still grant it from

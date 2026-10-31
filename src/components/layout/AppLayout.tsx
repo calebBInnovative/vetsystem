@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { syncService, type PullProgress } from '@/lib/sync/sync.service';
 import { useAppMode } from '@/hooks/useAppMode';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { MobileTabBar } from '@/components/layout/MobileTabBar';
 import { useAuth } from '@/contexts/AuthContext';
 import { logout, actualizarUsuario } from '@/lib/auth/auth.service';
@@ -44,7 +45,7 @@ import {
   ClipboardList, ShoppingBag, Tag, Shield, Database, LogOut, ChevronDown,
   FlaskConical, PlayCircle, UserCircle, Loader2, CheckCircle2, Phone,
   Wallet, Bell, FileSpreadsheet, MessageCircle, FileText, Landmark, BellRing, Layers, Globe,
-  ArrowLeft, Sparkles,
+  ArrowLeft, Sparkles, RefreshCw, WifiOff,
 } from 'lucide-react';
 import {
   Popover, PopoverContent, PopoverTrigger,
@@ -375,6 +376,24 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router   = useRouter();
   const { appMode, appModeLocked } = useAppMode();
+
+  // Connection state, shown in the header so nobody wonders why data is not syncing.
+  const [online, setOnline] = useState(true);
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    update();
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => { window.removeEventListener('online', update); window.removeEventListener('offline', update); };
+  }, []);
+
+  // Phone app: pull down from the top of any screen to sync now.
+  const mainRef = useRef<HTMLElement>(null);
+  const { pull, refreshing, armed } = usePullToRefresh(mainRef, appMode, async () => {
+    if (!navigator.onLine) { toast.error('Sin conexión: los cambios se guardan y se sincronizan al volver internet.'); return; }
+    await syncService.pullAll();
+    await syncService.flushWithReset();
+  });
   const [upsellHidden, setUpsellHidden] = useState(() => {
     try { return typeof window !== 'undefined' && localStorage.getItem('vetsys-app-upsell-dismissed') === '1'; } catch { return false; }
   });
@@ -730,6 +749,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   Solo lectura
                 </span>
               )}
+              {!online && (
+                <span className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                  title="Puedes seguir trabajando: todo se guarda y se sincroniza al volver internet">
+                  <WifiOff size={12} /> Sin conexión
+                </span>
+              )}
               {!isDemo && <SyncIndicator />}
               {subscriptionExpiry && (
                 <SubscriptionExpiryChip expiry={subscriptionExpiry} />
@@ -965,8 +990,18 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         )}
 
         {/* Contenido */}
-        <main className={cn('flex-1 overflow-auto p-6 print:p-0',
+        <main ref={mainRef} className={cn('relative flex-1 overflow-auto p-6 print:p-0',
           appMode && 'p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))]')}>
+          {(pull > 0 || refreshing) && (
+            <div className="flex justify-center overflow-hidden -mt-2 mb-2 transition-[height]"
+              style={{ height: refreshing ? 40 : pull }} aria-live="polite">
+              <span className={cn('mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-card shadow border border-border',
+                armed || refreshing ? 'text-primary' : 'text-muted-foreground')}>
+                <RefreshCw size={16} className={cn(refreshing && 'animate-spin')}
+                  style={refreshing ? undefined : { transform: `rotate(${pull * 3}deg)` }} />
+              </span>
+            </div>
+          )}
           {blockedModule ? <PlanUpgradeRequired module={blockedModule} /> : children}
         </main>
       </div>

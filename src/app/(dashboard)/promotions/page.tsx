@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { Fab } from '@/components/layout/Fab';
 import { useAuth } from '@/contexts/AuthContext';
 import { deletePromotion, getPromotions, togglePromotion } from '@/hooks/usePromotions';
 import type { PromotionLocal, PromotionItem } from '@/types/promotion';
@@ -230,8 +231,8 @@ export default function PromotionsPage() {
     <div className="space-y-6">
 
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
+      <div className="flex items-center justify-between gap-4 app:justify-end">
+        <div className="app:hidden">
           <h1 className="text-2xl font-bold">Promociones</h1>
           {!loading && (
             <p className="text-sm text-muted-foreground mt-0.5">
@@ -247,7 +248,7 @@ export default function PromotionsPage() {
             getData={getPromotionsExportData}
             clinicName={session?.clinicName}
           />
-          <Link href="/promotions/new">
+          <Link href="/promotions/new" className="app:hidden">
             <Button className="gap-2">
               <Plus size={17} />
               <span className="hidden sm:inline">Nueva Promoción</span>
@@ -301,6 +302,7 @@ export default function PromotionsPage() {
           ))}
         </div>
       )}
+      <Fab href="/promotions/new" icon={Plus} label="Nueva promoción" />
     </div>
   );
 }

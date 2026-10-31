@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { CitaForm } from '@/components/appointments/AppointmentForm';
 import { cn } from '@/lib/utils';
-import { Phone, Clock, Pencil, Trash2 } from 'lucide-react';
+import { Phone, Clock, Pencil, Trash2, Check, X } from 'lucide-react';
+import { SwipeRow, type SwipeAction } from '@/components/common/SwipeRow';
 import { toast } from 'sonner';
 import { useState } from 'react';
 
@@ -42,13 +43,38 @@ export function CitaCard({ cita }: CitaCardProps) {
     setCambiandoEstado(true);
     try {
       await cambiarEstadoCita(cita.id, nuevoEstado);
-      toast.success(`Appointment ${APPOINTMENT_STATUSES[nuevoEstado].label.toLowerCase()}`);
+      toast.success(`Cita ${APPOINTMENT_STATUSES[nuevoEstado].label.toLowerCase()}`);
     } catch {
       toast.error('No se pudo actualizar el estado');
     } finally {
       setCambiandoEstado(false);
     }
   };
+
+  // Phone app swipes: right moves the appointment forward, left cancels it (with undo).
+  const forward = siguientes.find((s) => s !== 'cancelled' && s !== 'no_show');
+  const swipeRight: SwipeAction | undefined = forward && {
+    label: APPOINTMENT_STATUSES[forward].label,
+    icon: Check,
+    className: 'bg-emerald-500',
+    onTrigger: () => handleCambioEstado(forward),
+  };
+  const swipeLeft: SwipeAction | undefined = siguientes.includes('cancelled') ? {
+    label: 'Cancelar',
+    icon: X,
+    className: 'bg-red-500',
+    onTrigger: async () => {
+      const previous = cita.status;
+      try {
+        await cambiarEstadoCita(cita.id, 'cancelled');
+        toast('Cita cancelada', {
+          action: { label: 'Deshacer', onClick: () => { void cambiarEstadoCita(cita.id, previous); } },
+        });
+      } catch {
+        toast.error('No se pudo cancelar la cita');
+      }
+    },
+  } : undefined;
 
   const handleEliminar = async () => {
     try {
@@ -61,6 +87,7 @@ export function CitaCard({ cita }: CitaCardProps) {
 
   return (
     <>
+    <SwipeRow left={swipeLeft} right={swipeRight}>
     <div className={cn(
       'bg-card rounded-2xl border overflow-hidden transition-shadow hover:shadow-md',
       cita.status === 'cancelled' || cita.status === 'no_show'
@@ -169,6 +196,7 @@ export function CitaCard({ cita }: CitaCardProps) {
         )}
       </div>
     </div>
+    </SwipeRow>
 
     <Sheet open={editOpen} onOpenChange={setEditOpen}>
       <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">

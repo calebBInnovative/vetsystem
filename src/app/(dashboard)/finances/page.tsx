@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { Fab } from '@/components/layout/Fab';
 import { usePayments } from '@/hooks/useFinances';
 import { ResumenIngresos } from '@/components/finances/FinancialSummary';
 import { PagoCard } from '@/components/finances/PaymentCard';
@@ -48,8 +49,8 @@ export default function FinancesPage() {
     <div className="space-y-6">
 
       {/* ── Header ────────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
+      <div className="flex items-start justify-between gap-4 app:justify-end">
+        <div className="app:hidden">
           <h1 className="text-2xl font-bold">Finanzas</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Ingresos, egresos y análisis de rendimiento</p>
         </div>
@@ -60,7 +61,7 @@ export default function FinancesPage() {
             getData={getFinancesExportData}
             clinicName={session?.clinicName}
           />
-          <Link href="/finances/new">
+          <Link href="/finances/new" className="app:hidden">
             <Button size="sm" className="gap-1.5">
               <Plus size={14} /> Registrar pago
             </Button>
@@ -170,6 +171,7 @@ export default function FinancesPage() {
       {/* ── Analítica tab ─────────────────────────────────────────────── */}
       {tab === 'analitica' && <FinancesAnalytics />}
 
+      <Fab href="/finances/new" icon={Plus} label="Registrar pago" />
     </div>
   );
 }

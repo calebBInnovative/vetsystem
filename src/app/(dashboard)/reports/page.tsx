@@ -309,8 +309,8 @@ export default function ReportsPage() {
     <div className="space-y-5 pb-10">
 
       {/* ── Header ────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
+      <div className="flex items-start justify-between gap-4 flex-wrap app:justify-end">
+        <div className="app:hidden">
           <h1 className="text-2xl font-bold">Reportes</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Análisis detallado y exportación de datos

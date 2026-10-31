@@ -87,8 +87,8 @@ export default function QuotesPage() {
     <div className="space-y-5">
 
       {/* Header */}
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
+      <div className="flex items-start justify-between gap-3 flex-wrap app:justify-end">
+        <div className="app:hidden">
           <h1 className="text-2xl font-bold">Cotizaciones</h1>
           <p className="text-sm text-muted-foreground">
             Presupuestos para el cliente. No afectan ventas, inventario ni finanzas hasta convertirlas.
