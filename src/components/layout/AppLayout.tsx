@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { syncService } from '@/lib/sync/sync.service';
+import { syncService, type PullProgress } from '@/lib/sync/sync.service';
 import { useAuth } from '@/contexts/AuthContext';
 import { logout, actualizarUsuario } from '@/lib/auth/auth.service';
 import { db } from '@/lib/db/database';
@@ -357,6 +357,15 @@ function formatearTelPersonal(raw: string): string {
   return d.length <= 4 ? d : `${d.slice(0, 4)}-${d.slice(4)}`;
 }
 
+/** Firestore collection → what the first-sync screen says it is downloading. */
+const SYNC_COLLECTION_LABELS: Record<string, string> = {
+  owners: 'dueños', patients: 'pacientes', products: 'productos', services: 'servicios',
+  consultations: 'consultas', appointments: 'citas', movements: 'movimientos de inventario',
+  payments: 'pagos', invoices: 'facturas', sales: 'ventas', fixedExpenses: 'gastos fijos',
+  expensePayments: 'pagos de gastos', collaborators: 'colaboradores',
+  collaboratorPayments: 'pagos a colaboradores', promotions: 'promociones', quotes: 'cotizaciones',
+};
+
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [navigating,  setNavigating]  = useState(false);
@@ -448,6 +457,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   // before showing the app. Keyed per clinicId so switching users/clinics
   // always triggers a fresh pull for that clinic's data.
   const [initialSyncing, setInitialSyncing] = useState(typeof window !== 'undefined');
+  const [pullProgress, setPullProgress] = useState<PullProgress | null>(null);
+  // A slow or stalled download must never lock the clinic out: after a while the
+  // app can be entered and the realtime listeners keep filling it in.
+  const [canSkipSync, setCanSkipSync] = useState(false);
+
+  useEffect(() => {
+    if (!initialSyncing) return;
+    const unsubscribe = syncService.onPullProgress(setPullProgress);
+    const timer = setTimeout(() => setCanSkipSync(true), 15_000);
+    return () => { unsubscribe(); clearTimeout(timer); };
+  }, [initialSyncing]);
 
   // Once we know who is logged in, check if THIS user has already pulled data
   // on this browser. Key includes uid so different users on the same browser
@@ -489,12 +509,30 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="text-center space-y-1">
           <p className="font-semibold">Sincronizando datos</p>
           <p className="text-sm text-muted-foreground">
-            Descargando información de la clínica…
+            {pullProgress?.collection
+              ? `Descargando ${SYNC_COLLECTION_LABELS[pullProgress.collection] ?? pullProgress.collection} · ${pullProgress.done + 1} de ${pullProgress.total}`
+              : 'Descargando información de la clínica…'}
           </p>
-          <p className="text-xs text-muted-foreground">
-            Esto solo ocurre la primera vez en este navegador
+          {pullProgress && (
+            <div className="mx-auto mt-2 h-1.5 w-48 rounded-full bg-muted overflow-hidden">
+              <div className="h-full bg-primary transition-all duration-300"
+                style={{ width: `${Math.round((pullProgress.done / pullProgress.total) * 100)}%` }} />
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground pt-1">
+            Esto solo ocurre la primera vez en este dispositivo
           </p>
         </div>
+        {canSkipSync && (
+          <div className="text-center space-y-2 px-6 max-w-xs">
+            <p className="text-xs text-muted-foreground">
+              Está tardando más de lo normal. Puedes entrar ya: los datos seguirán llegando mientras trabajas.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => setInitialSyncing(false)}>
+              Entrar mientras se descarga
+            </Button>
+          </div>
+        )}
       </div>
     );
   }

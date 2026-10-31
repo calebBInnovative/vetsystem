@@ -65,6 +65,33 @@ const TABLAS_SYNC = [
   { nombre: 'quotes',               tabla: () => db.quotes               },
 ] as const;
 
+/** Progress of the catch-up pull, for the first-sync screen. */
+export type PullProgress = {
+  /** Collections finished (successfully or not) */
+  done:       number;
+  total:      number;
+  /** Collection being downloaded, null when the pull is over */
+  collection: string | null;
+};
+
+/**
+ * A pull that has not answered by then is treated as failed: the cursor is not
+ * advanced, so the next pull (or the realtime listener) retries it. Without
+ * this, a request stalled on a flaky mobile connection kept the app on the
+ * first-sync screen forever.
+ */
+const PULL_TIMEOUT_MS = 20_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms);
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (err) => { clearTimeout(timer); reject(err); },
+    );
+  });
+}
+
 export type SyncAllProgress = {
   collection:    string;
   enviados:      number;
@@ -108,6 +135,7 @@ class SyncService {
   private pulling       = false;
   private hookReg       = false;
   private unsubscribers: (() => void)[] = [];
+  private progressListeners = new Set<(p: PullProgress) => void>();
   private retryTimeout:  ReturnType<typeof setTimeout> | null = null;
   private retryAttempt   = 0;
 
@@ -145,6 +173,16 @@ class SyncService {
     document.removeEventListener('visibilitychange', this.onVisibility);
     window.removeEventListener('focus',             this.onFocus);
     this.cancelRetry();
+  }
+
+  /** Follows the catch-up pull (first-sync screen). Returns the unsubscribe. */
+  onPullProgress(listener: (p: PullProgress) => void): () => void {
+    this.progressListeners.add(listener);
+    return () => { this.progressListeners.delete(listener); };
+  }
+
+  private emitProgress(p: PullProgress): void {
+    this.progressListeners.forEach((l) => l(p));
   }
 
   // ── Event handlers ────────────────────────────────────────────────────────
@@ -405,12 +443,17 @@ class SyncService {
     console.log(`[sync] pull start — since ${lastPull ? new Date(lastPull).toISOString() : 'epoch'}`);
 
     try {
-      for (const { nombre } of TABLAS_SYNC) {
+      for (const [index, { nombre }] of TABLAS_SYNC.entries()) {
         // stop() (logout) while pulling: the remaining collections would only
         // fail on permissions. Keep the old cursor so the next start resumes.
         if (!this.started) return lastPull;
+        this.emitProgress({ done: index, total: TABLAS_SYNC.length, collection: nombre });
         try {
-          const docs = await syncProvider.pull(nombre, rewindCursor(lastPull), clinicId);
+          const docs = await withTimeout(
+            syncProvider.pull(nombre, rewindCursor(lastPull), clinicId),
+            PULL_TIMEOUT_MS,
+            `pull ${nombre}`,
+          );
           totalReads += 1 + docs.length;
           if (docs.length > 0) {
             console.log(`[sync] pull ${nombre} — ${docs.length} doc(s)`);
@@ -431,6 +474,7 @@ class SyncService {
       }
 
       console.log(`[sync] pull done — ${totalReads} Firestore reads`);
+      this.emitProgress({ done: TABLAS_SYNC.length, total: TABLAS_SYNC.length, collection: null });
 
       if (!pullErrored) {
         localStorage.setItem(LAST_PULL_KEY, pullStartedAt.toString());
