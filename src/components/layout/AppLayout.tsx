@@ -5,6 +5,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { syncService, type PullProgress } from '@/lib/sync/sync.service';
+import { useAppMode } from '@/hooks/useAppMode';
+import { MobileTabBar } from '@/components/layout/MobileTabBar';
 import { useAuth } from '@/contexts/AuthContext';
 import { logout, actualizarUsuario } from '@/lib/auth/auth.service';
 import { db } from '@/lib/db/database';
@@ -42,6 +44,7 @@ import {
   ClipboardList, ShoppingBag, Tag, Shield, Database, LogOut, ChevronDown,
   FlaskConical, PlayCircle, UserCircle, Loader2, CheckCircle2, Phone,
   Wallet, Bell, FileSpreadsheet, MessageCircle, FileText, Landmark, BellRing, Layers, Globe,
+  ArrowLeft, Sparkles,
 } from 'lucide-react';
 import {
   Popover, PopoverContent, PopoverTrigger,
@@ -371,6 +374,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [navigating,  setNavigating]  = useState(false);
   const pathname = usePathname();
   const router   = useRouter();
+  const { appMode, appModeLocked } = useAppMode();
+  const [upsellHidden, setUpsellHidden] = useState(() => {
+    try { return typeof window !== 'undefined' && localStorage.getItem('vetsys-app-upsell-dismissed') === '1'; } catch { return false; }
+  });
   const { session, license, refreshFromDexie } = useAuth();
   const { isDemo, startTour } = useDemoMode();
   const soloLectura = !puedeEscribir(license.mode);
@@ -558,7 +565,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <aside className={cn(
         'fixed inset-y-0 left-0 z-50 w-64 bg-sidebar flex flex-col shadow-xl',
         'transition-transform duration-300 lg:translate-x-0 print:hidden',
-        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        sidebarOpen ? 'translate-x-0' : '-translate-x-full',
+        appMode && 'hidden',
       )}>
 
         {/* Logo */}
@@ -571,7 +579,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             ) : (
               <Image
                 src="/logo.jpeg"
-                alt="Pets House"
+                alt={session?.clinicName ?? 'VetSystem'}
                 width={40}
                 height={40}
                 className="rounded-xl object-cover shrink-0 bg-white"
@@ -579,7 +587,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             )}
             <div>
               <h1 className="text-sm font-semibold tracking-tight text-sidebar-foreground">
-                {isDemo ? 'Modo Demo' : "Pet's House"}
+                {isDemo ? 'Modo Demo' : (session?.clinicName || 'VetSystem')}
               </h1>
               <p className="text-xs text-sidebar-muted">VetSystem</p>
             </div>
@@ -690,6 +698,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <header className="h-14 bg-card shadow-sm flex items-center px-4 z-40 shrink-0 print:hidden">
           <div className="flex items-center justify-between w-full gap-4">
 
+            {appMode ? (
+              <div className="flex items-center gap-1 min-w-0">
+                {pathname.split('/').filter(Boolean).length > 1 && (
+                  <Button variant="ghost" size="icon" className="h-9 w-9 -ml-2 shrink-0" aria-label="Atrás"
+                    onClick={() => (window.history.length > 1 ? router.back() : router.push(`/${pathname.split('/').filter(Boolean)[0]}`))}>
+                    <ArrowLeft size={20} />
+                  </Button>
+                )}
+                <h1 className="text-lg font-bold truncate">
+                  {menuItems.find((item) => pathname.startsWith(item.href))?.label.replace('Dashboard', 'Inicio')
+                    ?? (pathname.startsWith('/admin') ? 'Admin' : 'VetSystem')}
+                </h1>
+              </div>
+            ) : (
             <div className="flex items-center gap-3">
               <Button
                 variant="ghost"
@@ -700,6 +722,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
               </Button>
             </div>
+            )}
 
             <div className="flex items-center gap-3">
               {soloLectura && !isDemo && (
@@ -711,7 +734,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               {subscriptionExpiry && (
                 <SubscriptionExpiryChip expiry={subscriptionExpiry} />
               )}
-              <ThemeSwitcher />
+              {!appMode && <ThemeSwitcher />}
               <BellNotification />
 
               {/* ── User dropdown ── */}
@@ -918,16 +941,39 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         {!isDemo && <PaymentReturnHandler />}
         {!isDemo && <OwnerPaymentAlerts />}
 
-        {/* Stock alerts — visible en todas las páginas */}
-        <div className="px-6 pt-4 print:hidden">
-          <AlertasStock />
-        </div>
+        {/* Installed on a phone without the mobile app in the plan: the web layout, plus an upsell for managers */}
+        {appModeLocked && esAdmin && !upsellHidden && (
+          <div className="mx-4 mt-3 flex items-start gap-2.5 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5 text-xs print:hidden">
+            <Sparkles size={15} className="text-primary shrink-0 mt-0.5" />
+            <p className="flex-1">
+              Estás usando la versión web en el celular. La <strong>app móvil</strong>, con navegación inferior y pantallas
+              para el teléfono, viene en el plan Profesional.{' '}
+              <Link href="/admin" className="font-semibold text-primary underline underline-offset-2">Ver planes</Link>
+            </p>
+            <button type="button" aria-label="Cerrar" className="text-muted-foreground"
+              onClick={() => { setUpsellHidden(true); try { localStorage.setItem('vetsys-app-upsell-dismissed', '1'); } catch {} }}>
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
+        {/* Stock alerts — every page on the web; only Inicio in the phone app (the bell lists them too) */}
+        {(!appMode || pathname.startsWith('/dashboard')) && (
+          <div className={cn('px-6 pt-4 print:hidden', appMode && 'px-4 pt-3')}>
+            <AlertasStock />
+          </div>
+        )}
 
         {/* Contenido */}
-        <main className="flex-1 overflow-auto p-6 print:p-0">
+        <main className={cn('flex-1 overflow-auto p-6 print:p-0',
+          appMode && 'p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))]')}>
           {blockedModule ? <PlanUpgradeRequired module={blockedModule} /> : children}
         </main>
       </div>
+
+      {appMode && (
+        <MobileTabBar items={menuItems.filter((item) => item.disponible && tieneAcceso(item.modulo))} />
+      )}
 
     </div>
   );

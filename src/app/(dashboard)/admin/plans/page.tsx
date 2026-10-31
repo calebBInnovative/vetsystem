@@ -10,9 +10,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { isPlatformOwner } from '@/lib/usage/usage.service';
 import {
   PLAN_IDS, PLAN_MODULE_LABELS, savePlans, subscribePlanSettings,
-  type BillingPeriod, type PlanCatalog, type PlanConfig, type PlanCurrency, type PlanId,
+  type BillingPeriod, type PlanCatalog, type PlanConfig, type PlanCurrency, type PlanId, type PlanModule,
 } from '@/lib/billing/plans';
-import type { AppModule } from '@/types/license';
 import { cn } from '@/lib/utils';
 
 const INPUT = 'w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
@@ -63,7 +62,7 @@ export default function PlansPage() {
     update(id, { [field]: value === '' || !(amount > 0) ? null : Math.floor(amount) });
   }
 
-  function toggleModule(id: PlanId, module: AppModule) {
+  function toggleModule(id: PlanId, module: PlanModule) {
     if (!catalog) return;
     const modules = catalog[id].modules.includes(module)
       ? catalog[id].modules.filter((m) => m !== module)
@@ -174,7 +173,7 @@ export default function PlansPage() {
                 <div className="space-y-1.5">
                   <p className="text-xs font-medium">Módulos incluidos</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {(Object.keys(PLAN_MODULE_LABELS) as AppModule[]).map((module) => {
+                    {(Object.keys(PLAN_MODULE_LABELS) as PlanModule[]).map((module) => {
                       const on = plan.modules.includes(module);
                       return (
                         <button key={module} type="button" onClick={() => toggleModule(id, module)}

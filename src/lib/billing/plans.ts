@@ -19,8 +19,14 @@ export const PERIOD_DAYS: Record<BillingPeriod, number> = { monthly: 30, annual:
 
 export type PlanCurrency = 'USD' | 'NIO';
 
+/**
+ * What a plan can include: the app modules (also gated per user by Permissions)
+ * plus plan-only features that are not per-user, like the installed mobile app.
+ */
+export type PlanModule = AppModule | 'mobileApp';
+
 /** Every module a plan can switch off, with its label for the owner's editor. */
-export const PLAN_MODULE_LABELS: Record<AppModule, string> = {
+export const PLAN_MODULE_LABELS: Record<PlanModule, string> = {
   patients:      'Pacientes',
   schedule:      'Agenda',
   consultations: 'Consultas',
@@ -32,15 +38,25 @@ export const PLAN_MODULE_LABELS: Record<AppModule, string> = {
   finances:      'Finanzas y egresos',
   promotions:    'Promociones',
   import:        'Importar / exportar',
+  mobileApp:     'App móvil',
 };
-const PLAN_MODULES = Object.keys(PLAN_MODULE_LABELS) as AppModule[];
+const PLAN_MODULES = Object.keys(PLAN_MODULE_LABELS) as PlanModule[];
+
+/**
+ * Version of the module list. Catalogs and licenses saved before a module
+ * existed cannot list it, so modules introduced at a later set are granted
+ * from the plan's defaults when the stored set is older (see withLateModules).
+ * Bump it, and add the module to LATE_MODULES, whenever a plan module is added.
+ */
+export const MODULE_SET = 2;
+const LATE_MODULES: Partial<Record<PlanModule, number>> = { mobileApp: 2 };
 
 export interface PlanLimits {
   /** null = unlimited */
   maxUsers: number | null;
   /** Active (not deleted) patients; null = unlimited */
   maxPatients: number | null;
-  modules: AppModule[];
+  modules: PlanModule[];
 }
 
 export interface PlanConfig extends PlanLimits {
@@ -53,7 +69,7 @@ export interface PlanConfig extends PlanLimits {
 
 export type PlanCatalog = Record<PlanId, PlanConfig>;
 
-const BASIC_MODULES: AppModule[] = ['patients', 'schedule', 'consultations', 'sales', 'quotes', 'inventory', 'services'];
+const BASIC_MODULES: PlanModule[] = ['patients', 'schedule', 'consultations', 'sales', 'quotes', 'inventory', 'services'];
 
 export const DEFAULT_PLANS: PlanCatalog = {
   basic: {
@@ -87,8 +103,16 @@ function limit(value: unknown, fallback: number | null): number | null {
   return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : fallback;
 }
 
-function modulesFrom(value: unknown, fallback: AppModule[]): AppModule[] {
-  return Array.isArray(value) ? PLAN_MODULES.filter((m) => (value as unknown[]).includes(m)) : fallback;
+function moduleSetOf(record: Record<string, unknown> | null | undefined): number {
+  return typeof record?.moduleSet === 'number' ? record.moduleSet : 1;
+}
+
+/** Stored module list, plus the modules it predates that the plan includes by default. */
+function modulesFrom(value: unknown, fallback: PlanModule[], storedSet: number): PlanModule[] {
+  if (!Array.isArray(value)) return fallback;
+  const stored = value as unknown[];
+  return PLAN_MODULES.filter((m) =>
+    stored.includes(m) || ((LATE_MODULES[m] ?? 0) > storedSet && fallback.includes(m)));
 }
 
 /** platform/plans.annualEnabled: the owner's switch to stop selling annual periods. Default on. */
@@ -136,7 +160,7 @@ export function parseStoredPlans(data: Record<string, unknown> | undefined): Pla
       prices,
       maxUsers:    'maxUsers' in r ? limit(r.maxUsers, base.maxUsers) : base.maxUsers,
       maxPatients: 'maxPatients' in r ? limit(r.maxPatients, base.maxPatients) : base.maxPatients,
-      modules:     modulesFrom(r.modules, base.modules),
+      modules:     modulesFrom(r.modules, base.modules, moduleSetOf(data)),
     };
   }
   return catalog;
@@ -153,7 +177,7 @@ export function limitsFromLicense(license: Record<string, unknown>): PlanLimits 
   return {
     maxUsers:    'maxUsers' in l ? limit(l.maxUsers, base.maxUsers) : base.maxUsers,
     maxPatients: 'maxPatients' in l ? limit(l.maxPatients, base.maxPatients) : base.maxPatients,
-    modules:     modulesFrom(l.modules, base.modules),
+    modules:     modulesFrom(l.modules, base.modules, moduleSetOf(l)),
   };
 }
 
@@ -197,7 +221,7 @@ export function subscribePlanSettings(
 
 /** Platform owner only (firestore.rules). */
 export async function savePlans({ catalog, annualEnabled }: PlanSettings): Promise<void> {
-  await setDoc(doc(getFirestoreDb(), 'platform', 'plans'), { plans: catalog, annualEnabled, updatedAt: serverTimestamp() });
+  await setDoc(doc(getFirestoreDb(), 'platform', 'plans'), { plans: catalog, annualEnabled, moduleSet: MODULE_SET, updatedAt: serverTimestamp() });
 }
 
 /** Limits in force for this session, offline included. Demo and old sessions get their plan's defaults. */
@@ -206,6 +230,6 @@ export function sessionLimits(session: Pick<SessionLocal, 'plan' | 'planLimits' 
   return limitsFromLicense({ plan: session?.isDemo ? 'clinic' : session?.plan });
 }
 
-export function planAllowsModule(session: Pick<SessionLocal, 'plan' | 'planLimits' | 'isDemo'> | null, module: AppModule): boolean {
+export function planAllowsModule(session: Pick<SessionLocal, 'plan' | 'planLimits' | 'isDemo'> | null, module: PlanModule): boolean {
   return sessionLimits(session).modules.includes(module);
 }

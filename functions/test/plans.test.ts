@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { DEFAULT_PLANS, annualEnabled, parsePlans, parseStoredPlans, planIdOf } from '../src/billing/plans';
+import { DEFAULT_PLANS, MODULE_SET, annualEnabled, parsePlans, parseStoredPlans, planIdOf, planLimits } from '../src/billing/plans';
 
 describe('subscription plans', () => {
   it('falls back to the defaults when nothing is saved', () => {
@@ -40,6 +40,26 @@ describe('subscription plans', () => {
     assert.equal(annualEnabled(undefined), true);
     assert.equal(annualEnabled({ annualEnabled: 'no' }), true);
     assert.equal(parsePlans({}).basic.prices.USD.annual, DEFAULT_PLANS.basic.prices.USD.annual);
+  });
+
+  it('grants a module added later to catalogs saved before it, as the plan defaults say', () => {
+    const legacy = { plans: {
+      basic: { modules: ['patients', 'schedule'] },
+      professional: { modules: ['patients', 'schedule', 'finances'] },
+    } };
+    const catalog = parsePlans(legacy);
+    assert.ok(catalog.professional.modules.includes('mobileApp'));
+    assert.ok(!catalog.basic.modules.includes('mobileApp'));
+  });
+
+  it('respects the owner switching the mobile app off in a current catalog', () => {
+    const current = { moduleSet: MODULE_SET, plans: { professional: { modules: ['patients', 'finances'] } } };
+    assert.deepEqual(parsePlans(current).professional.modules, ['patients', 'finances']);
+  });
+
+  it('stamps license limits with the module set they were written under', () => {
+    assert.equal(planLimits(DEFAULT_PLANS.professional).moduleSet, MODULE_SET);
+    assert.ok(DEFAULT_PLANS.professional.modules.includes('mobileApp'));
   });
 
   it('maps licenses from before plans existed to Professional', () => {

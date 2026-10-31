@@ -28,6 +28,9 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  // Lets the installed app reach the screen edges; env(safe-area-inset-*) keeps
+  // the bottom tab bar clear of the iPhone home indicator.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

@@ -17,12 +17,25 @@ export const PERIOD_DAYS: Record<BillingPeriod, number> = { monthly: 30, annual:
 
 export type PlanCurrency = 'USD' | 'NIO';
 
-/** Modules a plan can switch off. Mirrors AppModule in src/types/license.ts. */
+/** Modules a plan can switch off. Mirrors PlanModule in src/lib/billing/plans.ts. */
 export const PLAN_MODULES = [
   'patients', 'schedule', 'consultations', 'sales', 'quotes', 'inventory',
-  'finances', 'invoices', 'services', 'promotions', 'import',
+  'finances', 'invoices', 'services', 'promotions', 'import', 'mobileApp',
 ] as const;
 export type PlanModule = typeof PLAN_MODULES[number];
+
+/**
+ * Version of the module list. Catalogs and licenses saved before a module
+ * existed cannot list it, so modules introduced at a later set are granted
+ * from the plan's defaults when the stored set is older (see withLateModules).
+ * Bump it, and add the module to LATE_MODULES, whenever a plan module is added.
+ */
+export const MODULE_SET = 2;
+const LATE_MODULES: Partial<Record<PlanModule, number>> = { mobileApp: 2 };
+
+function moduleSetOf(record: Record<string, unknown> | null | undefined): number {
+  return typeof record?.moduleSet === 'number' ? record.moduleSet : 1;
+}
 
 export interface PlanLimits {
   /** null = unlimited */
@@ -30,6 +43,8 @@ export interface PlanLimits {
   /** Active (not deleted) patients; null = unlimited */
   maxPatients: number | null;
   modules: PlanModule[];
+  /** Written with every license limits copy (MODULE_SET), so readers know which modules it could list. */
+  moduleSet?: number;
 }
 
 export interface PlanConfig extends PlanLimits {
@@ -128,8 +143,10 @@ export function parseStoredPlans(data: Record<string, unknown> | undefined): Pla
         ? Object.fromEntries((['monthly', 'annual'] as const).flatMap((p) => positive(c[p]) ? [[p, positive(c[p])]] : []))
         : { ...base.prices[currency] };
     }
+    const storedSet = moduleSetOf(data);
     const modules = Array.isArray(r.modules)
-      ? PLAN_MODULES.filter((m) => (r.modules as unknown[]).includes(m))
+      ? PLAN_MODULES.filter((m) => (r.modules as unknown[]).includes(m)
+          || ((LATE_MODULES[m] ?? 0) > storedSet && base.modules.includes(m)))
       : base.modules;
     catalog[id] = {
       id,
@@ -145,5 +162,5 @@ export function parseStoredPlans(data: Record<string, unknown> | undefined): Pla
 }
 
 export function planLimits(plan: PlanConfig): PlanLimits {
-  return { maxUsers: plan.maxUsers, maxPatients: plan.maxPatients, modules: [...plan.modules] };
+  return { maxUsers: plan.maxUsers, maxPatients: plan.maxPatients, modules: [...plan.modules], moduleSet: MODULE_SET };
 }

@@ -392,6 +392,17 @@ All in `src/hooks/useNotifications.ts`. No backend required — pure browser Not
 ### Metadata
 `src/app/layout.tsx` exports `metadata` (manifest, apple-web-app) and `viewport` (themeColor, no user-scale).
 
+### App mode (phone app)
+`useAppMode()` turns the dashboard into a phone app — bottom tab bar (`MobileTabBar`), compact header
+with ← back, dialogs as bottom sheets (CSS in `ui/dialog.tsx` keyed on `<html data-app-mode>`) — only when
+the app is **installed** (standalone), the screen is phone-sized and the plan includes the `mobileApp`
+module ("App móvil", Profesional and Clínica by default). Básico gets the web layout plus an upsell.
+Preview in a normal tab: `localStorage.setItem('vetsys-app-mode-preview', '1')`.
+
+**Adding a plan module:** add it to `PlanModule` (client) and `PLAN_MODULES` (server), bump `MODULE_SET`
+on both sides and list it in `LATE_MODULES`, so catalogs and licenses saved earlier still grant it from
+the plan defaults. `PlanModule` ≠ `AppModule`: per-user `Permissions` only cover `AppModule`.
+
 ---
 
 ## 15. Script Automation

@@ -47,6 +47,9 @@ function DialogOverlay({
   )
 }
 
+const DIALOG_APP_MODE_SHEET =
+  "[[data-app-mode]_&]:top-auto [[data-app-mode]_&]:bottom-0 [[data-app-mode]_&]:left-0 [[data-app-mode]_&]:translate-x-0 [[data-app-mode]_&]:translate-y-0 [[data-app-mode]_&]:max-w-none [[data-app-mode]_&]:w-full [[data-app-mode]_&]:rounded-b-none [[data-app-mode]_&]:rounded-t-2xl [[data-app-mode]_&]:max-h-[90dvh] [[data-app-mode]_&]:overflow-y-auto [[data-app-mode]_&]:pt-7 [[data-app-mode]_&]:pb-[calc(1rem+env(safe-area-inset-bottom))] [[data-app-mode]_&]:data-open:slide-in-from-bottom-10 [[data-app-mode]_&]:data-open:zoom-in-100 [[data-app-mode]_&]:before:absolute [[data-app-mode]_&]:before:top-2.5 [[data-app-mode]_&]:before:left-1/2 [[data-app-mode]_&]:before:-translate-x-1/2 [[data-app-mode]_&]:before:h-1 [[data-app-mode]_&]:before:w-10 [[data-app-mode]_&]:before:rounded-full [[data-app-mode]_&]:before:bg-muted-foreground/30 [[data-app-mode]_&]:before:content-['']"
+
 function DialogContent({
   className,
   children,
@@ -62,7 +65,10 @@ function DialogContent({
         data-slot="dialog-content"
         className={cn(
           "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-          className
+          className,
+          // Installed phone app: slide up from the bottom like a native sheet.
+          // After `className` so it wins over per-dialog widths and positions.
+          DIALOG_APP_MODE_SHEET
         )}
         {...props}
       >
