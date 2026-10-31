@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import {
   Loader2, Save, CheckCircle, Search, Plus, Minus,
   Activity, FileText, Package, Receipt, X,
+  ChevronRight,
 } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -31,7 +32,7 @@ function formatMonto(n: number) {
 const TABS = [
   { id: 'examen',   label: 'Examen',                icon: Activity },
   { id: 'clinico',  label: 'Clínico',               icon: FileText },
-  { id: 'products', label: 'Productos y services',  icon: Package  },
+  { id: 'products', label: 'Productos y servicios', icon: Package  },
   { id: 'cobro',    label: 'Cobro',                 icon: Receipt  },
 ] as const;
 
@@ -212,6 +213,8 @@ export function ConsultaForm({ consultaId, consultation, onFinalizada, onCancela
     }
   }
 
+  const nextTab = TABS[TABS.findIndex((t) => t.id === tab) + 1];
+
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col h-full relative">
@@ -245,7 +248,7 @@ export function ConsultaForm({ consultaId, consultation, onFinalizada, onCancela
 
       {/* Tabs */}
       <div className="flex border-b border-border shrink-0 bg-card">
-        {TABS.map(({ id, label, icon: Icon }) => (
+        {TABS.map(({ id, label, icon: Icon }, i) => (
           <button
             key={id}
             type="button"
@@ -258,7 +261,10 @@ export function ConsultaForm({ consultaId, consultation, onFinalizada, onCancela
             )}
           >
             <Icon size={15} />
-            <span className="hidden sm:block">{label}</span>
+            {/* Phone app: numbered steps with a short name, so the order is clear */}
+            <span className="hidden sm:block app:block">
+              <span className="hidden app:inline">{i + 1}. </span>{label.split(' y ')[0]}
+            </span>
           </button>
         ))}
       </div>
@@ -625,12 +631,18 @@ export function ConsultaForm({ consultaId, consultation, onFinalizada, onCancela
           <Button type="button" variant="outline" onClick={onCancelada} className="text-destructive border-destructive/30 hover:bg-destructive/5">
             Cancelar
           </Button>
-          <Button type="submit" className="flex-1 h-11 text-base gap-2" disabled={finalizando}>
+          {/* Phone app: walk the steps; "Finalizar" only on the last one */}
+          {nextTab && (
+            <Button type="button" className="hidden app:flex flex-1 h-11 text-base gap-2" onClick={() => setTab(nextTab.id)}>
+              Siguiente: {nextTab.label.split(' y ')[0]} <ChevronRight size={16} />
+            </Button>
+          )}
+          <Button type="submit" className={cn('flex-1 h-11 text-base gap-2', nextTab && 'app:hidden')} disabled={finalizando}>
             {finalizando
               ? <Loader2 size={16} className="animate-spin" />
               : <CheckCircle size={16} />
             }
-            Finalizar consultation
+            Finalizar consulta
           </Button>
         </div>
       </div>

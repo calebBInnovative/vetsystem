@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { Fab } from '@/components/layout/Fab';
 import { useConsultations, useConsultasEnProceso } from '@/hooks/useConsultations';
 import { ConsultaCard } from '@/components/consultations/ConsultationCard';
 import { Button } from '@/components/ui/button';
@@ -42,8 +43,8 @@ export default function ConsultationsPage() {
   return (
     <div className="space-y-6">
 
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      {/* Header (phone app: title in the top bar, "Nueva consulta" as a floating button) */}
+      <div className="flex items-start justify-between gap-4 app:hidden">
         <div>
           <h1 className="text-2xl font-bold">Consultas</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Historial de atenciones</p>
@@ -142,6 +143,7 @@ export default function ConsultationsPage() {
           ))}
         </div>
       )}
+      <Fab href="/consultations/new" icon={Plus} label="Nueva consulta" />
     </div>
   );
 }

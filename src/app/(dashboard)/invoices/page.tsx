@@ -162,8 +162,8 @@ export default function InvoicesPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-4">
-        <div>
+      <div className="flex items-center justify-between gap-4 app:justify-end">
+        <div className="app:hidden">
           <h1 className="text-2xl font-bold">Facturas</h1>
           <p className="text-sm text-muted-foreground">Historial de cobros y cuentas por cobrar</p>
         </div>

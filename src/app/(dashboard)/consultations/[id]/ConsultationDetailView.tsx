@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { CONSULTATION_TYPES, CONSULTATION_STATUSES } from '@/types/consultation';
 import { cn } from '@/lib/utils';
+import { APP_MODE_FILL } from '@/components/layout/appModeLayout';
 
 export function ConsultationDetailView() {
   const id     = useRouteId();
@@ -153,7 +154,7 @@ export function ConsultationDetailView() {
 
   return (
     <>
-      <div className="h-[calc(100vh-4rem)] -m-4 sm:-m-6 flex flex-col">
+      <div className={cn('h-[calc(100vh-4rem)] -m-4 sm:-m-6 flex flex-col', APP_MODE_FILL)}>
         <ConsultaForm
           consultaId={id}
           consultation={consulta}

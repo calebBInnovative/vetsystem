@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
+import { Fab } from '@/components/layout/Fab';
 import { useProducts, updateProduct, deleteProduct } from '@/hooks/useInventory';
 import { ProductoCard } from '@/components/inventory/ProductCard';
 import { ProductoRow } from '@/components/inventory/ProductRow';
@@ -288,8 +289,8 @@ export default function InventoryPage() {
       </Dialog>
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
+      <div className="flex items-center justify-between gap-4 app:justify-end">
+        <div className="app:hidden">
           <h1 className="text-2xl font-bold">Inventario</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {loading ? 'Cargando...' : `${products.length} producto${products.length !== 1 ? 's' : ''}`}
@@ -308,7 +309,7 @@ export default function InventoryPage() {
               <Button variant="outline" className="gap-2" onClick={enterEditMode} disabled={loading || products.length === 0}>
                 <Pencil size={15} /> Editar lista
               </Button>
-              <Link href="/inventory/new">
+              <Link href="/inventory/new" className="app:hidden">
                 <Button className="gap-2">
                   <Plus size={17} />
                   <span className="hidden sm:inline">Nuevo</span>
@@ -435,6 +436,7 @@ export default function InventoryPage() {
         </>
       )}
 
+      {!editMode && <Fab href="/inventory/new" icon={Plus} label="Nuevo producto" />}
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { PacienteSelector } from '@/components/common/PatientSelector';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { APP_MODE_FILL } from '@/components/layout/appModeLayout';
 import { type PromotionLocal } from '@/types/promotion';
 import {
   Search, Plus, Minus, Trash2, ShoppingCart, ArrowLeft,
@@ -1033,10 +1034,7 @@ export default function SalesPage() {
   // ── Layout ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className={cn('h-[calc(100vh-4rem)] -m-4 sm:-m-6 flex flex-col',
-      // Phone app: fill the space between the top bar and the tab bar, cancelling main's padding.
-      '[[data-app-mode]_&]:m-0 [[data-app-mode]_&]:-mx-4 [[data-app-mode]_&]:-mt-4 [[data-app-mode]_&]:-mb-[calc(5.5rem+env(safe-area-inset-bottom))]',
-      '[[data-app-mode]_&]:h-[calc(100dvh-7rem-1px-env(safe-area-inset-bottom))]')}>
+    <div className={cn('h-[calc(100vh-4rem)] -m-4 sm:-m-6 flex flex-col', APP_MODE_FILL)}>
 
       {/* Phone app, cart open: a way back to the catalog instead of the header toggle */}
       {view === 'carrito' && (
