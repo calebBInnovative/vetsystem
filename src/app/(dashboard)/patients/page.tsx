@@ -86,7 +86,7 @@ function EstadoVacio({ busqueda }: { busqueda: string }) {
       <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto">
         <Users className="h-8 w-8 text-muted-foreground/40" />
       </div>
-      <p className="font-semibold text-lg">Aún no hay patients</p>
+      <p className="font-semibold text-lg">Aún no hay pacientes</p>
       <p className="text-sm text-muted-foreground max-w-xs mx-auto">
         Registra tu primera mascota para comenzar a usar VetSystem
       </p>

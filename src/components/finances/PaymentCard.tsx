@@ -71,7 +71,7 @@ export function PagoCard({ pago, compact = false }: PagoCardProps) {
   const clienteLabel = pago.patientName && pago.patientName !== 'Patient'
     ? pago.patientName
     : pago.type === 'product'
-    ? 'Sale directa'
+    ? 'Venta directa'
     : 'Sin paciente';
 
   const matchFac   = pago.concept?.match(/^(FAC-\d{4}-\d{4})/);

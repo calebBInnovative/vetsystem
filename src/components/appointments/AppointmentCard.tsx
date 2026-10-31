@@ -53,7 +53,7 @@ export function CitaCard({ cita }: CitaCardProps) {
   const handleEliminar = async () => {
     try {
       await eliminarCita(cita.id);
-      toast.success('Appointment eliminada');
+      toast.success('Cita eliminada');
     } catch {
       toast.error('No se pudo eliminar la cita');
     }

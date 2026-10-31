@@ -32,8 +32,8 @@ export function HistorialTimeline({ pacienteId, nombrePaciente }: HistorialTimel
         <p className="font-semibold text-lg">Sin historial clínico</p>
         <p className="text-sm text-muted-foreground max-w-xs mx-auto">
           {nombrePaciente
-            ? `${nombrePaciente} no tiene consultations registradas aún.`
-            : 'No hay consultations registradas para este paciente.'}
+            ? `${nombrePaciente} no tiene consultas registradas aún.`
+            : 'No hay consultas registradas para este paciente.'}
         </p>
         <div className="pt-2">
           <Link href={`/patients/${pacienteId}/history/new`}>

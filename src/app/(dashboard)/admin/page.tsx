@@ -1046,7 +1046,7 @@ function TabDatos() {
       <Advertencia>
         Opera solo sobre <strong>IndexedDB local</strong> (este navegador). No toca Firebase.
       </Advertencia>
-      <Card titulo="Datos de prueba" desc="8 dueños · 12 patients · consultations · appointments · 18 products · 30 payments">
+      <Card titulo="Datos de prueba" desc="8 dueños · 12 pacientes · consultas · citas · 18 productos · 30 pagos">
         <div className="flex gap-3">
           <Button onClick={sembrar} disabled={accion === 'loading'} className="gap-2 flex-1">
             {accion === 'loading' ? <Loader2 size={14} className="animate-spin" /> : <Sprout size={14} />}

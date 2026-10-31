@@ -77,7 +77,7 @@ function FacturaRow({ factura, selected, onToggle }: {
                 const items = factura.items ?? [];
                 const summary = items.slice(0, 2).map((i) => `${i.description} ×${i.quantity}`).join(', ');
                 const extra   = items.length > 2 ? ` +${items.length - 2} más` : '';
-                return `🛒 ${summary}${extra}` || 'Sale de products';
+                return `🛒 ${summary}${extra}` || 'Venta de productos';
               })()
             : `${factura.patientName ?? '—'} · ${factura.ownerName ?? '—'}`
           }
@@ -266,7 +266,7 @@ export default function InvoicesPage() {
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <Receipt size={32} className="text-muted-foreground/40 mb-3" />
             <p className="text-muted-foreground">
-              {searchQuery ? 'Sin resultados para tu búsqueda' : 'No hay invoices aún'}
+              {searchQuery ? 'Sin resultados para tu búsqueda' : 'No hay facturas aún'}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
               Las invoices se generan al finalizar una consulta

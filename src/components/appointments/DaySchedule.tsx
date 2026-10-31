@@ -32,7 +32,7 @@ export function AgendaDia({ fecha }: AgendaDiaProps) {
           <CalendarDays className="h-8 w-8 text-muted-foreground/40" />
         </div>
         <p className="font-semibold text-lg">
-          {esHoy ? 'Sin appointments para hoy' : 'Sin appointments para este día'}
+          {esHoy ? 'Sin citas para hoy' : 'Sin citas para este día'}
         </p>
         <p className="text-sm text-muted-foreground max-w-xs mx-auto">
           {format(fechaObj, "EEEE d 'de' MMMM", { locale: es })} está libre

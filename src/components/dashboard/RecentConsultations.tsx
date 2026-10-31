@@ -16,10 +16,10 @@ export function UltimasConsultas() {
   return (
     <div className="bg-card rounded-2xl border border-border p-5">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="font-semibold">Últimas consultations</h2>
+        <h2 className="font-semibold">Últimas consultas</h2>
         <Link href="/patients">
           <Button variant="ghost" size="sm" className="gap-1 text-xs h-7">
-            Ver patients <ArrowRight size={13} />
+            Ver pacientes <ArrowRight size={13} />
           </Button>
         </Link>
       </div>
@@ -33,7 +33,7 @@ export function UltimasConsultas() {
       ) : consultations.length === 0 ? (
         <div className="text-center py-8 space-y-2">
           <ClipboardList className="h-8 w-8 text-muted-foreground/30 mx-auto" />
-          <p className="text-sm text-muted-foreground">Sin consultations registradas aún</p>
+          <p className="text-sm text-muted-foreground">Sin consultas registradas aún</p>
         </div>
       ) : (
         <div className="space-y-2">

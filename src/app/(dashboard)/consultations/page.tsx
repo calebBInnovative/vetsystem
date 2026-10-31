@@ -125,7 +125,7 @@ export default function ConsultationsPage() {
         </div>
       ) : consultasFiltradas.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
-          <p className="text-lg font-medium">Sin consultations</p>
+          <p className="text-lg font-medium">Sin consultas</p>
           <p className="text-sm mt-1">
             {searchQuery || filtro !== 'todas' ? 'No hay resultados para los filtros aplicados' : 'Registra la primera consulta'}
           </p>

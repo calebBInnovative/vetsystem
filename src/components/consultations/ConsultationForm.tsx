@@ -397,7 +397,7 @@ export function ConsultaForm({ consultaId, consultation, onFinalizada, onCancela
                   onChange={(e) => setBusquedaServicio(e.target.value)}
                   onFocus={() => setServiciosFocused(true)}
                   onBlur={() => setServiciosFocused(false)}
-                  placeholder="Buscar en catálogo de services…"
+                  placeholder="Buscar en catálogo de servicios…"
                   className="w-full rounded-xl border border-input bg-background pl-9 pr-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
@@ -563,7 +563,7 @@ export function ConsultaForm({ consultaId, consultation, onFinalizada, onCancela
             {items.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <Package size={32} className="mx-auto mb-2 opacity-30" />
-                <p className="text-sm">Sin products ni services</p>
+                <p className="text-sm">Sin productos ni servicios</p>
                 <button type="button" onClick={() => setTab('products')} className="text-xs text-primary mt-1 hover:underline">
                   Ir a Productos
                 </button>

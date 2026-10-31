@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useDashboard } from '@/hooks/useDashboard';
+import { useAuth } from '@/contexts/AuthContext';
 import { ProximasCitasDia } from '@/components/dashboard/UpcomingAppointments';
 import { UltimasConsultas } from '@/components/dashboard/RecentConsultations';
 import { Users, Calendar, Package, ClipboardList, Plus, ArrowRight } from 'lucide-react';
@@ -12,7 +13,10 @@ import { es } from 'date-fns/locale';
 
 export default function DashboardPage() {
   const { kpis, loading } = useDashboard();
-  const hoy = format(new Date(), "EEEE d 'de' MMMM", { locale: es });
+  const { session } = useAuth();
+  // "viernes 30 de octubre" → "Viernes 30 de octubre" (CSS capitalize would also capitalize "De").
+  const today = format(new Date(), "EEEE d 'de' MMMM", { locale: es });
+  const hoy = today.charAt(0).toUpperCase() + today.slice(1);
 
   const tarjetas = [
     {
@@ -42,7 +46,7 @@ export default function DashboardPage() {
       color:     kpis?.lowStockProducts ? 'text-amber-500' : 'text-green-500',
       bg:        kpis?.lowStockProducts ? 'bg-amber-500/10' : 'bg-green-500/10',
       href:      '/inventory',
-      subtitulo: kpis?.lowStockProducts ? 'products' : 'todo en orden',
+      subtitulo: kpis?.lowStockProducts ? 'productos' : 'todo en orden',
     },
     {
       label:     'Consultas este mes',
@@ -61,8 +65,8 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold capitalize">{hoy}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Pet&apos;s House · Panel de control</p>
+          <h1 className="text-2xl font-bold">{hoy}</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">{session?.clinicName ? `${session.clinicName} · ` : ''}Panel de control</p>
         </div>
         <div className="flex gap-2">
           <Link href="/patients/new">
@@ -74,7 +78,7 @@ export default function DashboardPage() {
             <Button size="sm" className="gap-1.5">
               <Plus size={14} />
               <span className="hidden sm:inline">Nueva cita</span>
-              <span className="sm:hidden">Appointment</span>
+              <span className="sm:hidden">Cita</span>
             </Button>
           </Link>
         </div>

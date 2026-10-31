@@ -174,7 +174,7 @@ function buildReceiptBody(
   // ── Patient / owner ──
   const pacienteHtml = (factura.patientName || factura.ownerName) ? `
     <div class="center info-block">
-      ${factura.patientName ? `<div>Patient: <strong>${escHtml(factura.patientName)}</strong>${factura.patientSpecies ? ` (${escHtml(factura.patientSpecies)})` : ''}</div>` : ''}
+      ${factura.patientName ? `<div>Paciente: <strong>${escHtml(factura.patientName)}</strong>${factura.patientSpecies ? ` (${escHtml(factura.patientSpecies)})` : ''}</div>` : ''}
       ${factura.ownerName   ? `<div>Due&ntilde;o: <strong>${escHtml(factura.ownerName)}</strong>${factura.ownerPhone ? ` &middot; ${escHtml(factura.ownerPhone)}` : ''}</div>` : ''}
     </div>
     <div class="dash"></div>

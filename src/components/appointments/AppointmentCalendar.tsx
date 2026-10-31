@@ -158,7 +158,7 @@ export function CalendarioCitas({ fecha, onFechaChange }: Props) {
           <span className="h-1 w-1 rounded-full bg-primary inline-block" /> 1 cita
         </span>
         <span className="flex items-center gap-1">
-          <span className="h-1 w-3 rounded-full bg-amber-500 inline-block" /> 2–3 appointments
+          <span className="h-1 w-3 rounded-full bg-amber-500 inline-block" /> 2–3 citas
         </span>
         <span className="flex items-center gap-1">
           <span className="h-1 w-4 rounded-full bg-red-500 inline-block" /> 4+

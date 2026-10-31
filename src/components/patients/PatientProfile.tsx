@@ -37,9 +37,9 @@ export function FichaPaciente() {
     return (
       <div className="text-center py-24 space-y-4">
         <p className="text-4xl">🐾</p>
-        <p className="font-medium">Patient no encontrado</p>
+        <p className="font-medium">Paciente no encontrado</p>
         <Link href="/patients">
-          <Button variant="outline">Volver a patients</Button>
+          <Button variant="outline">Volver a pacientes</Button>
         </Link>
       </div>
     );

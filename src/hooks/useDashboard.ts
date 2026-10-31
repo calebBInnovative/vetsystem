@@ -2,10 +2,12 @@
 
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, getClinicaId } from '@/lib/db/database';
+import { format } from 'date-fns';
 
 /** Returns all dashboard KPIs in a single reactive query. */
 export function useDashboard() {
-  const today = new Date().toISOString().slice(0, 10);
+  // Local day: appointment dates are the clinic's calendar day, not UTC (Nicaragua is UTC-6).
+  const today = format(new Date(), 'yyyy-MM-dd');
 
   const data = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
@@ -77,7 +79,7 @@ export function useDashboard() {
 
 /** Upcoming appointments for today with patient data joined */
 export function useProximasCitasDia() {
-  const today       = new Date().toISOString().slice(0, 10);
+  const today       = format(new Date(), 'yyyy-MM-dd');
   const currentTime = new Date().toTimeString().slice(0, 5);
 
   const result = useLiveQuery(async () => {

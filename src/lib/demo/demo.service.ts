@@ -5,7 +5,7 @@ import { tryLoadDemoSnapshot, DEMO_CLINIC_ID } from '@/lib/demo/demo.snapshot';
 import type { SessionLocal } from '@/types/license';
 import type { PatientLocal, OwnerLocal } from '@/types/patient';
 import type { ConsultationLocal, ConsultationItem } from '@/types/consultation';
-import type { AppointmentLocal } from '@/types/appointment';
+import { APPOINTMENT_TYPES, type AppointmentLocal } from '@/types/appointment';
 import type { ProductLocal, StockMovementLocal } from '@/types/inventory';
 import type { PaymentLocal } from '@/types/finances';
 import type { InvoiceLocal, InvoiceItem } from '@/types/invoice';
@@ -16,10 +16,14 @@ import type { Collaborator, CollaboratorPayment } from '@/types/collaborator';
 
 function uuid() { return crypto.randomUUID(); }
 function ts()   { return Date.now(); }
+/** Local calendar day (YYYY-MM-DD), like the dates the app's forms store — not the UTC day. */
+function localDay(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 function dateStr(offsetDays = 0) {
   const d = new Date();
   d.setDate(d.getDate() + offsetDays);
-  return d.toISOString().slice(0, 10);
+  return localDay(d);
 }
 function tsOffset(offsetDays: number) {
   return Date.now() + offsetDays * 86_400_000;
@@ -171,7 +175,7 @@ async function _seedDemoData() {
   // ── Services ─────────────────────────────────────────────────────────────────
   const servicesRaw: { name: string; category: ServiceLocal['category']; price: number }[] = [
     { name: 'Consulta general',       category: 'consultation', price: 350  },
-    { name: 'Consultation de emergencia', category: 'emergency',    price: 600  },
+    { name: 'Consulta de emergencia', category: 'emergency',    price: 600  },
     { name: 'Vacuna antirrábica',         category: 'vaccination',  price: 280  },
     { name: 'Vacuna múltiple',            category: 'vaccination',  price: 450  },
     { name: 'Desparasitación',            category: 'deworming',    price: 150  },
@@ -268,7 +272,7 @@ async function _seedDemoData() {
     durationMinutes: 30,
     type:            cit.type,
     status:          cit.status,
-    reason:          `Appointment de ${cit.type}`,
+    reason:          APPOINTMENT_TYPES[cit.type as AppointmentLocal['type']]?.label ?? 'Cita',
     syncStatus:      'pending' as const,
     updatedAt:       now,
     createdAt:       now,
@@ -470,15 +474,15 @@ async function _seedDemoData() {
   }
 
   // ── Fixed expenses ────────────────────────────────────────────────────────────
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDay(new Date());
 
   function nextDue(paymentDay: number): string {
     const d = new Date();
     d.setDate(paymentDay);
-    if (d.toISOString().slice(0, 10) < today) d.setMonth(d.getMonth() + 1);
+    if (localDay(d) < today) d.setMonth(d.getMonth() + 1);
     const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
     d.setDate(Math.min(paymentDay, lastDay));
-    return d.toISOString().slice(0, 10);
+    return localDay(d);
   }
 
   const fixedExpensesRaw: { name: string; amount: number; category: FixedExpense['category']; frequency: FixedExpense['frequency']; paymentDay: number }[] = [

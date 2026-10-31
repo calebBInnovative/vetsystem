@@ -77,7 +77,8 @@ function AgendaContent() {
             </button>
 
             <div className="flex-1 text-center">
-              <p className="font-semibold text-sm capitalize">
+              {/* Uppercase only the first letter: CSS capitalize would also turn "de" into "De". */}
+              <p className="font-semibold text-sm first-letter:uppercase">
                 {format(fechaObj, "EEEE d 'de' MMMM", { locale: es })}
               </p>
               {esHoy && (

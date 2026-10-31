@@ -155,12 +155,12 @@ const VISIT_REASONS = [
 ] as const;
 
 const CONCEPTS_BY_TYPE: Record<string, string[]> = {
-  consultation: ['Consulta general', 'Consultation de urgencia', 'Revisión dermatológica', 'Revisión dental'],
+  consultation: ['Consulta general', 'Consulta de urgencia', 'Revisión dermatológica', 'Revisión dental'],
   vaccination:  ['Vacuna antirrábica', 'Vacuna DHPP', 'Vacuna triple felina', 'Vacuna bordetella'],
   surgery:      ['Castración', 'Esterilización', 'Extracción dental', 'Limpieza dental profunda'],
   product:      ['Alimento Royal Canin', 'Ivermectina', 'Shampoo medicado', 'Collar antipulgas'],
   grooming:     ['Baño y corte', 'Corte de uñas', 'Limpieza de oídos'],
-  other:        ['Examen de laboratorio', 'Radiografía', 'Service varios'],
+  other:        ['Examen de laboratorio', 'Radiografía', 'Servicios varios'],
 };
 
 const AMOUNTS_BY_TYPE: Record<string, number[]> = {

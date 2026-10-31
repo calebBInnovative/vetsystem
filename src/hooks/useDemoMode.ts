@@ -7,32 +7,32 @@ export const TOUR_STEPS = [
   {
     targetId: 'nav-dashboard',
     titulo:   'Panel principal',
-    desc:     'Un summary en tiempo real de tu clínica: appointments del día, cobros pendientes y alerts de inventario.',
+    desc:     'Un resumen en tiempo real de tu clínica: citas del día, cobros pendientes y alertas de inventario.',
   },
   {
     targetId: 'nav-patients',
-    titulo:   'Gestión de patients',
+    titulo:   'Gestión de pacientes',
     desc:     'Registra y consulta el historial completo de cada mascota. Vacunas, diagnósticos, recetas y más.',
   },
   {
     targetId: 'nav-schedule',
-    titulo:   'Agenda y appointments',
-    desc:     'Organiza las appointments del día. Ve, edita y confirma desde un solo lugar.',
+    titulo:   'Agenda y citas',
+    desc:     'Organiza las citas del día. Ve, edita y confirma desde un solo lugar.',
   },
   {
     targetId: 'nav-consultations',
     titulo:   'Consultas médicas',
-    desc:     'Registra consultations con diagnóstico, tratamiento y services usados. Genera la factura al finalizar.',
+    desc:     'Registra consultas con diagnóstico, tratamiento y servicios usados. Genera la factura al finalizar.',
   },
   {
     targetId: 'nav-inventory',
     titulo:   'Inventario inteligente',
-    desc:     'Controla el stock de tus products. El sistema te avisa cuando algo está por agotarse.',
+    desc:     'Controla el stock de tus productos. El sistema te avisa cuando algo está por agotarse.',
   },
   {
     targetId: 'nav-finances',
     titulo:   'Finanzas',
-    desc:     'Ve todos tus cobros, payments pendientes y el summary financiero del mes.',
+    desc:     'Ve todos tus cobros, pagos pendientes y el resumen financiero del mes.',
   },
   {
     targetId: 'user-menu-trigger',
