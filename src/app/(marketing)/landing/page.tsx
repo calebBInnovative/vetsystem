@@ -17,6 +17,8 @@ import { Testimonials } from '@/components/marketing/Testimonials';
 import { Faq } from '@/components/marketing/Faq';
 import { OfflineDay } from '@/components/marketing/OfflineDay';
 import { SiteFooter } from '@/components/marketing/SiteFooter';
+import { ProductTour } from '@/components/marketing/ProductTour';
+import { BrowserFrame, PhoneFrame } from '@/components/marketing/DeviceFrames';
 import { useLandingContent } from '@/hooks/useLandingContent';
 import { DEFAULT_HERO, splitHeroTitle } from '@/lib/marketing/landing';
 import { cn } from '@/lib/utils';
@@ -98,69 +100,6 @@ function Navbar() {
 
 // ─── Hero ─────────────────────────────────────────────────────────────────────
 
-function DashboardMockup() {
-  return (
-    <div className="relative w-full max-w-lg mx-auto">
-      <div className="rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
-        {/* Window bar */}
-        <div className="flex items-center gap-1.5 px-4 py-3 bg-muted/60 border-b border-border">
-          <div className="w-3 h-3 rounded-full bg-red-400" />
-          <div className="w-3 h-3 rounded-full bg-yellow-400" />
-          <div className="w-3 h-3 rounded-full bg-green-400" />
-          <span className="ml-3 text-xs text-muted-foreground font-mono">vetsystem · dashboard</span>
-        </div>
-
-        <div className="flex h-64">
-          {/* Sidebar mock */}
-          <div className="w-14 bg-[rgb(13,78,70)] flex flex-col items-center py-3 gap-3 shrink-0">
-            {['H', 'P', 'C', 'V', 'F'].map((l, i) => (
-              <div key={i} className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold ${i === 0 ? 'bg-white/20 text-white' : 'text-white/50'
-                }`}>{l}</div>
-            ))}
-          </div>
-
-          {/* Content */}
-          <div className="flex-1 p-3 space-y-2 overflow-hidden">
-            <div className="grid grid-cols-3 gap-2">
-              {[['Pacientes', '24', 'text-primary'], ['Citas hoy', '6', 'text-emerald-600'], ['Pendiente', '$850', 'text-amber-600']].map(([label, val, color]) => (
-                <div key={label} className="bg-muted/50 rounded-xl p-2">
-                  <p className="text-[10px] text-muted-foreground">{label}</p>
-                  <p className={`text-sm font-bold ${color}`}>{val}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="bg-muted/30 rounded-xl p-2">
-              <p className="text-[10px] font-semibold text-muted-foreground mb-1.5">Citas del día</p>
-              {[
-                ['Luna', 'Golden R.', '9:00', 'Consulta'],
-                ['Mochi', 'Persa', '10:30', 'Vacuna'],
-                ['Rex', 'Pastor A.', '11:00', 'Control'],
-              ].map(([name, breed, time, type]) => (
-                <div key={name} className="flex items-center gap-2 py-1 border-b border-border/50 last:border-0">
-                  <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[9px] font-bold text-primary shrink-0">
-                    {name[0]}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-semibold truncate">{name} · {breed}</p>
-                  </div>
-                  <span className="text-[9px] text-muted-foreground shrink-0">{time}</span>
-                  <span className="text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full shrink-0">{type}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Floating badge */}
-      <div className="absolute -bottom-3 -right-3 bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg">
-        ✓ Sin internet
-      </div>
-    </div>
-  );
-}
-
 function Hero() {
   const content = useLandingContent();
   const hero = content?.hero ?? DEFAULT_HERO;
@@ -213,8 +152,18 @@ function Hero() {
             )}
           </div>
 
-          <div className="hidden lg:block">
-            <DashboardMockup />
+          {/* Real screens of the demo clinic (public/landing/screens/) */}
+          <div className="relative pb-10 lg:pb-0 lg:pl-6">
+            <BrowserFrame src="dashboard.webp" darkSrc="dashboard-dark.webp" priority
+              alt="Panel de control de VetSystem con las citas de hoy y las últimas consultas" />
+            <PhoneFrame src="mobile-dashboard.webp" priority alt="VetSystem en el celular"
+              className="absolute -bottom-4 -left-3 sm:-left-6 w-24 sm:w-32 lg:-bottom-16 lg:-left-10" />
+            <div className="absolute -top-4 right-3 sm:-right-4 flex items-center gap-2 rounded-full bg-card border border-border shadow-lg px-3.5 py-2 text-xs font-semibold">
+              <span className="flex w-5 h-5 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600">
+                <Check size={12} strokeWidth={3} />
+              </span>
+              Guardado sin internet
+            </div>
           </div>
         </div>
       </div>
@@ -275,174 +224,6 @@ function Beneficios() {
               </div>
             </div>
           ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─── Demo / Sistema en acción ─────────────────────────────────────────────────
-
-function PacienteMockup() {
-  return (
-    <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-      <div className="px-4 py-3 border-b border-border bg-muted/40 flex items-center gap-2">
-        <div className="w-2 h-2 rounded-full bg-primary" />
-        <span className="text-xs font-semibold">Ficha de paciente</span>
-      </div>
-      <div className="p-4 space-y-3">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-xl">🐕</div>
-          <div>
-            <p className="font-bold text-sm">Luna</p>
-            <p className="text-xs text-muted-foreground">Golden Retriever · 3 años · Hembra</p>
-            <p className="text-xs text-muted-foreground">Dueño: María González</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          {[['Última visita', '15 jun 2026'], ['Vacunas', 'Al día ✓'], ['Peso', '28.5 kg'], ['Alergias', 'Ninguna']].map(([k, v]) => (
-            <div key={k} className="bg-muted/40 rounded-xl px-3 py-2">
-              <p className="text-[10px] text-muted-foreground">{k}</p>
-              <p className="text-xs font-semibold">{v}</p>
-            </div>
-          ))}
-        </div>
-        <div className="bg-muted/30 rounded-xl p-2.5">
-          <p className="text-[10px] font-semibold text-muted-foreground mb-1">Última consulta</p>
-          <p className="text-xs">Revisión general. Sin anomalías. Se recomienda control en 6 meses.</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AgendaMockup() {
-  const citas = [
-    { hora: '08:00', nombre: 'Mochi', tipo: 'Vacuna', estado: 'Atendida', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400' },
-    { hora: '09:30', nombre: 'Rex', tipo: 'Control', estado: 'En curso', color: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400' },
-    { hora: '10:00', nombre: 'Simba', tipo: 'Consulta', estado: 'Espera', color: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400' },
-    { hora: '11:30', nombre: 'Canela', tipo: 'Revisión', estado: 'Espera', color: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400' },
-  ];
-  return (
-    <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-      <div className="px-4 py-3 border-b border-border bg-muted/40 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-emerald-500" />
-          <span className="text-xs font-semibold">Agenda del día</span>
-        </div>
-        <span className="text-xs text-muted-foreground">24 jun 2026</span>
-      </div>
-      <div className="p-3 space-y-1.5">
-        {citas.map(({ hora, nombre, tipo, estado, color }) => (
-          <div key={hora} className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-muted/40 transition-colors">
-            <span className="text-xs font-mono text-muted-foreground w-10 shrink-0">{hora}</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold truncate">{nombre}</p>
-              <p className="text-[10px] text-muted-foreground">{tipo}</p>
-            </div>
-            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${color}`}>
-              {estado}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function FacturaMockup() {
-  const items = [
-    { desc: 'Consulta general', qty: 1, precio: 350 },
-    { desc: 'Vacuna antirrábica', qty: 1, precio: 280 },
-    { desc: 'Desparasitante', qty: 2, precio: 85 },
-  ];
-  const subtotal = items.reduce((s, i) => s + i.precio * i.qty, 0);
-  return (
-    <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-      <div className="px-4 py-3 border-b border-border bg-muted/40 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-purple-500" />
-          <span className="text-xs font-semibold">Factura · FAC-2026-0042</span>
-        </div>
-      </div>
-      <div className="p-4 space-y-3">
-        <div className="flex justify-between text-xs text-muted-foreground">
-          <span>Paciente: Luna G.</span>
-          <span>24 jun 2026</span>
-        </div>
-        <div className="space-y-1">
-          {items.map(({ desc, qty, precio }) => (
-            <div key={desc} className="flex items-center justify-between text-xs py-1 border-b border-border/50 last:border-0">
-              <span className="truncate flex-1">{desc}</span>
-              <span className="text-muted-foreground mx-2">x{qty}</span>
-              <span className="font-semibold shrink-0">C$ {(precio * qty).toLocaleString()}</span>
-            </div>
-          ))}
-        </div>
-        <div className="bg-primary/5 rounded-xl p-3 flex justify-between items-center">
-          <span className="text-sm font-bold">Total</span>
-          <span className="text-base font-extrabold text-primary">C$ {subtotal.toLocaleString()}</span>
-        </div>
-        <div className="flex gap-2">
-          <div className="flex-1 text-center bg-primary text-primary-foreground text-xs font-semibold py-2 rounded-xl">
-            Marcar pagada
-          </div>
-          <div className="flex-1 text-center bg-muted text-muted-foreground text-xs font-semibold py-2 rounded-xl">
-            Enviar
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Demo() {
-  const [tab, setTab] = useState<'paciente' | 'agenda' | 'factura'>('paciente');
-
-  const tabs = [
-    { id: 'paciente', label: 'Ficha clínica' },
-    { id: 'agenda', label: 'Agenda' },
-    { id: 'factura', label: 'Facturación' },
-  ] as const;
-
-  return (
-    <section id="demo" className="py-24">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="text-center space-y-3 mb-14">
-          <p className="text-sm font-semibold text-primary uppercase tracking-wider">El sistema en acción</p>
-          <h2 className="text-3xl sm:text-4xl font-bold">Diseñado para tu flujo diario</h2>
-          <p className="text-muted-foreground max-w-md mx-auto">
-            Cada pantalla pensada para ser rápida. Sin curva de aprendizaje.
-          </p>
-        </div>
-
-        <div className="flex justify-center mb-8">
-          <div className="inline-flex bg-muted rounded-xl p-1 gap-1">
-            {tabs.map(({ id, label }) => (
-              <button
-                key={id}
-                onClick={() => setTab(id)}
-                className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${tab === id
-                    ? 'bg-card text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                  }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="max-w-sm mx-auto">
-          {tab === 'paciente' && <PacienteMockup />}
-          {tab === 'agenda' && <AgendaMockup />}
-          {tab === 'factura' && <FacturaMockup />}
-        </div>
-
-        <div className="text-center mt-10">
-          <Button size="lg" variant="outline" className="h-12 px-8" asChild>
-            <Link href="/demo">Probar el demo sin registrarte</Link>
-          </Button>
         </div>
       </div>
     </section>
@@ -542,7 +323,7 @@ export default function LandingPage() {
       <Hero />
       <OfflineDay />
       <Beneficios />
-      <Demo />
+      <ProductTour />
       <Modulos />
       <PricingPlans />
       <Testimonials />
