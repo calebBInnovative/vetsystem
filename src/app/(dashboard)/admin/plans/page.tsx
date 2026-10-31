@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { ArrowLeft, Loader2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { LoadError } from '@/components/admin/LoadError';
 import { useAuth } from '@/contexts/AuthContext';
 import { isPlatformOwner } from '@/lib/usage/usage.service';
 import {
@@ -31,6 +32,7 @@ export default function PlansPage() {
   const [annualOn, setAnnualOn] = useState(true);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<Error | null>(null);
 
   useEffect(() => {
     if (!loading && !platformOwner) router.replace('/admin');
@@ -39,7 +41,7 @@ export default function PlansPage() {
   // Live until the first edit, so unsaved changes are never overwritten.
   useEffect(() => {
     if (!platformOwner || dirty) return;
-    return subscribePlanSettings((s) => { setCatalog(s.catalog); setAnnualOn(s.annualEnabled); });
+    return subscribePlanSettings((s) => { setLoadError(null); setCatalog(s.catalog); setAnnualOn(s.annualEnabled); }, setLoadError);
   }, [platformOwner, dirty]);
 
   function update(id: PlanId, patch: Partial<PlanConfig>) {
@@ -123,7 +125,9 @@ export default function PlansPage() {
         </label>
       )}
 
-      {!catalog ? (
+      {loadError && !catalog ? (
+        <LoadError error={loadError} what="los planes" />
+      ) : !catalog ? (
         <div className="flex justify-center py-10"><Loader2 size={18} className="animate-spin text-muted-foreground" /></div>
       ) : (
         <div className="space-y-4">

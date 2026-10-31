@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { ArrowLeft, ExternalLink, Loader2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { LoadError } from '@/components/admin/LoadError';
 import { useAuth } from '@/contexts/AuthContext';
 import { isPlatformOwner } from '@/lib/usage/usage.service';
 import {
@@ -38,6 +39,7 @@ export default function LandingAdminPage() {
   const [tab, setTab] = useState<Tab>('hero');
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<Error | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   // Photos referenced by the saved document: the ones gone after a save are deleted from Storage.
   const savedPhotos = useRef<string[]>([]);
@@ -51,8 +53,9 @@ export default function LandingAdminPage() {
     if (!platformOwner || dirty) return;
     return subscribeLandingContent((c) => {
       savedPhotos.current = c.testimonials.map((t) => t.photoPath).filter(Boolean);
+      setLoadError(null);
       setContent(c);
-    });
+    }, setLoadError);
   }, [platformOwner, dirty]);
 
   /** Updater for one section, for the editors. */
@@ -139,7 +142,9 @@ export default function LandingAdminPage() {
         ))}
       </div>
 
-      {!content ? (
+      {loadError && !content ? (
+        <LoadError error={loadError} what="el contenido de la página" />
+      ) : !content ? (
         <div className="flex justify-center py-10"><Loader2 size={18} className="animate-spin text-muted-foreground" /></div>
       ) : tab === 'hero' ? (
         <HeroEditor hero={content.hero} onChange={section('hero')} />

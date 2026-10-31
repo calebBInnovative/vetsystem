@@ -184,11 +184,14 @@ export interface PlanSettings {
 }
 
 /** Platform owner's editing view of platform/plans (/admin/plans). */
-export function subscribePlanSettings(onChange: (settings: PlanSettings) => void): Unsubscribe {
+export function subscribePlanSettings(
+  onChange: (settings: PlanSettings) => void,
+  onError?: (err: Error) => void,
+): Unsubscribe {
   return onSnapshot(
     doc(getFirestoreDb(), 'platform', 'plans'),
     (snap) => onChange({ catalog: parseStoredPlans(snap.data()), annualEnabled: annualEnabled(snap.data()) }),
-    (err) => console.warn('[billing] plans listener failed:', err),
+    (err) => { console.warn('[billing] plans listener failed:', err); onError?.(err); },
   );
 }
 

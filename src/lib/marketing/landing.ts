@@ -322,11 +322,14 @@ export function fetchLandingContent(): Promise<LandingContent> {
 }
 
 /** Platform owner's live view (/admin/landing). */
-export function subscribeLandingContent(onChange: (content: LandingContent) => void): Unsubscribe {
+export function subscribeLandingContent(
+  onChange: (content: LandingContent) => void,
+  onError?: (err: Error) => void,
+): Unsubscribe {
   return onSnapshot(
     doc(getFirestoreDb(), 'platform', 'landing'),
     (snap) => onChange(parseLanding(snap.data())),
-    (err) => console.warn('[landing] content listener failed:', err),
+    (err) => { console.warn('[landing] content listener failed:', err); onError?.(err); },
   );
 }
 
