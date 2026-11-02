@@ -65,7 +65,11 @@ export class FirebaseSyncProvider implements SyncProvider {
     since: number,
     clinicId: string,
     fullHistory = false,
+    branchIds?: string[],
   ): Promise<RemoteDoc[]> {
+    // Staff devices ask only for their branches: firestore.rules refuses a query
+    // that could return another branch's documents.
+    const scope: QueryConstraint[] = branchIds?.length ? [where('branchId', 'in', branchIds)] : [];
     // Query by _syncedAt (server-set timestamp). This guarantees we catch documents
     // regardless of when they were originally created on the client device.
     // Rules use 1 get() per list evaluation — well within the 10-read limit.
@@ -78,6 +82,7 @@ export class FirebaseSyncProvider implements SyncProvider {
     // Primary query: documents with _syncedAt > cursor
     do {
       const constraints: QueryConstraint[] = [
+        ...scope,
         where('_syncedAt', '>', sinceTimestamp),
         orderBy('_syncedAt', 'asc'),
         limit(BATCH_SIZE),
@@ -105,8 +110,8 @@ export class FirebaseSyncProvider implements SyncProvider {
       let lastFallbackDoc: QueryDocumentSnapshot | null = null;
       do {
         const constraints: QueryConstraint[] = windowed
-          ? [where('updatedAt', '>=', cutoff), orderBy('updatedAt', 'asc'), limit(BATCH_SIZE)]
-          : [limit(BATCH_SIZE)];
+          ? [...scope, where('updatedAt', '>=', cutoff), orderBy('updatedAt', 'asc'), limit(BATCH_SIZE)]
+          : [...scope, limit(BATCH_SIZE)];
         if (lastFallbackDoc) constraints.push(startAfter(lastFallbackDoc));
         const snap = await getDocs(query(this.colRef(collectionName, clinicId), ...constraints));
         for (const d of snap.docs) {
@@ -129,6 +134,7 @@ export class FirebaseSyncProvider implements SyncProvider {
     clinicId: string,
     onChange: (docs: RemoteDoc[]) => void,
     onError?: (err: Error) => void,
+    branchIds?: string[],
   ): () => void {
     // Only listen for documents pushed AFTER `since` (the pull cursor).
     // On open: 1 read + 0 docs if pullAll just ran. Going forward: 1 read per
@@ -136,6 +142,7 @@ export class FirebaseSyncProvider implements SyncProvider {
     const sinceTs = Timestamp.fromMillis(since);
     const q = query(
       this.colRef(collectionName, clinicId),
+      ...(branchIds?.length ? [where('branchId', 'in', branchIds)] : []),
       where('_syncedAt', '>', sinceTs),
       orderBy('_syncedAt', 'asc'),
     );

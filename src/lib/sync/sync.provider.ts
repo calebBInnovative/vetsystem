@@ -38,6 +38,8 @@ export interface SyncProvider {
      * the UI reads only from the local DB, so a missing patient looks deleted.
      */
     fullHistory?: boolean,
+    /** Staff only: limit branch-isolated collections to these branches (where branchId in …) */
+    branchIds?: string[],
   ): Promise<RemoteDoc[]>;
 
   /**
@@ -52,6 +54,7 @@ export interface SyncProvider {
     clinicId: string,
     onChange: (docs: RemoteDoc[]) => void,
     onError?: (err: Error) => void,
+    branchIds?: string[],
   ): () => void;
 
   /** Nombre del provider — útil para logs */

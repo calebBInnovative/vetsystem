@@ -17,7 +17,7 @@
  *   No setInterval anywhere in this file.
  */
 
-import { db, BRANCH_SCOPED_TABLES } from '@/lib/db/database';
+import { db, BRANCH_SCOPED_TABLES, branchOf } from '@/lib/db/database';
 import { MAIN_BRANCH_ID } from '@/types/branch';
 import { syncProvider } from './sync.config';
 import { toast } from 'sonner';
@@ -81,6 +81,26 @@ function canSyncCollection(nombre: string, session: SyncSession): boolean {
   return session.role === 'master' || session.role === 'admin' || session.permissions?.finances === true;
 }
 
+/**
+ * Collections firestore.rules isolates per branch for staff. Consultations are
+ * branch-scoped in the UI but stay readable clinic-wide: the patient's clinical
+ * history is shared by every branch.
+ */
+const BRANCH_ISOLATED = new Set<string>(BRANCH_SCOPED_TABLES.filter((t) => t !== 'consultations'));
+
+type BranchSession = SyncSession & { isDemo?: boolean; branchIds?: string[] };
+
+/** Staff only: the branches their device may download. Managers get every branch (undefined = no filter). */
+function staffBranchIds(session: BranchSession): string[] | undefined {
+  if (session.role === 'master' || session.role === 'admin' || session.isDemo) return undefined;
+  return session.branchIds?.length ? [...session.branchIds].sort() : [MAIN_BRANCH_ID];
+}
+
+/** Branch filter for one collection's queries, or undefined when it is not isolated for this user. */
+function branchScopeFor(nombre: string, session: BranchSession): string[] | undefined {
+  return BRANCH_ISOLATED.has(nombre) ? staffBranchIds(session) : undefined;
+}
+
 /** The synced tables this session may read. */
 function tablesFor(session: SyncSession) {
   return TABLAS_SYNC.filter(({ nombre }) => canSyncCollection(nombre, session));
@@ -119,6 +139,26 @@ export type SyncAllProgress = {
   errores:       number;
   mensajesError: string[];
 };
+
+// ─── Branch isolation on staff devices ────────────────────────────────────────
+
+/**
+ * Drops already-synced rows of branches this staff member no longer works in
+ * (or that an older app version downloaded). Pending local changes are kept so
+ * nothing unsent is lost. Managers keep everything.
+ */
+async function purgeForeignBranchRows(session: BranchSession): Promise<void> {
+  const allowed = staffBranchIds(session);
+  if (!allowed) return;
+  let removed = 0;
+  for (const name of BRANCH_ISOLATED) {
+    removed += await db.table(name)
+      .filter((row: { branchId?: string; syncStatus?: string }) =>
+        row.syncStatus === 'synced' && !allowed.includes(branchOf(row)))
+      .delete();
+  }
+  if (removed > 0) console.log(`[sync] removed ${removed} row(s) of other branches from this device`);
+}
 
 // ─── Dexie upsert helper ──────────────────────────────────────────────────────
 
@@ -405,13 +445,13 @@ class SyncService {
 
     const tables = tablesFor(session);
     for (const { nombre } of tables) {
-      this.openSubscription(nombre, clinicId, from);
+      this.openSubscription(nombre, clinicId, from, branchScopeFor(nombre, session));
     }
 
     console.log(`[sync] ${tables.length} subscriptions open (since ${new Date(since).toISOString()})`);
   }
 
-  private openSubscription(nombre: string, clinicId: string, since: number): void {
+  private openSubscription(nombre: string, clinicId: string, since: number, branchIds?: string[]): void {
     const unsub = syncProvider.subscribe(
       nombre,
       since,
@@ -435,9 +475,10 @@ class SyncService {
         // (not unsubscribers.length) so a listener still reopens when every
         // subscription fails at once, e.g. on auth token expiry.
         setTimeout(() => {
-          if (this.started) this.openSubscription(nombre, clinicId, since);
+          if (this.started) this.openSubscription(nombre, clinicId, since, branchIds);
         }, 10_000);
       },
+      branchIds,
     );
     this.unsubscribers.push(unsub);
   }
@@ -460,6 +501,16 @@ class SyncService {
       localStorage.setItem(ACTIVE_USER_KEY, currentUser);
     }
 
+    // A staff member given a new branch has none of its history yet: the cursor
+    // only covers what changed since the last pull. Start over when they change.
+    const BRANCHES_KEY = `vetsystem_pull_branches_${clinicId}_${uid}`;
+    const branchSignature = (staffBranchIds(session) ?? ['*']).join(',');
+    if (localStorage.getItem(BRANCHES_KEY) !== branchSignature) {
+      localStorage.removeItem(LAST_PULL_KEY);
+      localStorage.setItem(BRANCHES_KEY, branchSignature);
+      await purgeForeignBranchRows(session);
+    }
+
     const lastPull      = parseInt(localStorage.getItem(LAST_PULL_KEY) ?? '0', 10);
     const pullStartedAt = Date.now();
     let   pullErrored   = false;
@@ -476,7 +527,7 @@ class SyncService {
         this.emitProgress({ done: index, total: tables.length, collection: nombre });
         try {
           const docs = await withTimeout(
-            syncProvider.pull(nombre, rewindCursor(lastPull), clinicId),
+            syncProvider.pull(nombre, rewindCursor(lastPull), clinicId, false, branchScopeFor(nombre, session)),
             PULL_TIMEOUT_MS,
             `pull ${nombre}`,
           );
@@ -528,7 +579,7 @@ class SyncService {
     for (const { nombre } of tablesFor(session)) {
       try {
         // Manual recovery: the user explicitly asked for the full history.
-        const docs = await syncProvider.pull(nombre, 0, clinicId, true);
+        const docs = await syncProvider.pull(nombre, 0, clinicId, true, branchScopeFor(nombre, session));
         if (docs.length > 0) {
           console.log(`[sync] forcePull ${nombre} — ${docs.length} doc(s)`);
           await upsertRemoteDocs(nombre, docs, clinicId);

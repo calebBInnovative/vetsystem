@@ -22,3 +22,6 @@ export { reportManualPayment, reviewManualPayment, sendOwnerTestPush } from './b
 
 // Expiry reminders: daily push to clinics about to expire, and an on-demand send.
 export { notifyExpiringLicenses, sendExpiryReminderNow } from './billing/reminders.functions';
+
+// Branches: keep a branchId on every branch-scoped document (staff sync filters on it).
+export { backfillBranches } from './branches/branches.functions';
