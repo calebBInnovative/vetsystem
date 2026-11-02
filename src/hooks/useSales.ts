@@ -5,6 +5,7 @@ import { db, getClinicaId, getBranchFilter, type SyncQueueItem } from '@/lib/db/
 import type { SaleLocal, SaleItem, SalePaymentMethod } from '@/types/sale';
 import type { InvoiceLocal, InvoiceItem } from '@/types/invoice';
 import type { PaymentLocal } from '@/types/finances';
+import { nextDocumentNumber } from '@/lib/numbering';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // READ HOOKS
@@ -71,6 +72,10 @@ export async function createSale(input: CreateSaleInput): Promise<string> {
     updatedAt:     now,
   };
 
+  // Before the transaction: the number reads branches, prefs and the session,
+  // which the transaction does not list (Dexie would throw NotFoundError).
+  const invoiceNumber = await nextDocumentNumber('FAC', clinicId);
+
   await db.transaction('rw',
     [db.sales, db.products, db.movements, db.payments, db.invoices, db.syncQueue],
     async () => {
@@ -107,7 +112,6 @@ export async function createSale(input: CreateSaleInput): Promise<string> {
 
       // 2 — Generate invoice
       const invoiceId     = crypto.randomUUID();
-      const invoiceNumber = await generateInvoiceNumber(clinicId);
       const invoiceItems: InvoiceItem[] = input.items.map((i) => ({
         id:          i.id,
         description: i.description,
@@ -192,15 +196,10 @@ export async function createSale(input: CreateSaleInput): Promise<string> {
 
 function buildSummary(invoiceNumber: string, items: SaleItem[]): string {
   const summary  = items.slice(0, 3).map((i) => `${i.description} ×${i.quantity}`).join(', ');
-  const overflow = items.length > 3 ? ` +${items.length - 3} more` : '';
+  const overflow = items.length > 3 ? ` +${items.length - 3} más` : '';
   return `${invoiceNumber} — ${summary}${overflow}`.slice(0, 200);
 }
 
-async function generateInvoiceNumber(clinicId: string): Promise<string> {
-  const year  = new Date().getFullYear();
-  const count = await db.invoices.where('clinicId').equals(clinicId).count();
-  return `FAC-${year}-${String(count + 1).padStart(4, '0')}`;
-}
 
 async function enqueueSync(item: Omit<SyncQueueItem, 'id'>): Promise<void> {
   await db.syncQueue.add(item as SyncQueueItem);

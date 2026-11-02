@@ -170,12 +170,18 @@ export function generatePdfHtml(report: ReportSummary, clinicName = 'Pet\'s Hous
   </div>
   <div class="report-meta">
     <div><strong>Período:</strong> ${periodLabel}</div>
+    ${report.scopeLabel ? `<div><strong>Sucursal:</strong> ${report.scopeLabel}</div>` : ''}
     <div><strong>Generado:</strong> ${report.generatedAt}</div>
     <div>VetSystem</div>
   </div>
 </header>
 
 ${section('Resumen ejecutivo', kpiTable)}
+${report.byBranch && report.byBranch.length > 1 ? section('Por sucursal', table(
+  ['Sucursal', 'Ventas', 'Ingresos', 'Gastos fijos', 'Colaboradores', 'Balance'],
+  report.byBranch.map((b) => [b.name, String(b.salesCount), fmt(b.revenue), fmt(b.expenses), fmt(b.collaborators),
+    `<strong class="${b.net >= 0 ? 'pos' : 'neg'}">${fmt(b.net)}</strong>`]),
+)) : ''}
 
 <div class="two-col">
   ${section('Ingresos por método de pago', methodRows.length ? table(['Método', 'Total'], methodRows) : '<p class="empty">Sin datos.</p>')}

@@ -277,8 +277,12 @@ A clinic can run several branches (points of sale), limited by the plan's `maxBr
   callback (reactive to branch switches). Patient-centric history and lookups by id are not filtered.
 - Active branch: device-local (`db.prefs`), picked in the header `BranchSwitcher`. Managers reach every active
   branch; staff only `users/{uid}.branchIds` (Admin → Usuarios). Branches are edited in Admin → Clínica.
-- Isolation is client-side for now (phase 3: rules + filtered sync). Consolidated reports and per-branch document
-  numbering are phase 2.
+- **Numbers:** `nextDocumentNumber('FAC'|'COT', clinicId)` (`src/lib/numbering.ts`): main branch keeps
+  `FAC-2026-0043`, other branches `FAC-SUR-2026-0001`; highest used + 1 per prefix and year. Call it **before**
+  `db.transaction` — it reads branches/prefs/session, which a transaction would have to list.
+- **Reports:** `useReportData(from, to, scope)` — `'active'`, `{ branchId }` or `'all'` (consolidated, with
+  `byBranch` totals). Managers with several branches open Reportes on "Todas las sucursales".
+- Isolation is client-side for now (phase 3: rules + filtered sync).
 
 ---
 

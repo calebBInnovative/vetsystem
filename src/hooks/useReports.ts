@@ -1,7 +1,8 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getClinicaId, getBranchFilter } from '@/lib/db/database';
+import { db, getClinicaId, getBranchFilter, branchOf, getActiveBranchId } from '@/lib/db/database';
+import { DEFAULT_MAIN_BRANCH, MAIN_BRANCH_ID } from '@/types/branch';
 import { format, parseISO, eachDayOfInterval, eachMonthOfInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -70,7 +71,25 @@ export interface ReportCollaboratorRow {
   notes?: string;
 }
 
+/** One branch's totals in a consolidated (all branches) report. */
+export interface ReportBranchRow {
+  branchId:      string;
+  name:          string;
+  salesCount:    number;
+  revenue:       number;
+  expenses:      number;
+  collaborators: number;
+  net:           number;
+}
+
+/** Which branches a report covers: the active one, one in particular, or all of them (consolidated). */
+export type ReportScope = 'active' | 'all' | { branchId: string };
+
 export interface ReportSummary {
+  /** Consolidated reports only: totals per branch, highest revenue first */
+  byBranch?:           ReportBranchRow[];
+  /** Branch names covered, for headers and the PDF ('Todas las sucursales' when consolidated) */
+  scopeLabel?:         string;
   // KPIs
   totalRevenue:        number;
   totalSalesCount:     number;
@@ -99,10 +118,15 @@ export interface ReportSummary {
   generatedAt:         string;
 }
 
-export function useReportData(from: string, to: string) {
+export function useReportData(from: string, to: string, scope: ReportScope = 'active') {
+  const scopeKey = typeof scope === 'string' ? scope : scope.branchId;
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
-    const inBranch = await getBranchFilter();
+    const inBranch: (row: object) => boolean = scope === 'all'
+      ? () => true
+      : scope === 'active'
+        ? await getBranchFilter()
+        : (row) => branchOf(row) === scope.branchId;
 
     const [sales, payments, expensePayments, collaboratorPayments, allProducts, allServices, allFixedExpenses, allCollaborators] =
       await Promise.all([
@@ -210,6 +234,29 @@ export function useReportData(from: string, to: string) {
     const totalExpenses      = expensePayments.reduce((s, ep) => s + ep.amount, 0);
     const totalCollaborators = collaboratorPayments.reduce((s, cp) => s + cp.amount, 0);
 
+    // Consolidated: the same totals split by branch, so branches can be compared side by side.
+    const branchRows = await db.branches.where('clinicId').equals(clinicId).filter((b) => !b.deletedAt).toArray();
+    const branchName = (id: string) =>
+      branchRows.find((b) => b.id === id)?.name ?? (id === MAIN_BRANCH_ID ? DEFAULT_MAIN_BRANCH.name : 'Sucursal');
+    let byBranch: ReportBranchRow[] | undefined;
+    if (scope === 'all') {
+      const rows = new Map<string, ReportBranchRow>();
+      const row = (id: string) => {
+        if (!rows.has(id)) rows.set(id, { branchId: id, name: branchName(id), salesCount: 0, revenue: 0, expenses: 0, collaborators: 0, net: 0 });
+        return rows.get(id)!;
+      };
+      for (const b of branchRows) if (b.active) row(b.id);
+      row(MAIN_BRANCH_ID);
+      for (const sale of sales) { const r = row(branchOf(sale)); r.salesCount++; r.revenue += sale.total; }
+      for (const ep of expensePayments) row(branchOf(ep)).expenses += ep.amount;
+      for (const cp of collaboratorPayments) row(branchOf(cp)).collaborators += cp.amount;
+      byBranch = [...rows.values()]
+        .map((r) => ({ ...r, net: r.revenue - r.expenses - r.collaborators }))
+        .sort((a, b) => b.revenue - a.revenue);
+    }
+    const scopeLabel = scope === 'all' ? 'Todas las sucursales'
+      : branchName(scope === 'active' ? await getActiveBranchId() : scope.branchId);
+
     // Expense detail rows
     const expenseRows: ReportExpenseRow[] = expensePayments
       .sort((a, b) => b.paymentDate.localeCompare(a.paymentDate))
@@ -311,6 +358,8 @@ export function useReportData(from: string, to: string) {
       }));
 
     return {
+      byBranch,
+      scopeLabel,
       totalRevenue,
       totalSalesCount:    sales.length,
       avgTicket:          sales.length > 0 ? totalRevenue / sales.length : 0,
@@ -331,7 +380,7 @@ export function useReportData(from: string, to: string) {
       to,
       generatedAt: format(new Date(), "d 'de' MMMM yyyy, HH:mm", { locale: es }),
     } satisfies ReportSummary;
-  }, [from, to]);
+  }, [from, to, scopeKey]);
 
   return { report: result ?? null, loading: result === undefined };
 }

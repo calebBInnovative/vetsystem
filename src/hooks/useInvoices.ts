@@ -6,6 +6,7 @@ import type { InvoiceLocal, InvoiceWithDetails, InvoiceStatus, InvoicePaymentMet
 import type { ConsultationLocal } from '@/types/consultation';
 import type { IncomeType } from '@/types/finances';
 import { PAYMENT_TYPE_BY_CONSULTATION } from '@/types/consultation';
+import { nextDocumentNumber } from '@/lib/numbering';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // READ HOOKS
@@ -118,7 +119,7 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<string> 
   const now       = Date.now();
   const id        = crypto.randomUUID();
   const clinicId  = await getClinicaId();
-  const number    = await generateInvoiceNumber(clinicId);
+  const number    = await nextDocumentNumber('FAC', clinicId);
   const discount  = input.discount ?? input.consultation.discount;
   const subtotal  = input.consultation.subtotal;
   const total     = Math.max(0, subtotal - discount);
@@ -273,7 +274,7 @@ export async function voidAndRectify(
   if (!original) throw new Error('Invoice not found');
 
   const newId     = crypto.randomUUID();
-  const newNumber = await generateInvoiceNumber(clinicId);
+  const newNumber = await nextDocumentNumber('FAC', clinicId);
 
   const newInvoice: InvoiceLocal = {
     ...original,
@@ -328,11 +329,6 @@ export async function voidAndRectify(
 // HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function generateInvoiceNumber(clinicId: string): Promise<string> {
-  const year  = new Date().getFullYear();
-  const count = await db.invoices.where('clinicId').equals(clinicId).count();
-  return `FAC-${year}-${String(count + 1).padStart(4, '0')}`;
-}
 
 async function encolarSync(item: Omit<SyncQueueItem, 'id'>): Promise<void> {
   await db.syncQueue.add(item as SyncQueueItem);

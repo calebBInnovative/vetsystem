@@ -2,7 +2,8 @@
 
 import { useState, useMemo } from 'react';
 import { format, subDays, subMonths, startOfMonth, endOfMonth, startOfYear, endOfYear, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter } from 'date-fns';
-import { useReportData } from '@/hooks/useReports';
+import { useReportData, type ReportScope } from '@/hooks/useReports';
+import { useBranches } from '@/hooks/useBranches';
 import { useInventoryValuation } from '@/hooks/useInventory';
 import { openPdfReport, printPdfReport } from '@/lib/reports/exportPdf';
 import { downloadCsv } from '@/lib/reports/exportCsv';
@@ -11,6 +12,7 @@ import { SERVICE_CATEGORIES } from '@/types/service';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import {
+  Store,
   FileText, Printer, Sheet, ShoppingBag, Stethoscope, CreditCard, ListCollapse, Package,
   CalendarDays, ChevronDown, ChevronUp, Wallet, Lightbulb,
 } from 'lucide-react';
@@ -216,7 +218,15 @@ export default function ReportsPage() {
   const from = useCustom && customFrom ? customFrom : PRESETS[preset].from();
   const to   = useCustom && customTo   ? customTo   : PRESETS[preset].to();
 
-  const { report, loading } = useReportData(from, to);
+  // Branch scope: managers start on the consolidated view; staff pick among their own branches.
+  const branchState = useBranches();
+  const isManager = session?.role === 'master' || session?.role === 'admin';
+  const multiBranch = (branchState?.allowed.length ?? 0) > 1;
+  const [scopeChoice, setScopeChoice] = useState<string | null>(null);
+  const scopeValue = scopeChoice ?? (isManager && multiBranch ? 'all' : 'active');
+  const scope: ReportScope = scopeValue === 'all' || scopeValue === 'active' ? scopeValue : { branchId: scopeValue };
+
+  const { report, loading } = useReportData(from, to, scope);
 
   // Category filter for products table
   const [productCatFilter, setProductCatFilter] = useState<string | null>(null);
@@ -419,6 +429,67 @@ export default function ReportsPage() {
           Mostrando datos del <strong>{from}</strong> al <strong>{to}</strong>
         </p>
       </div>
+
+      {/* ── Branch scope (only with more than one branch) ─────────── */}
+      {multiBranch && branchState && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Store size={14} className="text-primary mr-0.5" />
+          {[
+            ...(isManager ? [{ id: 'all', name: 'Todas las sucursales' }] : []),
+            ...branchState.allowed.map((b) => ({ id: b.id, name: b.name })),
+          ].map((opt) => {
+            const selected = scopeValue === opt.id || (scopeValue === 'active' && opt.id === branchState.activeId);
+            return (
+              <button key={opt.id} type="button" onClick={() => setScopeChoice(opt.id)}
+                className={cn('text-xs font-medium px-3 py-1.5 rounded-xl border transition-colors',
+                  selected ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:border-primary/40')}>
+                {opt.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Per-branch comparison (consolidated view) ─────────────── */}
+      {report?.byBranch && report.byBranch.length > 1 && (
+        <div className="bg-card rounded-2xl border border-border overflow-hidden">
+          <p className="px-4 pt-3.5 pb-2 text-sm font-semibold">Por sucursal</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs text-muted-foreground border-b border-border">
+                  <th className="text-left font-medium px-4 py-2">Sucursal</th>
+                  <th className="text-right font-medium px-3 py-2">Ventas</th>
+                  <th className="text-right font-medium px-3 py-2">Ingresos</th>
+                  <th className="text-right font-medium px-3 py-2">Egresos</th>
+                  <th className="text-right font-medium px-4 py-2">Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.byBranch.map((b) => {
+                  const share = report.totalRevenue > 0 ? Math.round((b.revenue / report.totalRevenue) * 100) : 0;
+                  return (
+                    <tr key={b.branchId} className="border-b border-border last:border-0">
+                      <td className="px-4 py-2.5">
+                        <p className="font-medium">{b.name}</p>
+                        <div className="mt-1 h-1.5 w-full max-w-40 rounded-full bg-muted overflow-hidden">
+                          <div className="h-full bg-primary" style={{ width: `${share}%` }} />
+                        </div>
+                      </td>
+                      <td className="text-right px-3 py-2.5 tabular-nums">{b.salesCount}</td>
+                      <td className="text-right px-3 py-2.5 tabular-nums">{fmtCurrency(b.revenue)}</td>
+                      <td className="text-right px-3 py-2.5 tabular-nums text-muted-foreground">{fmtCurrency(b.expenses + b.collaborators)}</td>
+                      <td className={cn('text-right px-4 py-2.5 tabular-nums font-semibold', b.net >= 0 ? 'text-emerald-600' : 'text-red-500')}>
+                        {fmtCurrency(b.net)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* ── Pending expenses alert ────────────────────────────────── */}
       <PendingExpensesAlert />

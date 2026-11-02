@@ -5,6 +5,7 @@ import { db, getClinicaId, getBranchFilter, type SyncQueueItem } from '@/lib/db/
 import { createSale } from '@/hooks/useSales';
 import type { QuoteLocal, QuoteStatus, QuoteWithDetails } from '@/types/quote';
 import type { SaleItem, SalePaymentMethod } from '@/types/sale';
+import { nextDocumentNumber } from '@/lib/numbering';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // READ HOOKS
@@ -110,7 +111,7 @@ export async function createQuote(input: CreateQuoteInput): Promise<string> {
 
   const quote: QuoteLocal = {
     id,
-    number:     await generateQuoteNumber(clinicId),
+    number:     await nextDocumentNumber('COT', clinicId),
     clinicId,
     date,
     validUntil: input.validUntil || addDays(date, 15),
@@ -225,11 +226,6 @@ function addDays(isoDate: string, days: number): string {
   return localDateString(date);
 }
 
-async function generateQuoteNumber(clinicId: string): Promise<string> {
-  const year  = new Date().getFullYear();
-  const count = await db.quotes.where('clinicId').equals(clinicId).count();
-  return `COT-${year}-${String(count + 1).padStart(4, '0')}`;
-}
 
 async function enqueueSync(item: Omit<SyncQueueItem, 'id'>): Promise<void> {
   await db.syncQueue.add(item as SyncQueueItem);

@@ -469,8 +469,8 @@ export const BRANCH_SCOPED_TABLES = [
 let activeBranchCache: string = MAIN_BRANCH_ID;
 
 /** A row's branch; rows from before branches existed belong to the main one. */
-export function branchOf(row: { branchId?: string | null }): string {
-  return row.branchId || MAIN_BRANCH_ID;
+export function branchOf(row: object): string {
+  return (row as { branchId?: string | null }).branchId || MAIN_BRANCH_ID;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -576,5 +576,5 @@ export async function setActiveBranchId(branchId: string): Promise<void> {
 export async function getBranchFilter(): Promise<(row: object) => boolean> {
   const branchId = await getActiveBranchId();
   // Entity types do not declare branchId (it is stamped by the creating hook), so accept any row.
-  return (row) => branchOf(row as { branchId?: string | null }) === branchId;
+  return (row) => branchOf(row) === branchId;
 }
