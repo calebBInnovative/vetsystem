@@ -63,6 +63,24 @@ service cloud.firestore {
           || (userRef().data.permissions != null && userRef().data.permissions.get('finances', false) == true);
     }
 
+    // Branches: inventory, sales, cash, invoices, agenda, quotes, expenses and payroll
+    // belong to one branch. Staff reach only the branches assigned to them
+    // (users/{uid}.branchIds; none = the main branch); managers reach all.
+    // Consultations are not listed: the clinical history is shared by every branch.
+    // Documents without branchId (from before branches) are the main branch's.
+    function branchIsolated(collection) {
+      return collection in ['products', 'movements', 'sales', 'payments', 'invoices', 'appointments',
+                            'quotes', 'fixedExpenses', 'expensePayments', 'collaborators', 'collaboratorPayments'];
+    }
+
+    function userBranches() {
+      return userRef().data.get('branchIds', []).size() > 0 ? userRef().data.branchIds : ['main'];
+    }
+
+    function inUserBranch(data) {
+      return userRef().data.role in ['master', 'admin'] || data.get('branchId', 'main') in userBranches();
+    }
+
     function staffRole(role) {
       return role in ['admin', 'veterinarian', 'reception'];
     }
@@ -118,14 +136,23 @@ service cloud.firestore {
       // The platform owner gets read only: enough to run count() aggregations
       // for metering, never enough to alter a customer's records.
       match /{collection}/{docId} {
-        allow read:  if (belongsToClinic(clinicId) && (!financeCollection(collection) || canUseFinances()))
+        allow read:  if (belongsToClinic(clinicId) && (!financeCollection(collection) || canUseFinances())
+                         && (!branchIsolated(collection) || inUserBranch(resource.data)))
                      || isPlatformOwner();
+
         // The license also matches this wildcard; rules grant access if ANY match
         // allows it, so it must be excluded here or every member could renew it.
-        allow write: if belongsToClinic(clinicId) && collection != 'license'
-                     && (!financeCollection(collection) || canUseFinances())
-                     // Branches (points of sale) are created and edited by managers only
-                     && (collection != 'branches' || userRef().data.role in ['master', 'admin']);
+        function canWrite() {
+          return belongsToClinic(clinicId) && collection != 'license'
+              && (!financeCollection(collection) || canUseFinances())
+              // Branches (points of sale) are created and edited by managers only
+              && (collection != 'branches' || userRef().data.role in ['master', 'admin']);
+        }
+        // Staff write only inside their branches, and cannot move a document out of one.
+        allow create: if canWrite() && (!branchIsolated(collection) || inUserBranch(request.resource.data));
+        allow update: if canWrite() && (!branchIsolated(collection)
+                         || (inUserBranch(resource.data) && inUserBranch(request.resource.data)));
+        allow delete: if canWrite() && (!branchIsolated(collection) || inUserBranch(resource.data));
       }
     }
 

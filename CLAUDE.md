@@ -282,7 +282,11 @@ A clinic can run several branches (points of sale), limited by the plan's `maxBr
   `db.transaction` — it reads branches/prefs/session, which a transaction would have to list.
 - **Reports:** `useReportData(from, to, scope)` — `'active'`, `{ branchId }` or `'all'` (consolidated, with
   `byBranch` totals). Managers with several branches open Reportes on "Todas las sucursales".
-- Isolation is client-side for now (phase 3: rules + filtered sync).
+- **Server isolation:** firestore.rules let staff read/write the branch-isolated collections (all scoped tables
+  except consultations — clinical history is shared) only for their `branchIds`; managers reach every branch.
+  Staff devices sync with `where('branchId','in', …)` (composite indexes in firestore.indexes.json) and drop
+  synced rows of other branches. Firestore cannot query a missing field, so `backfillBranches` (Cloud
+  Function, every 30 min, incremental) stamps `branchId: 'main'` where it is missing.
 
 ---
 

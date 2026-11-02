@@ -112,6 +112,48 @@ describe('clinic boundaries', () => {
   });
 });
 
+describe('branch isolation', () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'users/recep-sur'), { uid: 'recep-sur', clinicId: 'clinic-a', role: 'reception', permissions: {}, branchIds: ['sur'], name: 'Recep Sur' });
+      await setDoc(doc(db, 'clinics/clinic-a/sales/s-main'), { clinicId: 'clinic-a', branchId: 'main', total: 10 });
+      await setDoc(doc(db, 'clinics/clinic-a/sales/s-legacy'), { clinicId: 'clinic-a', total: 5 });
+      await setDoc(doc(db, 'clinics/clinic-a/sales/s-sur'), { clinicId: 'clinic-a', branchId: 'sur', total: 20 });
+      await setDoc(doc(db, 'clinics/clinic-a/consultations/c-sur'), { clinicId: 'clinic-a', branchId: 'sur' });
+    });
+  });
+
+  it('staff read only their branches; documents without one belong to the main branch', async () => {
+    await assertSucceeds(getDoc(doc(as('recep-sur'), 'clinics/clinic-a/sales/s-sur')));
+    await assertFails(getDoc(doc(as('recep-sur'), 'clinics/clinic-a/sales/s-main')));
+    await assertFails(getDoc(doc(as('recep-sur'), 'clinics/clinic-a/sales/s-legacy')));
+    await assertSucceeds(getDoc(doc(as('recep-a'), 'clinics/clinic-a/sales/s-legacy')));
+    await assertFails(getDoc(doc(as('recep-a'), 'clinics/clinic-a/sales/s-sur')));
+  });
+
+  it('a staff sync query must ask for its own branches only', async () => {
+    const sales = (who) => collection(as(who), 'clinics/clinic-a/sales');
+    await assertSucceeds(getDocs(query(sales('recep-sur'), where('branchId', 'in', ['sur']))));
+    await assertFails(getDocs(sales('recep-sur')));
+    await assertFails(getDocs(query(sales('recep-sur'), where('branchId', 'in', ['sur', 'main']))));
+    await assertSucceeds(getDocs(sales('owner-a')));
+  });
+
+  it('staff write inside their branches and cannot move documents out of others', async () => {
+    await assertSucceeds(setDoc(doc(as('recep-sur'), 'clinics/clinic-a/sales/n1'), { clinicId: 'clinic-a', branchId: 'sur', total: 1 }));
+    await assertFails(setDoc(doc(as('recep-sur'), 'clinics/clinic-a/sales/n2'), { clinicId: 'clinic-a', branchId: 'main', total: 1 }));
+    await assertFails(updateDoc(doc(as('recep-sur'), 'clinics/clinic-a/sales/s-main'), { branchId: 'sur' }));
+    await assertFails(deleteDoc(doc(as('recep-sur'), 'clinics/clinic-a/sales/s-main')));
+    await assertSucceeds(updateDoc(doc(as('owner-a'), 'clinics/clinic-a/sales/s-sur'), { total: 21 }));
+  });
+
+  it('the clinical history stays shared across branches', async () => {
+    await assertSucceeds(getDoc(doc(as('recep-a'), 'clinics/clinic-a/consultations/c-sur')));
+    await assertSucceeds(getDocs(collection(as('recep-a'), 'clinics/clinic-a/consultations')));
+  });
+});
+
 describe('users', () => {
   it('a user can edit their own name and keep the same role', async () => {
     await assertSucceeds(setDoc(doc(as('recep-a'), 'users/recep-a'),
