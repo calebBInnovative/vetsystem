@@ -8,6 +8,8 @@ import { syncService, type PullProgress } from '@/lib/sync/sync.service';
 import { useAppMode } from '@/hooks/useAppMode';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { MobileTabBar } from '@/components/layout/MobileTabBar';
+import { BranchSwitcher } from '@/components/layout/BranchSwitcher';
+import { getActiveBranchId } from '@/lib/db/database';
 import { useAuth } from '@/contexts/AuthContext';
 import { logout, actualizarUsuario } from '@/lib/auth/auth.service';
 import { db } from '@/lib/db/database';
@@ -368,6 +370,7 @@ const SYNC_COLLECTION_LABELS: Record<string, string> = {
   payments: 'pagos', invoices: 'facturas', sales: 'ventas', fixedExpenses: 'gastos fijos',
   expensePayments: 'pagos de gastos', collaborators: 'colaboradores',
   collaboratorPayments: 'pagos a colaboradores', promotions: 'promociones', quotes: 'cotizaciones',
+  branches: 'sucursales',
 };
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -513,6 +516,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   // Header subscription alert (pill next to the bell)
   const subscriptionExpiry = useSubscriptionExpiry();
+
+  useEffect(() => { void getActiveBranchId(); }, [session?.clinicId, session?.uid]);
 
   useEffect(() => {
     syncService.start().finally(() => setInitialSyncing(false));
@@ -756,6 +761,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 </span>
               )}
               {!isDemo && <SyncIndicator />}
+              <BranchSwitcher />
               {subscriptionExpiry && (
                 <SubscriptionExpiryChip expiry={subscriptionExpiry} />
               )}

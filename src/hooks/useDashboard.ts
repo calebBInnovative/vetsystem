@@ -1,7 +1,7 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getClinicaId } from '@/lib/db/database';
+import { db, getClinicaId, getBranchFilter } from '@/lib/db/database';
 import { format } from 'date-fns';
 
 /** Returns all dashboard KPIs in a single reactive query. */
@@ -11,6 +11,7 @@ export function useDashboard() {
 
   const data = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
     const [
       totalPatients,
       appointmentsToday,
@@ -27,7 +28,7 @@ export function useDashboard() {
       // All appointments today
       db.appointments
         .where('date').equals(today)
-        .filter((c) => !c.deletedAt && c.clinicId === clinicId)
+        .filter((c) => !c.deletedAt && c.clinicId === clinicId && inBranch(c))
         .count(),
 
       // Pending or confirmed appointments today
@@ -37,6 +38,7 @@ export function useDashboard() {
           (c) =>
             !c.deletedAt &&
             c.clinicId === clinicId &&
+            inBranch(c) &&
             (c.status === 'pending' || c.status === 'confirmed' || c.status === 'in_progress')
         )
         .count(),
@@ -44,14 +46,14 @@ export function useDashboard() {
       // Products at or below minimum stock
       db.products
         .where('clinicId').equals(clinicId)
-        .filter((p) => !p.deletedAt && p.active && p.currentStock <= p.minimumStock)
+        .filter((p) => !p.deletedAt && p.active && p.currentStock <= p.minimumStock && inBranch(p))
         .count(),
 
       // Consultations registered this month
       db.consultations
         .where('clinicId').equals(clinicId)
         .filter((c) => {
-          if (c.deletedAt) return false;
+          if (c.deletedAt || !inBranch(c)) return false;
           const date  = new Date(c.date);
           const now   = new Date();
           return (
@@ -84,12 +86,14 @@ export function useProximasCitasDia() {
 
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
     const appointments = await db.appointments
       .where('date').equals(today)
       .filter(
         (c) =>
           !c.deletedAt &&
           c.clinicId === clinicId &&
+          inBranch(c) &&
           (c.status === 'pending' || c.status === 'confirmed' || c.status === 'in_progress') &&
           c.startTime >= currentTime
       )
@@ -118,9 +122,10 @@ export function useProximasCitasDia() {
 export function useUltimasConsultasDashboard() {
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
     const consultations = await db.consultations
       .where('clinicId').equals(clinicId)
-      .filter((c) => !c.deletedAt)
+      .filter((c) => !c.deletedAt && inBranch(c))
       .reverse()
       .sortBy('date')
       .then((arr) => arr.slice(0, 5));

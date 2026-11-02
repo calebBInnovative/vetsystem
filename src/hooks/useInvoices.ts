@@ -1,7 +1,7 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getClinicaId, type SyncQueueItem } from '@/lib/db/database';
+import { db, getClinicaId, getBranchFilter, type SyncQueueItem } from '@/lib/db/database';
 import type { InvoiceLocal, InvoiceWithDetails, InvoiceStatus, InvoicePaymentMethod } from '@/types/invoice';
 import type { ConsultationLocal } from '@/types/consultation';
 import type { IncomeType } from '@/types/finances';
@@ -20,10 +20,11 @@ export function useInvoices(filters?: {
 }) {
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
     let invoices = await db.invoices
       .where('clinicId')
       .equals(clinicId)
-      .filter((f) => !f.deletedAt)
+      .filter((f) => !f.deletedAt && inBranch(f))
       .toArray();
 
     if (filters?.status)    invoices = invoices.filter((f) => f.status    === filters.status);

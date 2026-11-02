@@ -1,7 +1,7 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getClinicaId } from '@/lib/db/database';
+import { db, getClinicaId, getBranchFilter } from '@/lib/db/database';
 import { format, parseISO, eachDayOfInterval, eachMonthOfInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -102,24 +102,25 @@ export interface ReportSummary {
 export function useReportData(from: string, to: string) {
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
 
     const [sales, payments, expensePayments, collaboratorPayments, allProducts, allServices, allFixedExpenses, allCollaborators] =
       await Promise.all([
         db.sales
           .where('clinicId').equals(clinicId)
-          .filter(s => !s.deletedAt && s.status !== 'cancelled' && s.date >= from && s.date <= to)
+          .filter(s => !s.deletedAt && s.status !== 'cancelled' && s.date >= from && s.date <= to && inBranch(s))
           .toArray(),
         db.payments
           .where('clinicId').equals(clinicId)
-          .filter(p => !p.deletedAt && p.date >= from && p.date <= to)
+          .filter(p => !p.deletedAt && p.date >= from && p.date <= to && inBranch(p))
           .toArray(),
         db.expensePayments
           .where('clinicId').equals(clinicId)
-          .filter(ep => !ep.deletedAt && ep.paymentDate >= from && ep.paymentDate <= to)
+          .filter(ep => !ep.deletedAt && ep.paymentDate >= from && ep.paymentDate <= to && inBranch(ep))
           .toArray(),
         db.collaboratorPayments
           .where('clinicId').equals(clinicId)
-          .filter(cp => !cp.deletedAt && cp.paymentDate >= from && cp.paymentDate <= to)
+          .filter(cp => !cp.deletedAt && cp.paymentDate >= from && cp.paymentDate <= to && inBranch(cp))
           .toArray(),
         db.products.where('clinicId').equals(clinicId).filter(p => !p.deletedAt).toArray(),
         db.services.where('clinicId').equals(clinicId).filter(s => !s.deletedAt).toArray(),

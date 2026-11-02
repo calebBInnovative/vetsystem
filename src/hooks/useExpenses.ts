@@ -1,7 +1,7 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getClinicaId, type SyncQueueItem } from '@/lib/db/database';
+import { db, getClinicaId, getBranchFilter, type SyncQueueItem } from '@/lib/db/database';
 import type { FixedExpense, ExpensePayment, ExpenseCategory, ExpenseFrequency } from '@/types/expense';
 import {
   alertLevel,
@@ -15,10 +15,11 @@ import {
 export function useFixedExpenses() {
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
     const expenses = await db.fixedExpenses
       .where('clinicId')
       .equals(clinicId)
-      .filter((g) => !g.deletedAt && (g.expenseType === 'recurring' || !g.expenseType))
+      .filter((g) => !g.deletedAt && (g.expenseType === 'recurring' || !g.expenseType) && inBranch(g))
       .toArray();
     return expenses.sort((a, b) => a.nextDueDate.localeCompare(b.nextDueDate));
   }, []);
@@ -29,10 +30,11 @@ export function useFixedExpenses() {
 export function useOneTimeExpenses() {
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
     const expenses = await db.fixedExpenses
       .where('clinicId')
       .equals(clinicId)
-      .filter((g) => !g.deletedAt && g.expenseType === 'one_time')
+      .filter((g) => !g.deletedAt && g.expenseType === 'one_time' && inBranch(g))
       .toArray();
     return expenses.sort((a, b) => b.nextDueDate.localeCompare(a.nextDueDate));
   }, []);
@@ -43,9 +45,11 @@ export function useOneTimeExpenses() {
 export function useExpensePayments() {
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
     return db.expensePayments
       .where('clinicId')
       .equals(clinicId)
+      .filter(inBranch)
       .toArray();
   }, []);
 
@@ -55,10 +59,11 @@ export function useExpensePayments() {
 export function useExpenseAlerts() {
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
     const expenses = await db.fixedExpenses
       .where('clinicId')
       .equals(clinicId)
-      .filter((g) => !g.deletedAt && g.active && g.expenseType !== 'daily')
+      .filter((g) => !g.deletedAt && g.active && g.expenseType !== 'daily' && inBranch(g))
       .toArray();
 
     let overdue           = 0;
@@ -327,10 +332,11 @@ export async function markAsPaid(
 export function useDailyExpenses() {
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
     const expenses = await db.fixedExpenses
       .where('clinicId')
       .equals(clinicId)
-      .filter((g) => !g.deletedAt && g.expenseType === 'daily')
+      .filter((g) => !g.deletedAt && g.expenseType === 'daily' && inBranch(g))
       .toArray();
     return expenses.sort((a, b) => b.nextDueDate.localeCompare(a.nextDueDate));
   }, []);

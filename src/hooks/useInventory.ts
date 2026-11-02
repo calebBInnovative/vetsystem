@@ -1,7 +1,7 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getClinicaId, type SyncQueueItem } from '@/lib/db/database';
+import { db, getClinicaId, getBranchFilter, type SyncQueueItem } from '@/lib/db/database';
 import type { ProductLocal, StockMovementLocal, ProductCategory } from '@/types/inventory';
 import type { ProductoFormData, AjusteStockFormData } from '@/lib/validations/inventory.schema';
 
@@ -13,10 +13,11 @@ import type { ProductoFormData, AjusteStockFormData } from '@/lib/validations/in
 export function useProducts(search = '', category?: ProductCategory) {
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
     let products = await db.products
       .where('clinicId')
       .equals(clinicId)
-      .filter((p) => !p.deletedAt && p.active)
+      .filter((p) => !p.deletedAt && p.active && inBranch(p))
       .toArray();
 
     if (category) {
@@ -53,10 +54,11 @@ export function useProducts(search = '', category?: ProductCategory) {
 export function useInventoryValuation() {
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
     const products = await db.products
       .where('clinicId')
       .equals(clinicId)
-      .filter((p) => !p.deletedAt && p.active)
+      .filter((p) => !p.deletedAt && p.active && inBranch(p))
       .toArray();
 
     let totalCost = 0;
@@ -107,10 +109,11 @@ export function useInventoryValuation() {
 export function useStockAlerts() {
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
     return db.products
       .where('clinicId')
       .equals(clinicId)
-      .filter((p) => !p.deletedAt && p.active && p.currentStock <= p.minimumStock)
+      .filter((p) => !p.deletedAt && p.active && p.currentStock <= p.minimumStock && inBranch(p))
       .toArray();
   }, []);
 

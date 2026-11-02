@@ -9,7 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useState } from 'react';
-import { db } from '@/lib/db/database';
+import { db, getBranchFilter } from '@/lib/db/database';
 import type { ProductLocal } from '@/types/inventory';
 import type { ServiceLocal } from '@/types/service';
 import { applyDiscount, type DiscountType, type PromotionItem } from '@/types/promotion';
@@ -91,10 +91,11 @@ export function PromotionForm({
     (async () => {
       setCatalogLoading(true);
       try {
+        const inBranch = await getBranchFilter();
         const [prods, svcs] = await Promise.all([
           db.products
             .where('clinicId').equals(clinicId)
-            .filter((p) => !p.deletedAt && p.active)
+            .filter((p) => !p.deletedAt && p.active && inBranch(p))
             .toArray(),
           db.services
             .where('clinicId').equals(clinicId)

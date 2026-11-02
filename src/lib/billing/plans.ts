@@ -56,6 +56,8 @@ export interface PlanLimits {
   maxUsers: number | null;
   /** Active (not deleted) patients; null = unlimited */
   maxPatients: number | null;
+  /** Points of sale (branches) the clinic may run; null = unlimited */
+  maxBranches: number | null;
   modules: PlanModule[];
 }
 
@@ -75,17 +77,17 @@ export const DEFAULT_PLANS: PlanCatalog = {
   basic: {
     id: 'basic', name: 'Básico', active: true,
     prices: { USD: { monthly: 12, annual: 120 }, NIO: {} },
-    maxUsers: 2, maxPatients: 500, modules: BASIC_MODULES,
+    maxUsers: 2, maxPatients: 500, maxBranches: 1, modules: BASIC_MODULES,
   },
   professional: {
     id: 'professional', name: 'Profesional', active: true,
     prices: { USD: { monthly: 20, annual: 200 }, NIO: {} },
-    maxUsers: 5, maxPatients: null, modules: PLAN_MODULES,
+    maxUsers: 5, maxPatients: null, maxBranches: 1, modules: PLAN_MODULES,
   },
   clinic: {
     id: 'clinic', name: 'Clínica', active: true,
     prices: { USD: { monthly: 35, annual: 350 }, NIO: {} },
-    maxUsers: 15, maxPatients: null, modules: PLAN_MODULES,
+    maxUsers: 15, maxPatients: null, maxBranches: 3, modules: PLAN_MODULES,
   },
 };
 
@@ -160,6 +162,7 @@ export function parseStoredPlans(data: Record<string, unknown> | undefined): Pla
       prices,
       maxUsers:    'maxUsers' in r ? limit(r.maxUsers, base.maxUsers) : base.maxUsers,
       maxPatients: 'maxPatients' in r ? limit(r.maxPatients, base.maxPatients) : base.maxPatients,
+      maxBranches: 'maxBranches' in r ? limit(r.maxBranches, base.maxBranches) : base.maxBranches,
       modules:     modulesFrom(r.modules, base.modules, moduleSetOf(data)),
     };
   }
@@ -173,10 +176,11 @@ export function parseStoredPlans(data: Record<string, unknown> | undefined): Pla
 export function limitsFromLicense(license: Record<string, unknown>): PlanLimits {
   const base = DEFAULT_PLANS[planIdOf(license.plan)];
   const l = (license.limits && typeof license.limits === 'object' ? license.limits : null) as Record<string, unknown> | null;
-  if (!l) return { maxUsers: base.maxUsers, maxPatients: base.maxPatients, modules: [...base.modules] };
+  if (!l) return { maxUsers: base.maxUsers, maxPatients: base.maxPatients, maxBranches: base.maxBranches, modules: [...base.modules] };
   return {
     maxUsers:    'maxUsers' in l ? limit(l.maxUsers, base.maxUsers) : base.maxUsers,
     maxPatients: 'maxPatients' in l ? limit(l.maxPatients, base.maxPatients) : base.maxPatients,
+    maxBranches: 'maxBranches' in l ? limit(l.maxBranches, base.maxBranches) : base.maxBranches,
     modules:     modulesFrom(l.modules, base.modules, moduleSetOf(l)),
   };
 }

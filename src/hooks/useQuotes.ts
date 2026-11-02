@@ -1,7 +1,7 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getClinicaId, type SyncQueueItem } from '@/lib/db/database';
+import { db, getClinicaId, getBranchFilter, type SyncQueueItem } from '@/lib/db/database';
 import { createSale } from '@/hooks/useSales';
 import type { QuoteLocal, QuoteStatus, QuoteWithDetails } from '@/types/quote';
 import type { SaleItem, SalePaymentMethod } from '@/types/sale';
@@ -18,10 +18,11 @@ export function useQuotes(filters?: {
 }) {
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
     let rows = await db.quotes
       .where('clinicId')
       .equals(clinicId)
-      .filter((q) => !q.deletedAt)
+      .filter((q) => !q.deletedAt && inBranch(q))
       .toArray();
 
     if (filters?.status && filters.status !== 'all') rows = rows.filter((q) => q.status === filters.status);
@@ -63,10 +64,11 @@ export function useQuotes(filters?: {
 export function useQuoteStats() {
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
     const rows = await db.quotes
       .where('clinicId')
       .equals(clinicId)
-      .filter((q) => !q.deletedAt)
+      .filter((q) => !q.deletedAt && inBranch(q))
       .toArray();
 
     const open = rows.filter((q) => q.status === 'open');

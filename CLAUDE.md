@@ -204,7 +204,7 @@ Demo mode is a fully isolated, no-Firebase sandbox:
 
 ## 9. Database Schema (Dexie)
 
-Current version: **26**. Schema is in `src/lib/db/database.ts`.
+Current version: **27**. Schema is in `src/lib/db/database.ts`.
 
 Tables and their primary key + indexed fields:
 ```
@@ -261,6 +261,24 @@ All modules live under `src/app/(dashboard)/`. Feature logic is in `src/hooks/us
 | `/admin` | - | ✓ Built (user/clinic management) |
 | `/import` | - | ✓ Built (CSV bulk import) |
 | `/dev/seed` | - | Dev only (seed data) |
+
+---
+
+## 10a. Branches (sucursales)
+
+A clinic can run several branches (points of sale), limited by the plan's `maxBranches` (Clínica: 3).
+- **Shared by the clinic:** patients, owners, services, promotions — and each patient's clinical history.
+- **Per branch (`branchId`):** `BRANCH_SCOPED_TABLES` in `database.ts` — products, movements, sales, payments,
+  invoices, appointments, quotes, consultations, fixedExpenses, expensePayments, collaborators, collaboratorPayments.
+- Rows without `branchId` (everything from before branches) belong to `MAIN_BRANCH_ID` ('main', "Principal").
+- **Writes:** a Dexie `creating` hook stamps the active branch on new rows — never pass branchId by hand. Sync
+  (`upsertRemoteDocs`) sets 'main' on remote rows that lack it, so the hook never mislabels them.
+- **Reads:** lists/counts/totals of scoped tables filter with `await getBranchFilter()` inside the `useLiveQuery`
+  callback (reactive to branch switches). Patient-centric history and lookups by id are not filtered.
+- Active branch: device-local (`db.prefs`), picked in the header `BranchSwitcher`. Managers reach every active
+  branch; staff only `users/{uid}.branchIds` (Admin → Usuarios). Branches are edited in Admin → Clínica.
+- Isolation is client-side for now (phase 3: rules + filtered sync). Consolidated reports and per-branch document
+  numbering are phase 2.
 
 ---
 

@@ -12,7 +12,7 @@ import type { ServiceLocal } from '@/types/service';
 import { CONSULTATION_TYPES } from '@/types/consultation';
 import type { ConsultationWithPatient } from '@/types/consultation';
 import type { ProductLocal } from '@/types/inventory';
-import { db } from '@/lib/db/database';
+import { db, getBranchFilter, getClinicId } from '@/lib/db/database';
 import { DatePicker } from '@/components/ui/date-picker';
 import { DescuentoInput } from '@/components/common/DiscountInput';
 import { Button } from '@/components/ui/button';
@@ -101,9 +101,10 @@ export function ConsultaForm({ consultaId, consultation, onFinalizada, onCancela
   const productosResultado = useLiveQuery(async () => {
     if (!searchQuery.trim()) return [];
     const q = searchQuery.toLowerCase();
+    const [clinicId, inBranch] = await Promise.all([getClinicId(), getBranchFilter()]);
     return db.products
-      .where('clinicId').equals(process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets')
-      .filter((p) => p.active && !p.deletedAt && p.name.toLowerCase().includes(q))
+      .where('clinicId').equals(clinicId)
+      .filter((p) => p.active && !p.deletedAt && p.name.toLowerCase().includes(q) && inBranch(p))
       .limit(6)
       .toArray();
   }, [searchQuery]);

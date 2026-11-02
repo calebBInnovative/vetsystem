@@ -1,7 +1,7 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getClinicaId, type SyncQueueItem } from '@/lib/db/database';
+import { db, getClinicaId, getBranchFilter, type SyncQueueItem } from '@/lib/db/database';
 import type { PaymentLocal, PaymentStatus, PaymentMethod } from '@/types/finances';
 import type { InvoiceStatus } from '@/types/invoice';
 import type { PagoFormData } from '@/lib/validations/finances.schema';
@@ -22,18 +22,19 @@ export function usePayments(dateFrom?: string, dateTo?: string) {
 
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
 
     const monthPayments = await db.payments
       .where('date')
       .between(from, to, true, true)
-      .filter((p) => !p.deletedAt && p.clinicId === clinicId)
+      .filter((p) => !p.deletedAt && p.clinicId === clinicId && inBranch(p))
       .toArray();
 
     // Historical pending payments (outstanding accounts receivable)
     const historicPending = await db.payments
       .where('clinicId')
       .equals(clinicId)
-      .filter((p) => !p.deletedAt && p.status === 'pending' && p.date < from)
+      .filter((p) => !p.deletedAt && p.status === 'pending' && p.date < from && inBranch(p))
       .toArray();
 
     const inMonthIds = new Set(monthPayments.map((p) => p.id));
@@ -74,12 +75,13 @@ export function useFinancialSummary() {
 
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
 
     // ── Income (paid payments) ────────────────────────────────────────────────
     const monthPayments = await db.payments
       .where('date')
       .between(monthStr, monthEndStr, true, true)
-      .filter((p) => !p.deletedAt && p.clinicId === clinicId && p.status === 'paid')
+      .filter((p) => !p.deletedAt && p.clinicId === clinicId && p.status === 'paid' && inBranch(p))
       .toArray();
 
     const totalToday  = monthPayments.filter((p) => p.date === todayStr).reduce((s, p) => s + p.amount, 0);
@@ -88,7 +90,7 @@ export function useFinancialSummary() {
 
     const pendingCount = await db.payments
       .where('clinicId').equals(clinicId)
-      .filter((p) => !p.deletedAt && p.status === 'pending')
+      .filter((p) => !p.deletedAt && p.status === 'pending' && inBranch(p))
       .count();
 
     const byType = monthPayments.reduce<Record<string, number>>((acc, p) => {
@@ -105,7 +107,7 @@ export function useFinancialSummary() {
     const expensePaymentsMonth = await db.expensePayments
       .where('paymentDate')
       .between(monthStr, monthEndStr, true, true)
-      .filter((g) => g.clinicId === clinicId && !g.deletedAt)
+      .filter((g) => g.clinicId === clinicId && !g.deletedAt && inBranch(g))
       .toArray();
 
     // Enrich with parent fixedExpense name + category
@@ -141,7 +143,7 @@ export function useFinancialSummary() {
     const collaboratorPaymentsMonth = await db.collaboratorPayments
       .where('paymentDate')
       .between(monthStr, monthEndStr, true, true)
-      .filter((c) => c.clinicId === clinicId && !c.deletedAt)
+      .filter((c) => c.clinicId === clinicId && !c.deletedAt && inBranch(c))
       .toArray();
 
     const collaborators = await db.collaborators

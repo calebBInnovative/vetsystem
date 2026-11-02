@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getClinicaId } from '@/lib/db/database';
+import { db, getClinicaId, getBranchFilter } from '@/lib/db/database';
 import { createSale } from '@/hooks/useSales';
 import { createQuote } from '@/hooks/useQuotes';
 import { DescuentoInput } from '@/components/common/DiscountInput';
@@ -375,9 +375,10 @@ export default function SalesPage() {
 
   const products = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
     let q = db.products
       .where('clinicId').equals(clinicId)
-      .filter((p) => !!p.active && !p.deletedAt);
+      .filter((p) => !!p.active && !p.deletedAt && inBranch(p));
 
     if (categoria) q = q.filter((p) => p.category === categoria);
 

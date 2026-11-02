@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { db } from '@/lib/db/database';
+import { db, getBranchFilter } from '@/lib/db/database';
 
 // ── Service Worker ────────────────────────────────────────────────────────────
 
@@ -68,9 +68,10 @@ export async function checkStockNotifications(clinicId: string): Promise<void> {
   if (Date.now() - lastTs < STOCK_THROTTLE_MS) return;
   localStorage.setItem(STOCK_LS_KEY, String(Date.now()));
 
+  const inBranch = await getBranchFilter();
   const low = await db.products
     .where('clinicId').equals(clinicId)
-    .filter((p) => !p.deletedAt && p.active && p.currentStock <= p.minimumStock)
+    .filter((p) => !p.deletedAt && p.active && p.currentStock <= p.minimumStock && inBranch(p))
     .toArray();
 
   if (low.length === 0) return;

@@ -30,6 +30,7 @@ function features(plan: PlanConfig): string[] {
   return [
     plan.maxUsers === null ? 'Usuarios ilimitados' : `Hasta ${plan.maxUsers} usuarios`,
     plan.maxPatients === null ? 'Pacientes ilimitados' : `Hasta ${plan.maxPatients} pacientes`,
+    ...(plan.maxBranches === 1 ? [] : [plan.maxBranches === null ? 'Sucursales ilimitadas' : `${plan.maxBranches} sucursales (puntos de venta)`]),
     ...plan.modules.map((m) => PLAN_MODULE_LABELS[m]),
     ...ALWAYS_INCLUDED,
   ];

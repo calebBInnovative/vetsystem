@@ -1,6 +1,6 @@
 'use client';
 
-import { db, getClinicaId } from '@/lib/db/database';
+import { db, getClinicaId, getBranchFilter } from '@/lib/db/database';
 import type { ExportColumn } from './index';
 
 const fmt = {
@@ -98,9 +98,10 @@ export async function getPatientsExportData(): Promise<{ rows: Record<string, un
 
 export async function getAppointmentsExportData(): Promise<{ rows: Record<string, unknown>[]; columns: ExportColumn[] }> {
   const clinicId = await getClinicaId();
+  const inBranch = await getBranchFilter();
   const appts = await db.appointments
     .where('clinicId').equals(clinicId)
-    .filter((a) => !a.deletedAt)
+    .filter((a) => !a.deletedAt && inBranch(a))
     .toArray();
   appts.sort((a, b) => b.date.localeCompare(a.date));
 
@@ -139,9 +140,10 @@ export async function getAppointmentsExportData(): Promise<{ rows: Record<string
 
 export async function getConsultationsExportData(): Promise<{ rows: Record<string, unknown>[]; columns: ExportColumn[] }> {
   const clinicId = await getClinicaId();
+  const inBranch = await getBranchFilter();
   const consults = await db.consultations
     .where('clinicId').equals(clinicId)
-    .filter((c) => !c.deletedAt)
+    .filter((c) => !c.deletedAt && inBranch(c))
     .toArray();
   consults.sort((a, b) => b.date - a.date);
 
@@ -185,9 +187,10 @@ export async function getConsultationsExportData(): Promise<{ rows: Record<strin
 
 export async function getInventoryExportData(): Promise<{ rows: Record<string, unknown>[]; columns: ExportColumn[] }> {
   const clinicId = await getClinicaId();
+  const inBranch = await getBranchFilter();
   const products = await db.products
     .where('clinicId').equals(clinicId)
-    .filter((p) => !p.deletedAt)
+    .filter((p) => !p.deletedAt && inBranch(p))
     .toArray();
   products.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -226,9 +229,10 @@ export async function getInventoryExportData(): Promise<{ rows: Record<string, u
 
 export async function getSalesExportData(): Promise<{ rows: Record<string, unknown>[]; columns: ExportColumn[] }> {
   const clinicId = await getClinicaId();
+  const inBranch = await getBranchFilter();
   const sales = await db.sales
     .where('clinicId').equals(clinicId)
-    .filter((s) => !s.deletedAt)
+    .filter((s) => !s.deletedAt && inBranch(s))
     .toArray();
   sales.sort((a, b) => b.date.localeCompare(a.date));
 
@@ -271,9 +275,10 @@ export async function getSalesExportData(): Promise<{ rows: Record<string, unkno
 
 export async function getInvoicesExportData(): Promise<{ rows: Record<string, unknown>[]; columns: ExportColumn[] }> {
   const clinicId = await getClinicaId();
+  const inBranch = await getBranchFilter();
   const invoices = await db.invoices
     .where('clinicId').equals(clinicId)
-    .filter((i) => !i.deletedAt)
+    .filter((i) => !i.deletedAt && inBranch(i))
     .toArray();
   invoices.sort((a, b) => b.date.localeCompare(a.date));
 
@@ -349,9 +354,10 @@ export async function getServicesExportData(): Promise<{ rows: Record<string, un
 
 export async function getFinancesExportData(): Promise<{ rows: Record<string, unknown>[]; columns: ExportColumn[] }> {
   const clinicId = await getClinicaId();
+  const inBranch = await getBranchFilter();
   const payments = await db.payments
     .where('clinicId').equals(clinicId)
-    .filter((p) => !p.deletedAt)
+    .filter((p) => !p.deletedAt && inBranch(p))
     .toArray();
   payments.sort((a, b) => b.date.localeCompare(a.date));
 
@@ -386,14 +392,16 @@ export async function getFinancesExportData(): Promise<{ rows: Record<string, un
 
 export async function getExpensesExportData(): Promise<{ rows: Record<string, unknown>[]; columns: ExportColumn[] }> {
   const clinicId = await getClinicaId();
+  const inBranch = await getBranchFilter();
   const expenses = await db.fixedExpenses
     .where('clinicId').equals(clinicId)
-    .filter((e) => !e.deletedAt)
+    .filter((e) => !e.deletedAt && inBranch(e))
     .toArray();
   expenses.sort((a, b) => a.nextDueDate.localeCompare(b.nextDueDate));
 
   const expPayments = await db.expensePayments
     .where('clinicId').equals(clinicId)
+    .filter(inBranch)
     .toArray();
   const payByExpense = expPayments.reduce<Record<string, number>>((acc, p) => {
     acc[p.fixedExpenseId] = (acc[p.fixedExpenseId] ?? 0) + p.amount;
@@ -431,14 +439,16 @@ export async function getExpensesExportData(): Promise<{ rows: Record<string, un
 
 export async function getCollaboratorsExportData(): Promise<{ rows: Record<string, unknown>[]; columns: ExportColumn[] }> {
   const clinicId = await getClinicaId();
+  const inBranch = await getBranchFilter();
   const collabs  = await db.collaborators
     .where('clinicId').equals(clinicId)
-    .filter((c) => !c.deletedAt)
+    .filter((c) => !c.deletedAt && inBranch(c))
     .toArray();
   collabs.sort((a, b) => a.name.localeCompare(b.name));
 
   const payments = await db.collaboratorPayments
     .where('clinicId').equals(clinicId)
+    .filter(inBranch)
     .toArray();
   const totalPaid = payments.reduce<Record<string, number>>((acc, p) => {
     acc[p.collaboratorId] = (acc[p.collaboratorId] ?? 0) + p.amount;

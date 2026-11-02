@@ -72,7 +72,7 @@ service cloud.firestore {
       allow read: if isAuth() && request.auth.uid == uid;
       allow update: if isAuth() && request.auth.uid == uid
                     && !request.resource.data.diff(resource.data).affectedKeys()
-                         .hasAny(['uid', 'email', 'role', 'clinicId', 'permissions']);
+                         .hasAny(['uid', 'email', 'role', 'clinicId', 'permissions', 'branchIds']);
 
       // Master/admin: read the users of their own clinic only (listUsers queries
       // by clinicId). Reading every user exposed other clinics' names and e-mails.
@@ -123,7 +123,9 @@ service cloud.firestore {
         // The license also matches this wildcard; rules grant access if ANY match
         // allows it, so it must be excluded here or every member could renew it.
         allow write: if belongsToClinic(clinicId) && collection != 'license'
-                     && (!financeCollection(collection) || canUseFinances());
+                     && (!financeCollection(collection) || canUseFinances())
+                     // Branches (points of sale) are created and edited by managers only
+                     && (collection != 'branches' || userRef().data.role in ['master', 'admin']);
       }
     }
 

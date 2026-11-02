@@ -1,7 +1,7 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getClinicaId, type SyncQueueItem } from '@/lib/db/database';
+import { db, getClinicaId, getBranchFilter, type SyncQueueItem } from '@/lib/db/database';
 import type { Collaborator, CollaboratorPayment, CollaboratorPaymentFrequency } from '@/types/collaborator';
 import {
   daysUntilCollaboratorPayment,
@@ -16,19 +16,22 @@ import {
 export function useCollaborators() {
   const collaborators = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
     const list = await db.collaborators
       .where('clinicId')
       .equals(clinicId)
-      .filter((c) => !c.deletedAt)
+      .filter((c) => !c.deletedAt && inBranch(c))
       .toArray();
     return list.sort((a, b) => a.nextPaymentDate.localeCompare(b.nextPaymentDate));
   }, []);
 
   const collaboratorPayments = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
     return db.collaboratorPayments
       .where('clinicId')
       .equals(clinicId)
+      .filter(inBranch)
       .toArray();
   }, []);
 
@@ -42,10 +45,11 @@ export function useCollaborators() {
 export function useCollaboratorAlerts() {
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
     const list = await db.collaborators
       .where('clinicId')
       .equals(clinicId)
-      .filter((c) => !c.deletedAt && c.active)
+      .filter((c) => !c.deletedAt && c.active && inBranch(c))
       .toArray();
 
     let overdue = 0;

@@ -57,7 +57,7 @@ export default function PlansPage() {
     update(id, { prices });
   }
 
-  function setLimit(id: PlanId, field: 'maxUsers' | 'maxPatients', value: string) {
+  function setLimit(id: PlanId, field: 'maxUsers' | 'maxPatients' | 'maxBranches', value: string) {
     const amount = Number(value);
     update(id, { [field]: value === '' || !(amount > 0) ? null : Math.floor(amount) });
   }
@@ -157,7 +157,7 @@ export default function PlansPage() {
                   )))}
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   <label className="space-y-1">
                     <span className="text-xs font-medium">Usuarios máximos</span>
                     <input type="number" min="1" step="1" value={numberOrEmpty(plan.maxUsers)}
@@ -167,6 +167,11 @@ export default function PlansPage() {
                     <span className="text-xs font-medium">Pacientes máximos</span>
                     <input type="number" min="1" step="1" value={numberOrEmpty(plan.maxPatients)}
                       onChange={(e) => setLimit(id, 'maxPatients', e.target.value)} placeholder="Ilimitados" className={INPUT} />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-xs font-medium">Sucursales</span>
+                    <input type="number" min="1" step="1" value={numberOrEmpty(plan.maxBranches)}
+                      onChange={(e) => setLimit(id, 'maxBranches', e.target.value)} placeholder="Ilimitadas" className={INPUT} />
                   </label>
                 </div>
 

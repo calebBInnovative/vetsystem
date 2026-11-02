@@ -1,7 +1,7 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getClinicaId, type SyncQueueItem } from '@/lib/db/database';
+import { db, getClinicaId, getBranchFilter, type SyncQueueItem } from '@/lib/db/database';
 import type { AppointmentLocal, AppointmentStatus } from '@/types/appointment';
 import type { CitaFormData } from '@/lib/validations/appointment.schema';
 
@@ -19,10 +19,11 @@ export function useMonthlyAppointments(year: number, month: number) {
 
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
     const appointments = await db.appointments
       .where('date')
       .between(firstDay, lastDay, true, true)
-      .filter((c) => !c.deletedAt && c.clinicId === clinicId && c.status !== 'cancelled')
+      .filter((c) => !c.deletedAt && c.clinicId === clinicId && c.status !== 'cancelled' && inBranch(c))
       .toArray();
 
     const map = new Map<string, number>();
@@ -42,10 +43,11 @@ export function useMonthlyAppointments(year: number, month: number) {
 export function useCitasDelDia(date: string) {
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
     const appointments = await db.appointments
       .where('date')
       .equals(date)
-      .filter((c) => !c.deletedAt && c.clinicId === clinicId)
+      .filter((c) => !c.deletedAt && c.clinicId === clinicId && inBranch(c))
       .toArray();
 
     appointments.sort((a, b) => a.startTime.localeCompare(b.startTime));
@@ -84,6 +86,7 @@ export function useCitasProximas(limit = 5) {
 
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
     const appointments = await db.appointments
       .where('date')
       .aboveOrEqual(today)
@@ -91,6 +94,7 @@ export function useCitasProximas(limit = 5) {
         (c) =>
           !c.deletedAt &&
           c.clinicId === clinicId &&
+          inBranch(c) &&
           (c.status === 'pending' || c.status === 'confirmed')
       )
       .limit(limit)

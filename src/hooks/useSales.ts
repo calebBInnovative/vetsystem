@@ -1,7 +1,7 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getClinicaId, type SyncQueueItem } from '@/lib/db/database';
+import { db, getClinicaId, getBranchFilter, type SyncQueueItem } from '@/lib/db/database';
 import type { SaleLocal, SaleItem, SalePaymentMethod } from '@/types/sale';
 import type { InvoiceLocal, InvoiceItem } from '@/types/invoice';
 import type { PaymentLocal } from '@/types/finances';
@@ -17,10 +17,11 @@ export function useSales(filters?: {
 }) {
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
     let rows = await db.sales
       .where('clinicId')
       .equals(clinicId)
-      .filter((v) => !v.deletedAt && v.status !== 'cancelled')
+      .filter((v) => !v.deletedAt && v.status !== 'cancelled' && inBranch(v))
       .toArray();
 
     if (filters?.dateFrom)  rows = rows.filter((v) => v.date      >= filters.dateFrom!);

@@ -1,7 +1,7 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getClinicaId, type SyncQueueItem } from '@/lib/db/database';
+import { db, getClinicaId, getBranchFilter, type SyncQueueItem } from '@/lib/db/database';
 import type { ConsultationLocal, ConsultationWithPatient, ConsultationStatus, ConsultationType } from '@/types/consultation';
 import type { ConsultaFormData } from '@/lib/validations/consultation.schema';
 
@@ -19,10 +19,11 @@ export function useConsultations(filters?: {
 }) {
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
     let consultations = await db.consultations
       .where('clinicId')
       .equals(clinicId)
-      .filter((c) => !c.deletedAt)
+      .filter((c) => !c.deletedAt && inBranch(c))
       .toArray();
 
     if (filters?.status)   consultations = consultations.filter((c) => c.status === filters.status);
@@ -58,10 +59,11 @@ export function useConsultations(filters?: {
 export function useConsultasEnProceso() {
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
     const consultations = await db.consultations
       .where('status')
       .equals('in_progress')
-      .filter((c) => !c.deletedAt && c.clinicId === clinicId)
+      .filter((c) => !c.deletedAt && c.clinicId === clinicId && inBranch(c))
       .toArray();
 
     const patientIds = [...new Set(consultations.map((c) => c.patientId))];

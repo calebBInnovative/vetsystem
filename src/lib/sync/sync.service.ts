@@ -17,7 +17,8 @@
  *   No setInterval anywhere in this file.
  */
 
-import { db } from '@/lib/db/database';
+import { db, BRANCH_SCOPED_TABLES } from '@/lib/db/database';
+import { MAIN_BRANCH_ID } from '@/types/branch';
 import { syncProvider } from './sync.config';
 import { toast } from 'sonner';
 import type { RemoteDoc } from './sync.provider';
@@ -63,6 +64,7 @@ const TABLAS_SYNC = [
   { nombre: 'collaboratorPayments', tabla: () => db.collaboratorPayments },
   { nombre: 'promotions',           tabla: () => db.promotions           },
   { nombre: 'quotes',               tabla: () => db.quotes               },
+  { nombre: 'branches',             tabla: () => db.branches             },
 ] as const;
 
 /** Progress of the catch-up pull, for the first-sync screen. */
@@ -137,6 +139,10 @@ async function upsertRemoteDocs(nombre: string, remoteDocs: RemoteDoc[], clinicI
     // without it, and a row with no clinicId is invisible to every query in the
     // app, so stamp it here rather than store an unusable record.
     if (!clean.clinicId) clean.clinicId = clinicId;
+    // Same for the branch: a document from before branches belongs to the main
+    // one. Setting it here also keeps Dexie's `creating` hook from stamping the
+    // device's active branch on someone else's record.
+    if ((BRANCH_SCOPED_TABLES as readonly string[]).includes(nombre) && !clean.branchId) clean.branchId = MAIN_BRANCH_ID;
     const local = await t.get(clean.id as string);
     if (!local || (clean.updatedAt as number) > local.updatedAt) {
       await t.put({ ...clean, syncStatus: 'synced' });

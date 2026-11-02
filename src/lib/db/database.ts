@@ -26,6 +26,7 @@ import type { FixedExpense, ExpensePayment } from '@/types/expense';
 import type { Collaborator, CollaboratorPayment } from '@/types/collaborator';
 import type { PromotionLocal } from '@/types/promotion';
 import type { QuoteLocal }     from '@/types/quote';
+import { MAIN_BRANCH_ID, type BranchLocal } from '@/types/branch';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TIPOS INTERNOS
@@ -96,6 +97,9 @@ class VetSystemDB extends Dexie {
 
   // Quotes — priced documents that only become sales when accepted
   quotes!: EntityTable<QuoteLocal, 'id'>;
+  branches!: EntityTable<BranchLocal, 'id'>;
+  /** Device-local preferences (e.g. the active branch); never synced. */
+  prefs!: EntityTable<{ key: string; value: string }, 'key'>;
 
   // Sync infrastructure
   syncQueue!:     EntityTable<SyncQueueItem,         'id'>;
@@ -434,7 +438,39 @@ class VetSystemDB extends Dexie {
       }
       if (repaired > 0) console.log(`[DB] v26: stamped clinicId on ${repaired} orphaned row(s)`);
     });
+
+    // v27 — branches (points of sale). Existing rows keep no branchId and are
+    // read as the main branch, so no data migration is needed.
+    this.version(27).stores({
+      branches: 'id, clinicId, active, syncStatus, updatedAt, deletedAt',
+      prefs:    'key',
+    });
+
+    // Every new row of a branch-scoped table belongs to the branch the user is
+    // working in, without each form having to pass it. Rows downloaded by sync
+    // arrive with their branchId already set (see upsertRemoteDocs).
+    for (const name of BRANCH_SCOPED_TABLES) {
+      this.table(name).hook('creating', (_key, row: { branchId?: string }) => {
+        if (row.branchId == null) row.branchId = activeBranchCache;
+      });
+    }
   }
+}
+
+// ─── Branches ────────────────────────────────────────────────────────────────
+
+/** Tables whose rows belong to one branch. Everything else is shared by the clinic. */
+export const BRANCH_SCOPED_TABLES = [
+  'products', 'movements', 'sales', 'payments', 'invoices', 'appointments', 'quotes',
+  'consultations', 'fixedExpenses', 'expensePayments', 'collaborators', 'collaboratorPayments',
+] as const;
+
+/** Last known active branch, for the synchronous `creating` hook. */
+let activeBranchCache: string = MAIN_BRANCH_ID;
+
+/** A row's branch; rows from before branches existed belong to the main one. */
+export function branchOf(row: { branchId?: string | null }): string {
+  return row.branchId || MAIN_BRANCH_ID;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -494,3 +530,51 @@ export async function getClinicId(): Promise<string> {
 
 /** @deprecated Use getClinicId() */
 export const getClinicaId = getClinicId;
+
+// ─── Active branch ───────────────────────────────────────────────────────────
+
+const activeBranchKey = (clinicId: string, uid: string) => `activeBranch:${clinicId}:${uid}`;
+
+/**
+ * Branches this session may work in: managers (master/admin) every active
+ * branch of the clinic, staff the ones assigned to them (main when none).
+ * Reads Dexie, so a useLiveQuery calling it re-runs when branches change.
+ */
+export async function getAllowedBranchIds(): Promise<string[]> {
+  const s = await db.session.get('singleton');
+  if (!s) return [MAIN_BRANCH_ID];
+  if (s.role === 'master' || s.role === 'admin' || s.isDemo) {
+    const rows = await db.branches.where('clinicId').equals(s.clinicId).filter((b) => !b.deletedAt && b.active).toArray();
+    const ids = rows.map((b) => b.id);
+    return ids.includes(MAIN_BRANCH_ID) ? ids : [MAIN_BRANCH_ID, ...ids];
+  }
+  return s.branchIds?.length ? s.branchIds : [MAIN_BRANCH_ID];
+}
+
+/**
+ * The branch the user is working in on this device. Reads Dexie (session,
+ * prefs, branches), so every useLiveQuery that calls it — directly or through
+ * getBranchFilter — re-runs when the user switches branch.
+ */
+export async function getActiveBranchId(): Promise<string> {
+  const s = await db.session.get('singleton');
+  const allowed = await getAllowedBranchIds();
+  const stored = s ? (await db.prefs.get(activeBranchKey(s.clinicId, s.uid)))?.value : undefined;
+  const branchId = stored && allowed.includes(stored) ? stored : allowed[0];
+  activeBranchCache = branchId;
+  return branchId;
+}
+
+export async function setActiveBranchId(branchId: string): Promise<void> {
+  const s = await db.session.get('singleton');
+  if (!s) return;
+  activeBranchCache = branchId;
+  await db.prefs.put({ key: activeBranchKey(s.clinicId, s.uid), value: branchId });
+}
+
+/** Predicate for rows of the active branch: `rows.filter(await getBranchFilter())`. */
+export async function getBranchFilter(): Promise<(row: object) => boolean> {
+  const branchId = await getActiveBranchId();
+  // Entity types do not declare branchId (it is stamped by the creating hook), so accept any row.
+  return (row) => branchOf(row as { branchId?: string | null }) === branchId;
+}

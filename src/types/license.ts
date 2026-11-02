@@ -49,6 +49,8 @@ export interface SessionLocal {
   role:           UserRole;
   /** null = full access (master / admin). Defined = custom module restrictions. */
   permissions:    Permissions | null;
+  /** Branches a staff member works in (users/{uid}.branchIds); managers reach every branch. */
+  branchIds?:     string[];
   plan:           string;
   expirationDate: string; // YYYY-MM-DD
   /** true = active/trial, false = expired/suspended */

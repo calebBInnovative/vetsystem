@@ -30,6 +30,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AppModule, Permissions, UserRole } from '@/types/license';
+import { BranchAssignment } from '@/components/admin/BranchAssignment';
+import { BranchesCard } from '@/components/admin/BranchesCard';
 
 // ─── Module permission config ─────────────────────────────────────────────────
 
@@ -247,7 +249,7 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
 
   // ── Edit modal ─────────────────────────────────────────────────────────────
   const [editTarget, setEditTarget] = useState<UsuarioFirestore | null>(null);
-  const [editForm,   setEditForm]   = useState<{ name: string; role: UserRole; permissions: Permissions | null }>({
+  const [editForm,   setEditForm]   = useState<{ name: string; role: UserRole; permissions: Permissions | null; branchIds?: string[] }>({
     name: '', role: 'veterinarian', permissions: { ...DEFAULT_PERMISSIONS },
   });
   const [accionEdit, setAccionEdit] = useState<Accion>('idle');
@@ -301,6 +303,7 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
       name:    u.name,
       role:    u.role,
       permissions: u.role === 'admin' ? null : (u.permissions ?? { ...DEFAULT_PERMISSIONS }),
+      branchIds: u.branchIds,
     });
     setAccionEdit('idle');
   }
@@ -495,6 +498,9 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
               />
             </div>
           )}
+          {form.role !== 'admin' && (
+            <BranchAssignment value={form.branchIds} onChange={(ids) => setForm({ ...form, branchIds: ids })} />
+          )}
           {form.role === 'admin' && (
             <p className="text-[11px] text-muted-foreground px-1">
               Los admins tienen acceso completo a todos los módulos.
@@ -542,6 +548,9 @@ function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
               </select>
             </div>
 
+            {editForm.role !== 'admin' && (
+              <BranchAssignment value={editForm.branchIds} onChange={(ids) => setEditForm({ ...editForm, branchIds: ids })} />
+            )}
             {editForm.role !== 'admin' && editForm.permissions ? (
               <div className="rounded-xl border border-border p-3">
                 <PermisosEditor
@@ -752,6 +761,8 @@ function TabClinica() {
           )}
         </form>
       </Card>
+
+      <BranchesCard />
     </div>
   );
 }

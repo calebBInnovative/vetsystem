@@ -42,6 +42,8 @@ export interface PlanLimits {
   maxUsers: number | null;
   /** Active (not deleted) patients; null = unlimited */
   maxPatients: number | null;
+  /** Points of sale (branches) the clinic may run; null = unlimited */
+  maxBranches: number | null;
   modules: PlanModule[];
   /** Written with every license limits copy (MODULE_SET), so readers know which modules it could list. */
   moduleSet?: number;
@@ -65,17 +67,17 @@ export const DEFAULT_PLANS: PlanCatalog = {
   basic: {
     id: 'basic', name: 'Básico', active: true,
     prices: { USD: { monthly: 12, annual: 120 }, NIO: {} },
-    maxUsers: 2, maxPatients: 500, modules: BASIC_MODULES,
+    maxUsers: 2, maxPatients: 500, maxBranches: 1, modules: BASIC_MODULES,
   },
   professional: {
     id: 'professional', name: 'Profesional', active: true,
     prices: { USD: { monthly: 20, annual: 200 }, NIO: {} },
-    maxUsers: 5, maxPatients: null, modules: ALL_MODULES,
+    maxUsers: 5, maxPatients: null, maxBranches: 1, modules: ALL_MODULES,
   },
   clinic: {
     id: 'clinic', name: 'Clínica', active: true,
     prices: { USD: { monthly: 35, annual: 350 }, NIO: {} },
-    maxUsers: 15, maxPatients: null, modules: ALL_MODULES,
+    maxUsers: 15, maxPatients: null, maxBranches: 3, modules: ALL_MODULES,
   },
 };
 
@@ -155,6 +157,7 @@ export function parseStoredPlans(data: Record<string, unknown> | undefined): Pla
       prices,
       maxUsers:    'maxUsers' in r ? limit(r.maxUsers, base.maxUsers) : base.maxUsers,
       maxPatients: 'maxPatients' in r ? limit(r.maxPatients, base.maxPatients) : base.maxPatients,
+      maxBranches: 'maxBranches' in r ? limit(r.maxBranches, base.maxBranches) : base.maxBranches,
       modules,
     };
   }
@@ -162,5 +165,5 @@ export function parseStoredPlans(data: Record<string, unknown> | undefined): Pla
 }
 
 export function planLimits(plan: PlanConfig): PlanLimits {
-  return { maxUsers: plan.maxUsers, maxPatients: plan.maxPatients, modules: [...plan.modules], moduleSet: MODULE_SET };
+  return { maxUsers: plan.maxUsers, maxPatients: plan.maxPatients, maxBranches: plan.maxBranches, modules: [...plan.modules], moduleSet: MODULE_SET };
 }

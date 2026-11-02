@@ -199,6 +199,7 @@ export async function refreshSession(user: User): Promise<SessionLocal | null> {
       userName:       userData.name ?? user.email ?? 'User',
       role,
       permissions,
+      branchIds:      Array.isArray(userData.branchIds) ? (userData.branchIds as string[]) : undefined,
       plan:           licenseData.plan ?? 'Basic',
       expirationDate: licenseData.expirationDate ?? _missingLicense().expirationDate,
       subscription:   licenseData.subscription !== false,
@@ -242,6 +243,8 @@ export interface NewUser {
   role:        UserRole;
   clinicId:    string;
   permissions: Permissions | null;
+  /** Branches a staff member works in; omitted = main branch only */
+  branchIds?:  string[];
 }
 
 /** @deprecated Use NewUser instead */
@@ -254,6 +257,7 @@ export interface FirestoreUser {
   role:        UserRole;
   clinicId:    string;
   permissions: Permissions | null;
+  branchIds?:  string[];
   createdAt?:  unknown;
 }
 
@@ -298,6 +302,7 @@ export async function createUser(data: NewUser): Promise<string> {
     role:        data.role,
     clinicId:    data.clinicId,
     permissions: data.permissions,
+    ...(data.branchIds?.length ? { branchIds: data.branchIds } : {}),
     createdAt:   serverTimestamp(),
   });
 
@@ -425,7 +430,7 @@ export const configurarLicencia = configureLicense;
 /** Updates a user's name, role, permissions and optionally personal phone */
 export async function updateUser(
   uid:  string,
-  data: { name: string; role: UserRole; permissions: Permissions | null; phone?: string },
+  data: { name: string; role: UserRole; permissions: Permissions | null; phone?: string; branchIds?: string[] },
 ): Promise<void> {
   const fs = getFirestoreDb();
   await setDoc(doc(fs, 'users', uid), data, { merge: true });

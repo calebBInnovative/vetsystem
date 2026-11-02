@@ -1,7 +1,7 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getClinicaId } from '@/lib/db/database';
+import { db, getClinicaId, getBranchFilter } from '@/lib/db/database';
 import {
   format, parseISO, getDay,
   startOfWeek, endOfWeek,
@@ -320,17 +320,18 @@ function generateInsights(params: {
 export function useFinancialAnalytics(period: AnalyticsPeriod, referenceDate: string) {
   const result = useLiveQuery(async () => {
     const clinicId = await getClinicaId();
+    const inBranch = await getBranchFilter();
 
     const { start, end, prevStart, prevEnd } = getPeriodRange(referenceDate, period);
 
     const [sales, prevSales, allProducts, allServices] = await Promise.all([
       db.sales
         .where('clinicId').equals(clinicId)
-        .filter(s => !s.deletedAt && s.status !== 'cancelled' && s.date >= start && s.date <= end)
+        .filter(s => !s.deletedAt && s.status !== 'cancelled' && s.date >= start && s.date <= end && inBranch(s))
         .toArray(),
       db.sales
         .where('clinicId').equals(clinicId)
-        .filter(s => !s.deletedAt && s.status !== 'cancelled' && s.date >= prevStart && s.date <= prevEnd)
+        .filter(s => !s.deletedAt && s.status !== 'cancelled' && s.date >= prevStart && s.date <= prevEnd && inBranch(s))
         .toArray(),
       db.products.where('clinicId').equals(clinicId).filter(p => !p.deletedAt).toArray(),
       db.services.where('clinicId').equals(clinicId).filter(s => !s.deletedAt).toArray(),

@@ -94,6 +94,14 @@ describe('clinic boundaries', () => {
     await assertFails(getDocs(query(collection(as('owner-a'), 'users'), where('clinicId', '==', 'clinic-b'))));
   });
 
+  it('only managers create branches, and staff cannot reassign their own branches', async () => {
+    await assertSucceeds(setDoc(doc(as('owner-a'), 'clinics/clinic-a/branches/sur'), { clinicId: 'clinic-a', name: 'Sur', code: 'SUR', active: true }));
+    await assertFails(setDoc(doc(as('recep-a'), 'clinics/clinic-a/branches/norte'), { clinicId: 'clinic-a', name: 'Norte', code: 'NOR', active: true }));
+    await assertSucceeds(getDoc(doc(as('recep-a'), 'clinics/clinic-a/branches/sur')));
+    await assertFails(updateDoc(doc(as('recep-a'), 'users/recep-a'), { branchIds: ['main', 'sur'] }));
+    await assertSucceeds(updateDoc(doc(as('owner-a'), 'users/recep-a'), { branchIds: ['sur'] }));
+  });
+
   it('expenses and payroll need the Finanzas module', async () => {
     await assertFails(getDoc(doc(as('recep-a'), 'clinics/clinic-a/fixedExpenses/rent')));
     await assertFails(setDoc(doc(as('recep-a'), 'clinics/clinic-a/collaborators/c1'), { clinicId: 'clinic-a' }));
