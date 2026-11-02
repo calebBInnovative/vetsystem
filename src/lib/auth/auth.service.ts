@@ -16,6 +16,8 @@ import {
   setDoc,
   deleteDoc,
   collection,
+  query,
+  where,
   serverTimestamp,
 } from 'firebase/firestore';
 // TODO: enable when Firebase Storage plan is upgraded
@@ -443,10 +445,9 @@ export const enviarResetPassword = sendPasswordReset;
 /** Lists all users of a clinic (admin/master only, requires internet) */
 export async function listUsers(clinicId: string): Promise<FirestoreUser[]> {
   const fs   = getFirestoreDb();
-  const snap = await getDocs(collection(fs, 'users'));
-  return snap.docs
-    .map((d) => ({ uid: d.id, ...d.data() }) as FirestoreUser)
-    .filter((u) => u.clinicId === clinicId);
+  // Filtered on the server: firestore.rules lets a manager read only their clinic's users.
+  const snap = await getDocs(query(collection(fs, 'users'), where('clinicId', '==', clinicId)));
+  return snap.docs.map((d) => ({ uid: d.id, ...d.data() }) as FirestoreUser);
 }
 
 /** @deprecated Use listUsers instead */

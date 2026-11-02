@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import {
   assertFails, assertSucceeds, initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { deleteDoc, doc, getDoc, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore';
 
 const PLATFORM_OWNER_EMAIL = 'calebgtnbacon@gmail.com';
 let env;
@@ -73,6 +73,34 @@ describe('license', () => {
 
   it('the platform owner can edit any license', async () => {
     await assertSucceeds(updateDoc(doc(as('platform', PLATFORM_OWNER_EMAIL), 'clinics/clinic-a/license/data'), { expirationDate: '2026-12-01' }));
+  });
+});
+
+describe('clinic boundaries', () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'users/owner-b'), { uid: 'owner-b', clinicId: 'clinic-b', role: 'admin', permissions: null, name: 'Owner B', email: 'b@clinic-b.test' });
+      await setDoc(doc(db, 'users/vet-a-fin'), { uid: 'vet-a-fin', clinicId: 'clinic-a', role: 'veterinarian', permissions: { finances: true }, name: 'Vet' });
+      await setDoc(doc(db, 'clinics/clinic-a/fixedExpenses/rent'), { clinicId: 'clinic-a', name: 'Alquiler' });
+      await setDoc(doc(db, 'clinics/clinic-a/patients/p1'), { clinicId: 'clinic-a', name: 'Luna' });
+    });
+  });
+
+  it("a manager lists their own clinic's users but cannot read another clinic's", async () => {
+    await assertSucceeds(getDocs(query(collection(as('owner-a'), 'users'), where('clinicId', '==', 'clinic-a'))));
+    await assertFails(getDoc(doc(as('owner-a'), 'users/owner-b')));
+    await assertFails(getDocs(collection(as('owner-a'), 'users')));
+    await assertFails(getDocs(query(collection(as('owner-a'), 'users'), where('clinicId', '==', 'clinic-b'))));
+  });
+
+  it('expenses and payroll need the Finanzas module', async () => {
+    await assertFails(getDoc(doc(as('recep-a'), 'clinics/clinic-a/fixedExpenses/rent')));
+    await assertFails(setDoc(doc(as('recep-a'), 'clinics/clinic-a/collaborators/c1'), { clinicId: 'clinic-a' }));
+    await assertSucceeds(getDoc(doc(as('recep-a'), 'clinics/clinic-a/patients/p1')));
+    await assertSucceeds(getDoc(doc(as('vet-a-fin'), 'clinics/clinic-a/fixedExpenses/rent')));
+    await assertSucceeds(getDoc(doc(as('owner-a'), 'clinics/clinic-a/fixedExpenses/rent')));
+    await assertSucceeds(setDoc(doc(as('owner-a'), 'clinics/clinic-a/collaborators/c1'), { clinicId: 'clinic-a' }));
   });
 });
 

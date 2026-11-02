@@ -51,6 +51,18 @@ service cloud.firestore {
     // by a clinic manager (staff). Nobody can change their own role, clinic or
     // permissions: those fields decide which clinic's data a user can reach.
 
+    // Expenses and payroll: only managers and staff granted the Finanzas module.
+    // A staff profile without explicit permissions gets the app defaults, which
+    // leave finances out (DEFAULT_STAFF_PERMISSIONS in auth.service.ts).
+    function financeCollection(collection) {
+      return collection in ['fixedExpenses', 'expensePayments', 'collaborators', 'collaboratorPayments'];
+    }
+
+    function canUseFinances() {
+      return userRef().data.role in ['master', 'admin']
+          || (userRef().data.permissions != null && userRef().data.permissions.get('finances', false) == true);
+    }
+
     function staffRole(role) {
       return role in ['admin', 'veterinarian', 'reception'];
     }
@@ -62,8 +74,10 @@ service cloud.firestore {
                     && !request.resource.data.diff(resource.data).affectedKeys()
                          .hasAny(['uid', 'email', 'role', 'clinicId', 'permissions']);
 
-      // Master/admin: read any user (listUsers queries the whole collection)
-      allow read: if isAuth() && (isMaster() || userRole() == 'admin');
+      // Master/admin: read the users of their own clinic only (listUsers queries
+      // by clinicId). Reading every user exposed other clinics' names and e-mails.
+      allow read: if isAuth() && (isMaster() || userRole() == 'admin')
+                  && resource.data.clinicId == userClinicId();
 
       // Master/admin: create a staff user doc only in their own clinic
       allow create: if isAuth() && (isMaster() || userRole() == 'admin')
@@ -104,10 +118,12 @@ service cloud.firestore {
       // The platform owner gets read only: enough to run count() aggregations
       // for metering, never enough to alter a customer's records.
       match /{collection}/{docId} {
-        allow read:  if belongsToClinic(clinicId) || isPlatformOwner();
+        allow read:  if (belongsToClinic(clinicId) && (!financeCollection(collection) || canUseFinances()))
+                     || isPlatformOwner();
         // The license also matches this wildcard; rules grant access if ANY match
         // allows it, so it must be excluded here or every member could renew it.
-        allow write: if belongsToClinic(clinicId) && collection != 'license';
+        allow write: if belongsToClinic(clinicId) && collection != 'license'
+                     && (!financeCollection(collection) || canUseFinances());
       }
     }
 

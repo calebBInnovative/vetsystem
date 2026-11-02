@@ -66,6 +66,24 @@ const TABLAS_SYNC = [
 ] as const;
 
 /** Progress of the catch-up pull, for the first-sync screen. */
+/**
+ * Collections firestore.rules keeps to managers and staff with the Finanzas
+ * module. Other staff never pull or listen to them: the reads would only fail.
+ */
+const FINANCE_COLLECTIONS = new Set(['fixedExpenses', 'expensePayments', 'collaborators', 'collaboratorPayments']);
+
+type SyncSession = { role?: string; permissions?: { finances?: boolean } | null };
+
+function canSyncCollection(nombre: string, session: SyncSession): boolean {
+  if (!FINANCE_COLLECTIONS.has(nombre)) return true;
+  return session.role === 'master' || session.role === 'admin' || session.permissions?.finances === true;
+}
+
+/** The synced tables this session may read. */
+function tablesFor(session: SyncSession) {
+  return TABLAS_SYNC.filter(({ nombre }) => canSyncCollection(nombre, session));
+}
+
 export type PullProgress = {
   /** Collections finished (successfully or not) */
   done:       number;
@@ -379,11 +397,12 @@ class SyncService {
     const { clinicId } = session;
     const from = rewindCursor(since);
 
-    for (const { nombre } of TABLAS_SYNC) {
+    const tables = tablesFor(session);
+    for (const { nombre } of tables) {
       this.openSubscription(nombre, clinicId, from);
     }
 
-    console.log(`[sync] ${TABLAS_SYNC.length} subscriptions open (since ${new Date(since).toISOString()})`);
+    console.log(`[sync] ${tables.length} subscriptions open (since ${new Date(since).toISOString()})`);
   }
 
   private openSubscription(nombre: string, clinicId: string, since: number): void {
@@ -443,11 +462,12 @@ class SyncService {
     console.log(`[sync] pull start — since ${lastPull ? new Date(lastPull).toISOString() : 'epoch'}`);
 
     try {
-      for (const [index, { nombre }] of TABLAS_SYNC.entries()) {
+      const tables = tablesFor(session);
+      for (const [index, { nombre }] of tables.entries()) {
         // stop() (logout) while pulling: the remaining collections would only
         // fail on permissions. Keep the old cursor so the next start resumes.
         if (!this.started) return lastPull;
-        this.emitProgress({ done: index, total: TABLAS_SYNC.length, collection: nombre });
+        this.emitProgress({ done: index, total: tables.length, collection: nombre });
         try {
           const docs = await withTimeout(
             syncProvider.pull(nombre, rewindCursor(lastPull), clinicId),
@@ -474,7 +494,7 @@ class SyncService {
       }
 
       console.log(`[sync] pull done — ${totalReads} Firestore reads`);
-      this.emitProgress({ done: TABLAS_SYNC.length, total: TABLAS_SYNC.length, collection: null });
+      this.emitProgress({ done: tables.length, total: tables.length, collection: null });
 
       if (!pullErrored) {
         localStorage.setItem(LAST_PULL_KEY, pullStartedAt.toString());
@@ -499,7 +519,7 @@ class SyncService {
     localStorage.removeItem(LAST_PULL_KEY);
 
     let docsWritten = 0;
-    for (const { nombre } of TABLAS_SYNC) {
+    for (const { nombre } of tablesFor(session)) {
       try {
         // Manual recovery: the user explicitly asked for the full history.
         const docs = await syncProvider.pull(nombre, 0, clinicId, true);
