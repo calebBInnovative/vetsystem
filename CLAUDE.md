@@ -287,6 +287,9 @@ A clinic can run several branches (points of sale), limited by the plan's `maxBr
   Staff devices sync with `where('branchId','in', …)` (composite indexes in firestore.indexes.json) and drop
   synced rows of other branches. Firestore cannot query a missing field, so `backfillBranches` (Cloud
   Function, every 30 min, incremental) stamps `branchId: 'main'` where it is missing.
+- **Stock transfers:** `transferStock()` (`src/lib/inventory/transfer.ts`, "Trasladar a otra sucursal" on the
+  product detail). Each branch has its own product rows; the destination's match is same name + unit, else a
+  copy is created. Both stock changes and both movements (shared `referenceId`) go in one transaction.
 
 ---
 
@@ -494,10 +497,11 @@ Project: `vetsystem` (Nicaragua). `firebase.json` uses `out/` as public dir with
 
 ## 17. Git Workflow
 
-**Claude Code cannot push to GitHub in this environment** — SSH key permission is denied (`calebBInnovative` user) and HTTPS returns 403. After Claude commits changes, the user must push manually:
+The default SSH identity is denied for GitHub, but the `calebBInnovative` key works (the user authorized
+Claude to push with it):
 
 ```bash
-git push origin master
+GIT_SSH_COMMAND="ssh -i ~/.ssh/calebBInnovativeSsh -o IdentitiesOnly=yes" git push origin master
 ```
 
 The main branch is `master`. No staging branch — all work goes directly to master and is deployed from there.

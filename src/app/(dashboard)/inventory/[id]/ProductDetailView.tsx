@@ -12,6 +12,7 @@ import { zodResolver } from '@/lib/zod-resolver';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ProductoForm } from '@/components/inventory/ProductForm';
+import { TransferStockCard } from '@/components/inventory/TransferStockCard';
 import {
   ArrowLeft, Pencil, Plus, Minus, AlertTriangle,
   Loader2, TrendingUp, TrendingDown, X, DollarSign,
@@ -210,6 +211,9 @@ export function ProductDetailView() {
           </div>
         ))}
       </div>
+
+      {/* ── Transfer to another branch (only with more than one branch) ────── */}
+      <TransferStockCard product={producto} unitLabel={unidad} />
 
       {/* ── Stock adjustment form ─────────────────────────────────────────── */}
       <div className="bg-card rounded-2xl border border-border p-5">
