@@ -7,7 +7,10 @@ import { useConsultation, cancelConsultation } from '@/hooks/useConsultations';
 import { ConsultaForm } from '@/components/consultations/ConsultationForm';
 import { FacturaModal } from '@/components/invoices/InvoiceModal';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Download, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
+import { downloadEpicrisis } from '@/lib/consultations/epicrisis-pdf';
 import { CONSULTATION_TYPES, CONSULTATION_STATUSES } from '@/types/consultation';
 import { cn } from '@/lib/utils';
 import { APP_MODE_FILL } from '@/components/layout/appModeLayout';
@@ -18,6 +21,8 @@ export function ConsultationDetailView() {
   const { consulta, loading } = useConsultation(id ?? '');
   const [mostrarFactura, setMostrarFactura] = useState(false);
   const [pendingFactura, setPendingFactura] = useState(false);
+  const [descargando, setDescargando] = useState(false);
+  const { session } = useAuth();
 
   useEffect(() => {
     if (!pendingFactura || consulta?.status !== 'completed') return;
@@ -72,11 +77,30 @@ export function ConsultationDetailView() {
               <p className="text-sm text-muted-foreground">{formatTs(consulta.date)}</p>
             </div>
           </div>
-          {consulta.invoiceId && (
-            <Button variant="outline" size="sm" onClick={() => router.push(`/invoices/${consulta.invoiceId}`)}>
-              Ver factura
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {consulta.status === 'completed' && (
+              <Button variant="outline" size="sm" className="gap-1.5" disabled={descargando}
+                onClick={async () => {
+                  setDescargando(true);
+                  try {
+                    await downloadEpicrisis(consulta.id, session);
+                  } catch (err) {
+                    console.error('[epicrisis] download failed:', err);
+                    toast.error('No se pudo generar la epicrisis');
+                  } finally {
+                    setDescargando(false);
+                  }
+                }}>
+                {descargando ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                Epicrisis
+              </Button>
+            )}
+            {consulta.invoiceId && (
+              <Button variant="outline" size="sm" onClick={() => router.push(`/invoices/${consulta.invoiceId}`)}>
+                Ver factura
+              </Button>
+            )}
+          </div>
         </div>
 
         <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
@@ -125,7 +149,7 @@ export function ConsultationDetailView() {
 
           {(consulta.items?.length ?? 0) > 0 && (
             <div className="pt-3 border-t border-border space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Productos y services</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Productos y servicios</p>
               {consulta.items.map((item) => (
                 <div key={item.id} className="flex justify-between text-sm">
                   <span>{item.description} <span className="text-muted-foreground">×{item.quantity}</span></span>

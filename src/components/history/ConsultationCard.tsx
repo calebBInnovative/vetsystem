@@ -7,7 +7,10 @@ import { CONSULTATION_TYPES } from '@/types/consultation';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { ChevronDown, ChevronUp, Thermometer, Weight, Pill, Calendar } from 'lucide-react';
+import { ChevronDown, ChevronUp, Thermometer, Weight, Pill, Calendar, Download } from 'lucide-react';
+import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
+import { downloadEpicrisis } from '@/lib/consultations/epicrisis-pdf';
 import { Badge } from '@/components/ui/badge';
 
 // Extended type for historial module: includes optional clinical-notes fields
@@ -27,6 +30,8 @@ interface ConsultaCardProps {
 
 export function ConsultaCard({ consulta, pacienteId: _pacienteId }: ConsultaCardProps) {
   const [expandida, setExpandida] = useState(false);
+  const [descargando, setDescargando] = useState(false);
+  const { session } = useAuth();
   const tipo = CONSULTATION_TYPES[consulta.type];
   const tieneMedicamentos = (consulta.medications?.length ?? 0) > 0;
   const tieneDetalle =
@@ -145,7 +150,24 @@ export function ConsultaCard({ consulta, pacienteId: _pacienteId }: ConsultaCard
                 </div>
               )}
 
-              <div className="pt-2 flex justify-end">
+              <div className="pt-2 flex items-center justify-end gap-4">
+                {consulta.status === 'completed' && (
+                  <button type="button" disabled={descargando}
+                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline disabled:opacity-50"
+                    onClick={async () => {
+                      setDescargando(true);
+                      try {
+                        await downloadEpicrisis(consulta.id, session);
+                      } catch (err) {
+                        console.error('[epicrisis] download failed:', err);
+                        toast.error('No se pudo generar la epicrisis');
+                      } finally {
+                        setDescargando(false);
+                      }
+                    }}>
+                    <Download size={12} /> {descargando ? 'Generando…' : 'Epicrisis'}
+                  </button>
+                )}
                 <Link
                   href={`/consultations/${consulta.id}`}
                   className="text-xs text-primary hover:underline"

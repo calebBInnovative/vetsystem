@@ -532,7 +532,7 @@ export function ConsultaForm({ consultaId, consultation, onFinalizada, onCancela
             {/* Items agregados */}
             {items.length > 0 && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Productos y services ({items.length})</label>
+                <label className="text-sm font-medium">Productos y servicios ({items.length})</label>
                 <div className="rounded-xl border border-border bg-card overflow-hidden">
                   {items.map((item, i) => (
                     <div key={item.id} className="flex items-center gap-3 px-3 py-2.5 border-b border-border last:border-0">
