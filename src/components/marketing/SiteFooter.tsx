@@ -6,11 +6,14 @@ import { Mail, MapPin, MessageCircle } from 'lucide-react';
 import { VetSystemIcon, VetSystemWordmark, PAW_BG_TEAL } from '@/components/common/VetSystemLogo';
 import { useLandingContent } from '@/hooks/useLandingContent';
 import { fetchPublicContact, formatWhatsapp, whatsappChatUrl } from '@/lib/marketing/contact';
-import { DEFAULT_FOOTER, SOCIAL_LABELS, SOCIAL_NETWORKS } from '@/lib/marketing/landing';
+import { DEFAULT_FOOTER, LANDING_PHOTOS, SOCIAL_LABELS, SOCIAL_NETWORKS, isBundledPhoto } from '@/lib/marketing/landing';
 
 /** Landing footer; contact details and social links are edited at /admin/landing. */
 export function SiteFooter() {
-  const footer = useLandingContent()?.footer ?? DEFAULT_FOOTER;
+  const content = useLandingContent();
+  const footer = content?.footer ?? DEFAULT_FOOTER;
+  // Courtesy credit while any bundled Pexels photo is still on the page.
+  const pexelsCredit = !!content && LANDING_PHOTOS.some((k) => isBundledPhoto(content.photos[k]));
   const [whatsapp, setWhatsapp] = useState('');
 
   useEffect(() => {
@@ -78,7 +81,12 @@ export function SiteFooter() {
 
         <div className="pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
           <p>© {new Date().getFullYear()} VetSystem. Todos los derechos reservados.</p>
-          <p>Hecho con ❤️ en Nicaragua</p>
+          <p>
+            Hecho con ❤️ en Nicaragua
+            {pexelsCredit && (
+              <> · Fotos: <a href="https://www.pexels.com" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline-offset-2 hover:underline">Pexels</a></>
+            )}
+          </p>
         </div>
       </div>
     </footer>

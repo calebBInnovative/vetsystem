@@ -81,12 +81,25 @@ export interface FooterContent {
   socials: Record<SocialNetwork, string>;
 }
 
+export const LANDING_PHOTOS = ['hero', 'consultation', 'vaccination', 'equipment'] as const;
+export type LandingPhotoKey = (typeof LANDING_PHOTOS)[number];
+
+export interface SectionPhoto {
+  /** Storage download URL, or a bundled default under /landing/photos/ */
+  url: string;
+  /** Storage path (landing/<id>.jpg), kept to delete it when replaced; '' for a bundled default. */
+  path: string;
+  alt: string;
+}
+
 export interface LandingContent {
   hero: HeroContent;
   offlineDay: OfflineDayContent;
   faqs: Faq[];
   testimonials: Testimonial[];
   footer: FooterContent;
+  /** Inside the content because saveLandingContent writes the whole document. */
+  photos: Record<LandingPhotoKey, SectionPhoto>;
 }
 
 export const MAX_TESTIMONIALS = 12;
@@ -158,8 +171,23 @@ export const DEFAULT_FOOTER: FooterContent = {
   socials: { facebook: '', instagram: '', tiktok: '', youtube: '' },
 };
 
+export const PHOTO_ALT_MAX_LENGTH = 160;
+
+/** Bundled Pexels photos (free license), credited in the footer while any of them is shown. */
+export const DEFAULT_PHOTOS: Record<LandingPhotoKey, SectionPhoto> = {
+  hero: { url: '/landing/photos/hero.webp', path: '',
+    alt: 'Veterinario sonriente junto a un perro en la mesa de consulta, con la computadora de la clínica al fondo' },
+  consultation: { url: '/landing/photos/consultation.webp', path: '',
+    alt: 'Veterinario auscultando a un perro con el estetoscopio' },
+  vaccination: { url: '/landing/photos/vaccination.webp', path: '',
+    alt: 'Veterinaria preparando la vacuna de un gato' },
+  equipment: { url: '/landing/photos/equipment.webp', path: '',
+    alt: 'Veterinario examinando a un pomerania junto al equipo de ultrasonido' },
+};
+
 export const DEFAULT_LANDING: LandingContent = {
   hero: DEFAULT_HERO, offlineDay: DEFAULT_OFFLINE_DAY, faqs: DEFAULT_FAQS, testimonials: [], footer: DEFAULT_FOOTER,
+  photos: DEFAULT_PHOTOS,
 };
 
 function text(value: unknown, max: number): string {
@@ -193,6 +221,33 @@ function parsePhoto(r: Record<string, unknown>): Pick<Testimonial, 'photoUrl' | 
   const photoUrl = typeof r.photoUrl === 'string' ? r.photoUrl : '';
   const photoPath = typeof r.photoPath === 'string' ? r.photoPath : '';
   return PHOTO_PATH.test(photoPath) && PHOTO_URL.test(photoUrl) ? { photoUrl, photoPath } : { photoUrl: '', photoPath: '' };
+}
+
+const BUNDLED_PHOTO = /^\/landing\/photos\/[a-z0-9-]+\.(webp|jpg|png)$/;
+
+/** True while the photo is one of the bundled defaults (not uploaded by the owner). */
+export function isBundledPhoto(photo: SectionPhoto): boolean {
+  return photo.path === '';
+}
+
+/** An uploaded photo (Storage URL + path) or a bundled one; anything else, or a missing photo, takes the default. */
+function parseSectionPhoto(value: unknown, fallback: SectionPhoto): SectionPhoto {
+  if (!value || typeof value !== 'object') return fallback;
+  const r = value as Record<string, unknown>;
+  const url = typeof r.url === 'string' ? r.url : '';
+  const path = typeof r.path === 'string' ? r.path : '';
+  const uploaded = PHOTO_PATH.test(path) && PHOTO_URL.test(url);
+  const bundled = path === '' && BUNDLED_PHOTO.test(url);
+  if (!uploaded && !bundled) return fallback;
+  const alt = text(r.alt, PHOTO_ALT_MAX_LENGTH);
+  // The default alt describes the default picture; an uploaded one without alt gets an empty (decorative) one.
+  return { url, path, alt: alt || (url === fallback.url ? fallback.alt : '') };
+}
+
+function parsePhotos(value: unknown): Record<LandingPhotoKey, SectionPhoto> {
+  const r = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
+  return Object.fromEntries(LANDING_PHOTOS.map((k) => [k, parseSectionPhoto(r[k], DEFAULT_PHOTOS[k])])) as
+    Record<LandingPhotoKey, SectionPhoto>;
 }
 
 /** Every hero field falls back to its default when missing or blank, so the hero is never empty. */
@@ -289,6 +344,7 @@ export function parseLanding(data: Record<string, unknown> | undefined): Landing
     faqs: Array.isArray(data.faqs) ? parseList(data.faqs, parseFaq, MAX_FAQS) : DEFAULT_FAQS,
     testimonials: parseList(data.testimonials, parseTestimonial, MAX_TESTIMONIALS),
     footer: parseFooter(data.footer),
+    photos: parsePhotos(data.photos),
   };
 }
 
@@ -352,31 +408,81 @@ export function photoProblem(file: File): string | null {
   return null;
 }
 
+const SECTION_PHOTO_MAX_WIDTH = 1600;
+/** storage.rules accepts landing JPEGs under 1 MB. */
+const UPLOAD_MAX_BYTES = 1024 * 1024;
+
+/** Draws the source rectangle (sx, sy, sw, sh) of the file onto a width × height JPEG. */
+async function drawJpeg(
+  bitmap: ImageBitmap, [sx, sy, sw, sh]: [number, number, number, number], width: number, height: number, quality: number,
+): Promise<Blob> {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas 2D context unavailable');
+  ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, width, height);
+  return new Promise((resolve, reject) =>
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Photo encoding failed'))), 'image/jpeg', quality));
+}
+
 /** Center-crops to a square and scales to PHOTO_SIZE, so the landing never loads a phone-camera original. */
 async function squareJpeg(file: File): Promise<Blob> {
   const bitmap = await createImageBitmap(file);
   const side = Math.min(bitmap.width, bitmap.height);
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = PHOTO_SIZE;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Canvas 2D context unavailable');
-  ctx.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, PHOTO_SIZE, PHOTO_SIZE);
-  bitmap.close();
-  return new Promise((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Photo encoding failed'))), 'image/jpeg', 0.85));
+  try {
+    return await drawJpeg(bitmap, [(bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side], PHOTO_SIZE, PHOTO_SIZE, 0.85);
+  } finally {
+    bitmap.close();
+  }
 }
 
-/** Platform owner only (storage.rules). Returns the fields to store on the testimonial. */
-export async function uploadTestimonialPhoto(file: File): Promise<Pick<Testimonial, 'photoUrl' | 'photoPath'>> {
-  const blob = await squareJpeg(file);
-  const photoPath = `landing/${crypto.randomUUID().replace(/-/g, '')}.jpg`;
-  const photoRef = ref(getStorageBucket(), photoPath);
+/** Scales down to SECTION_PHOTO_MAX_WIDTH keeping the proportions (never up). */
+async function sectionJpeg(file: File): Promise<Blob> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, SECTION_PHOTO_MAX_WIDTH / bitmap.width);
+  const width = Math.round(bitmap.width * scale);
+  const height = Math.round(bitmap.height * scale);
+  try {
+    let blob = await drawJpeg(bitmap, [0, 0, bitmap.width, bitmap.height], width, height, 0.82);
+    // A very tall or noisy picture can pass 1 MB at 0.82; one stronger pass keeps it under the rule.
+    if (blob.size >= UPLOAD_MAX_BYTES) blob = await drawJpeg(bitmap, [0, 0, bitmap.width, bitmap.height], width, height, 0.6);
+    if (blob.size >= UPLOAD_MAX_BYTES) throw new Error('Photo still over 1 MB after compression');
+    return blob;
+  } finally {
+    bitmap.close();
+  }
+}
+
+/** Platform owner only (storage.rules): landing/<32 hex>.jpg, public and cached for a year. */
+async function uploadLandingJpeg(blob: Blob): Promise<{ path: string; url: string }> {
+  const path = `landing/${crypto.randomUUID().replace(/-/g, '')}.jpg`;
+  const photoRef = ref(getStorageBucket(), path);
   await uploadBytes(photoRef, blob, { contentType: 'image/jpeg', cacheControl: 'public, max-age=31536000' });
-  return { photoPath, photoUrl: await getDownloadURL(photoRef) };
+  return { path, url: await getDownloadURL(photoRef) };
+}
+
+/** Returns the fields to store on the testimonial. */
+export async function uploadTestimonialPhoto(file: File): Promise<Pick<Testimonial, 'photoUrl' | 'photoPath'>> {
+  const { path, url } = await uploadLandingJpeg(await squareJpeg(file));
+  return { photoPath: path, photoUrl: url };
+}
+
+/** Section photo (hero, consultation, …): up to 1600 px wide, proportions kept. The caller keeps the alt text. */
+export async function uploadSectionPhoto(file: File): Promise<Pick<SectionPhoto, 'url' | 'path'>> {
+  return uploadLandingJpeg(await sectionJpeg(file));
+}
+
+/** Every uploaded file the content references (testimonials and section photos). */
+export function landingPhotoPaths(content: LandingContent): string[] {
+  return [
+    ...content.testimonials.map((t) => t.photoPath),
+    ...LANDING_PHOTOS.map((k) => content.photos[k].path),
+  ].filter(Boolean);
 }
 
 /** Best effort: a leftover file only costs storage, so a failure is logged, not thrown. */
-export async function deleteTestimonialPhotos(paths: string[]): Promise<void> {
+export async function deleteLandingPhotos(paths: string[]): Promise<void> {
   await Promise.all(paths.filter((p) => PHOTO_PATH.test(p)).map((p) =>
     deleteObject(ref(getStorageBucket(), p)).catch((err) => console.warn('[landing] photo delete failed:', p, err))));
 }

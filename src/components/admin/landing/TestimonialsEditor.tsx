@@ -11,11 +11,13 @@ import {
 import { cn } from '@/lib/utils';
 import { Counter, INPUT, ItemControls, moveItem, patchItem, type Update } from './shared';
 
-export function TestimonialsEditor({ testimonials, onChange, uploadingId, onUploading }: {
+export function TestimonialsEditor({ testimonials, onChange, uploadingId, onUploading, onUploaded }: {
   testimonials: Testimonial[];
   onChange: Update<Testimonial[]>;
   uploadingId: string | null;
   onUploading: (id: string | null) => void;
+  /** Storage path of every upload, so one replaced before saving is deleted too. */
+  onUploaded: (path: string) => void;
 }) {
   const update = (id: string, patch: Partial<Testimonial>) => onChange((list) => patchItem(list, id, patch));
   const visibleCount = testimonials.filter((t) => t.visible).length;
@@ -27,6 +29,7 @@ export function TestimonialsEditor({ testimonials, onChange, uploadingId, onUplo
     onUploading(id);
     try {
       const photo = await uploadTestimonialPhoto(file);
+      onUploaded(photo.photoPath);
       update(id, photo);
     } catch (err) {
       console.error('[landing] photo upload failed:', err);

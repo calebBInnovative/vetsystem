@@ -18,7 +18,9 @@ import { Faq } from '@/components/marketing/Faq';
 import { OfflineDay } from '@/components/marketing/OfflineDay';
 import { SiteFooter } from '@/components/marketing/SiteFooter';
 import { ProductTour } from '@/components/marketing/ProductTour';
-import { BrowserFrame, PhoneFrame } from '@/components/marketing/DeviceFrames';
+import { PhoneFrame } from '@/components/marketing/DeviceFrames';
+import { LandingPhoto } from '@/components/marketing/LandingPhoto';
+import { PhotoFeatures } from '@/components/marketing/PhotoFeatures';
 import { useLandingContent } from '@/hooks/useLandingContent';
 import { DEFAULT_HERO, splitHeroTitle } from '@/lib/marketing/landing';
 import { cn } from '@/lib/utils';
@@ -152,12 +154,12 @@ function Hero() {
             )}
           </div>
 
-          {/* Real screens of the demo clinic (public/landing/screens/) */}
+          {/* Clinic photo (edited at /admin/landing) with the real phone screen of the demo clinic over it */}
           <div className="relative pb-10 lg:pb-0 lg:pl-6">
-            <BrowserFrame src="dashboard.webp" darkSrc="dashboard-dark.webp" priority
-              alt="Panel de control de VetSystem con las citas de hoy y las últimas consultas" />
+            <LandingPhoto photo={content?.photos.hero} priority sizes="(min-width: 1024px) 560px, 100vw"
+              className="aspect-[4/3] rounded-3xl shadow-2xl shadow-primary/10" />
             <PhoneFrame src="mobile-dashboard.webp" priority alt="VetSystem en el celular"
-              className="absolute -bottom-4 -left-3 sm:-left-6 w-24 sm:w-32 lg:-bottom-16 lg:-left-10" />
+              className="absolute -bottom-4 -left-3 sm:-left-6 w-20 sm:w-28 lg:w-32 lg:-bottom-16 lg:-left-10" />
             <div className="absolute -top-4 right-3 sm:-right-4 flex items-center gap-2 rounded-full bg-card border border-border shadow-lg px-3.5 py-2 text-xs font-semibold">
               <span className="flex w-5 h-5 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600">
                 <Check size={12} strokeWidth={3} />
@@ -201,6 +203,7 @@ const beneficios = [
 ];
 
 function Beneficios() {
+  const photo = useLandingContent()?.photos.equipment;
   return (
     <section id="beneficios" className="py-24 bg-muted/30">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -212,18 +215,23 @@ function Beneficios() {
           </p>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {beneficios.map(({ icon: Icon, titulo, desc, color }) => (
-            <div key={titulo} className="bg-card rounded-2xl p-6 border border-border shadow-sm hover:shadow-md transition-shadow space-y-4">
-              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${color}`}>
-                <Icon size={22} />
+        <div className="grid lg:grid-cols-[5fr_7fr] gap-5">
+          {/* Stretches to the height of the cards on desktop; 4:3 on smaller screens */}
+          <LandingPhoto photo={photo} sizes="(min-width: 1024px) 460px, 100vw"
+            className="aspect-[4/3] lg:aspect-auto rounded-3xl" />
+          <div className="grid sm:grid-cols-2 gap-5">
+            {beneficios.map(({ icon: Icon, titulo, desc, color }) => (
+              <div key={titulo} className="bg-card rounded-2xl p-6 border border-border shadow-sm hover:shadow-md transition-shadow space-y-4">
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${color}`}>
+                  <Icon size={22} />
+                </div>
+                <div className="space-y-1.5">
+                  <h3 className="font-semibold text-sm leading-snug">{titulo}</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <h3 className="font-semibold text-sm leading-snug">{titulo}</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     </section>
@@ -323,6 +331,7 @@ export default function LandingPage() {
       <Hero />
       <OfflineDay />
       <Beneficios />
+      <PhotoFeatures />
       <ProductTour />
       <Modulos />
       <PricingPlans />

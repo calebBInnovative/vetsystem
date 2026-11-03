@@ -9,20 +9,22 @@ import { LoadError } from '@/components/admin/LoadError';
 import { useAuth } from '@/contexts/AuthContext';
 import { isPlatformOwner } from '@/lib/usage/usage.service';
 import {
-  deleteTestimonialPhotos, saveLandingContent, subscribeLandingContent, validEmail, validSocialUrl, SOCIAL_NETWORKS,
-  type LandingContent,
+  deleteLandingPhotos, isBundledPhoto, landingPhotoPaths, saveLandingContent, subscribeLandingContent, validEmail,
+  validSocialUrl, LANDING_PHOTOS, SOCIAL_NETWORKS, type LandingContent,
 } from '@/lib/marketing/landing';
 import { HeroEditor } from '@/components/admin/landing/HeroEditor';
 import { OfflineDayEditor } from '@/components/admin/landing/OfflineDayEditor';
 import { FooterEditor } from '@/components/admin/landing/FooterEditor';
 import { FaqEditor } from '@/components/admin/landing/FaqEditor';
 import { TestimonialsEditor } from '@/components/admin/landing/TestimonialsEditor';
+import { PhotosEditor } from '@/components/admin/landing/PhotosEditor';
 import { cn } from '@/lib/utils';
 
-type Tab = 'hero' | 'offlineDay' | 'faqs' | 'testimonials' | 'footer';
+type Tab = 'hero' | 'photos' | 'offlineDay' | 'faqs' | 'testimonials' | 'footer';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'hero', label: 'Portada' },
+  { id: 'photos', label: 'Fotos' },
   { id: 'offlineDay', label: 'Sin internet' },
   { id: 'faqs', label: 'Preguntas' },
   { id: 'testimonials', label: 'Testimonios' },
@@ -41,8 +43,11 @@ export default function LandingAdminPage() {
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<Error | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
-  // Photos referenced by the saved document: the ones gone after a save are deleted from Storage.
+  // Photos referenced by the saved document, plus the ones uploaded since: those no longer
+  // referenced after a save are deleted from Storage.
   const savedPhotos = useRef<string[]>([]);
+  const uploadedPhotos = useRef<string[]>([]);
+  const trackUpload = (path: string) => { uploadedPhotos.current.push(path); };
 
   useEffect(() => {
     if (!loading && !platformOwner) router.replace('/admin');
@@ -52,7 +57,7 @@ export default function LandingAdminPage() {
   useEffect(() => {
     if (!platformOwner || dirty) return;
     return subscribeLandingContent((c) => {
-      savedPhotos.current = c.testimonials.map((t) => t.photoPath).filter(Boolean);
+      savedPhotos.current = landingPhotoPaths(c);
       setLoadError(null);
       setContent(c);
     }, setLoadError);
@@ -93,12 +98,18 @@ export default function LandingAdminPage() {
       toast.error('Cada testimonio necesita nombre y texto (o bórralo)');
       return;
     }
+    if (LANDING_PHOTOS.some((k) => !isBundledPhoto(content.photos[k]) && !content.photos[k].alt.trim())) {
+      setTab('photos');
+      toast.error('Describe cada foto nueva en su texto alternativo');
+      return;
+    }
     setSaving(true);
     try {
       await saveLandingContent(content);
-      const kept = new Set(content.testimonials.map((t) => t.photoPath));
-      void deleteTestimonialPhotos(savedPhotos.current.filter((p) => !kept.has(p)));
-      savedPhotos.current = [...kept].filter(Boolean);
+      const kept = landingPhotoPaths(content);
+      void deleteLandingPhotos([...new Set([...savedPhotos.current, ...uploadedPhotos.current])].filter((p) => !kept.includes(p)));
+      savedPhotos.current = kept;
+      uploadedPhotos.current = [];
       setDirty(false);
       toast.success('Guardado. Ya se ve en la página principal.');
     } catch (err) {
@@ -148,6 +159,9 @@ export default function LandingAdminPage() {
         <div className="flex justify-center py-10"><Loader2 size={18} className="animate-spin text-muted-foreground" /></div>
       ) : tab === 'hero' ? (
         <HeroEditor hero={content.hero} onChange={section('hero')} />
+      ) : tab === 'photos' ? (
+        <PhotosEditor photos={content.photos} onChange={section('photos')}
+          uploadingId={uploadingId} onUploading={setUploadingId} onUploaded={trackUpload} />
       ) : tab === 'offlineDay' ? (
         <OfflineDayEditor day={content.offlineDay} onChange={section('offlineDay')} />
       ) : tab === 'footer' ? (
@@ -156,7 +170,7 @@ export default function LandingAdminPage() {
         <FaqEditor faqs={content.faqs} onChange={section('faqs')} />
       ) : (
         <TestimonialsEditor testimonials={content.testimonials} onChange={section('testimonials')}
-          uploadingId={uploadingId} onUploading={setUploadingId} />
+          uploadingId={uploadingId} onUploading={setUploadingId} onUploaded={trackUpload} />
       )}
     </div>
   );
