@@ -114,24 +114,6 @@ export type PullProgress = {
   collection: string | null;
 };
 
-/**
- * A pull that has not answered by then is treated as failed: the cursor is not
- * advanced, so the next pull (or the realtime listener) retries it. Without
- * this, a request stalled on a flaky mobile connection kept the app on the
- * first-sync screen forever.
- */
-const PULL_TIMEOUT_MS = 20_000;
-
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms);
-    promise.then(
-      (value) => { clearTimeout(timer); resolve(value); },
-      (err) => { clearTimeout(timer); reject(err); },
-    );
-  });
-}
-
 export type SyncAllProgress = {
   collection:    string;
   enviados:      number;
@@ -526,11 +508,8 @@ class SyncService {
         if (!this.started) return lastPull;
         this.emitProgress({ done: index, total: tables.length, collection: nombre });
         try {
-          const docs = await withTimeout(
-            syncProvider.pull(nombre, rewindCursor(lastPull), clinicId, false, branchScopeFor(nombre, session)),
-            PULL_TIMEOUT_MS,
-            `pull ${nombre}`,
-          );
+          // Each page is timed out by the provider (see PULL_PAGE_TIMEOUT_MS).
+          const docs = await syncProvider.pull(nombre, rewindCursor(lastPull), clinicId, false, branchScopeFor(nombre, session));
           totalReads += 1 + docs.length;
           if (docs.length > 0) {
             console.log(`[sync] pull ${nombre} — ${docs.length} doc(s)`);

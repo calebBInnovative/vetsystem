@@ -32,6 +32,35 @@ const WINDOWED_COLLECTIONS = new Set([
 ]);
 
 /**
+ * Documents per pull request. Rules are evaluated once per query, not once per
+ * document, so the page size does not count against the 10 get() calls a rule
+ * may make. It only bounds how much one request carries over a slow link.
+ */
+const BATCH_SIZE = 300;
+
+/**
+ * A page that has not answered by then is treated as failed: the pull's cursor
+ * is not advanced, so the next pull (or the realtime listener) retries it.
+ * Without this, a request stalled on a flaky mobile connection kept the app on
+ * the first-sync screen forever. Timed per page, not per collection: a large
+ * collection that keeps answering is slow, not stalled.
+ */
+const PULL_PAGE_TIMEOUT_MS = 20_000;
+
+function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`${label} timed out after ${PULL_PAGE_TIMEOUT_MS / 1000}s`)),
+      PULL_PAGE_TIMEOUT_MS,
+    );
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (err) => { clearTimeout(timer); reject(err); },
+    );
+  });
+}
+
+/**
  * SyncProvider implementation using Firestore.
  *
  * Firestore structure:
@@ -72,9 +101,7 @@ export class FirebaseSyncProvider implements SyncProvider {
     const scope: QueryConstraint[] = branchIds?.length ? [where('branchId', 'in', branchIds)] : [];
     // Query by _syncedAt (server-set timestamp). This guarantees we catch documents
     // regardless of when they were originally created on the client device.
-    // Rules use 1 get() per list evaluation — well within the 10-read limit.
     const sinceTimestamp = Timestamp.fromMillis(since);
-    const BATCH_SIZE = 9;
     const results: RemoteDoc[] = [];
     const seen = new Set<string>();
     let lastDoc: QueryDocumentSnapshot | null = null;
@@ -89,7 +116,7 @@ export class FirebaseSyncProvider implements SyncProvider {
       ];
       if (lastDoc) constraints.push(startAfter(lastDoc));
 
-      const snap = await getDocs(query(this.colRef(collectionName, clinicId), ...constraints));
+      const snap = await withTimeout(getDocs(query(this.colRef(collectionName, clinicId), ...constraints)), `pull ${collectionName}`);
       for (const d of snap.docs) {
         seen.add(d.id);
         results.push({ id: d.id, ...d.data() } as RemoteDoc);
@@ -113,7 +140,7 @@ export class FirebaseSyncProvider implements SyncProvider {
           ? [...scope, where('updatedAt', '>=', cutoff), orderBy('updatedAt', 'asc'), limit(BATCH_SIZE)]
           : [...scope, limit(BATCH_SIZE)];
         if (lastFallbackDoc) constraints.push(startAfter(lastFallbackDoc));
-        const snap = await getDocs(query(this.colRef(collectionName, clinicId), ...constraints));
+        const snap = await withTimeout(getDocs(query(this.colRef(collectionName, clinicId), ...constraints)), `pull ${collectionName}`);
         for (const d of snap.docs) {
           if (!seen.has(d.id)) results.push({ id: d.id, ...d.data() } as RemoteDoc);
         }

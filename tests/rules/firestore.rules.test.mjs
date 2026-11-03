@@ -1,5 +1,6 @@
 // Firestore security rules tests. Run with `npm run test:rules` (Firestore emulator).
 import { after, before, beforeEach, describe, it } from 'node:test';
+import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   assertFails, assertSucceeds, initializeTestEnvironment,
@@ -138,6 +139,21 @@ describe('branch isolation', () => {
     await assertFails(getDocs(sales('recep-sur')));
     await assertFails(getDocs(query(sales('recep-sur'), where('branchId', 'in', ['sur', 'main']))));
     await assertSucceeds(getDocs(sales('owner-a')));
+  });
+
+  it('a sync page can hold far more than 10 documents (rules run per query, not per document)', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const batch = writeBatch(ctx.firestore());
+      for (let i = 0; i < 30; i++) {
+        batch.set(doc(ctx.firestore(), `clinics/clinic-a/sales/bulk-${i}`), { clinicId: 'clinic-a', branchId: 'sur', total: i });
+      }
+      await batch.commit();
+    });
+    const sales = (who) => collection(as(who), 'clinics/clinic-a/sales');
+    const staffPage = await assertSucceeds(getDocs(query(sales('recep-sur'), where('branchId', 'in', ['sur']))));
+    assert.ok(staffPage.size > 10);
+    const managerPage = await assertSucceeds(getDocs(sales('owner-a')));
+    assert.ok(managerPage.size > 10);
   });
 
   it('staff write inside their branches and cannot move documents out of others', async () => {
