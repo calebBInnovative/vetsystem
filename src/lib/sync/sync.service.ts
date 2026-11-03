@@ -507,6 +507,7 @@ class SyncService {
         // fail on permissions. Keep the old cursor so the next start resumes.
         if (!this.started) return lastPull;
         this.emitProgress({ done: index, total: tables.length, collection: nombre });
+        const collectionStartedAt = Date.now();
         try {
           // Each page is timed out by the provider (see PULL_PAGE_TIMEOUT_MS).
           const docs = await syncProvider.pull(nombre, rewindCursor(lastPull), clinicId, false, branchScopeFor(nombre, session));
@@ -520,7 +521,14 @@ class SyncService {
           pullErrored = true;
           const errMsg = err instanceof Error ? err.message : String(err);
           console.error(`[sync] pull ${nombre} failed:`, errMsg);
-          reportHandledError(err, 'sync.pull', { collection: nombre });
+          reportHandledError(err, 'sync.pull', { collection: nombre }, {
+            includeTransient: true,
+            extra: {
+              elapsedMs:      Date.now() - collectionStartedAt,
+              firstPull:      lastPull === 0,
+              branchScoped:   branchScopeFor(nombre, session) !== undefined,
+            },
+          });
           // Show a toast so the user knows something went wrong
           toast.error(`Error al sincronizar "${nombre}". Revisa conexión.`, {
             id:       `sync-pull-${nombre}`,
