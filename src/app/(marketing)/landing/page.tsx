@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ThemeSwitcher } from '@/components/themes/ThemeSwitcher';
@@ -8,7 +9,7 @@ import {
   WifiOff, FileText, Package, Receipt,
   ChevronRight, Menu, X, Check,
   Stethoscope, CalendarDays, ShoppingCart, ClipboardList, Wallet, Megaphone,
-  MessageCircle, BarChart3, FileUp, Users, Smartphone, Bell,
+  MessageCircle, BarChart3, FileUp, Users, Smartphone, Bell, ShieldCheck,
 } from 'lucide-react';
 import { VetSystemIcon, VetSystemWordmark, PAW_BG_WHITE } from '@/components/common/VetSystemLogo';
 import { PricingPlans } from '@/components/marketing/PricingPlans';
@@ -18,10 +19,9 @@ import { Faq } from '@/components/marketing/Faq';
 import { OfflineDay } from '@/components/marketing/OfflineDay';
 import { SiteFooter } from '@/components/marketing/SiteFooter';
 import { ProductTour } from '@/components/marketing/ProductTour';
-import { BrowserFrame, PhoneFrame } from '@/components/marketing/DeviceFrames';
 import { PhotoBackdrop } from '@/components/marketing/PhotoBackdrop';
 import { useLandingContent } from '@/hooks/useLandingContent';
-import { DEFAULT_HERO, splitHeroTitle } from '@/lib/marketing/landing';
+import { DEFAULT_HERO, splitHeroTitle, type SectionPhoto } from '@/lib/marketing/landing';
 import { cn } from '@/lib/utils';
 
 // ─── Navbar ──────────────────────────────────────────────────────────────────
@@ -110,66 +110,118 @@ function Hero() {
   const [before, highlight, after] = splitHeroTitle(hero);
 
   return (
-    <section className="relative overflow-hidden min-h-screen flex items-center pt-16">
-      <PhotoBackdrop photo={content?.photos.hero} priority fade="from-background via-background/30 to-transparent" />
-      <div className="relative max-w-6xl mx-auto px-4 sm:px-6 w-full py-20">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
+    <section className="relative overflow-hidden pt-28 pb-16 lg:pt-36 lg:pb-24">
+      {/* Soft brand glows instead of a busy background */}
+      <div aria-hidden className="pointer-events-none absolute -top-48 -right-32 h-[38rem] w-[38rem] rounded-full bg-primary/15 blur-3xl" />
+      <div aria-hidden className="pointer-events-none absolute -bottom-56 -left-40 h-[30rem] w-[30rem] rounded-full bg-primary/10 blur-3xl" />
 
-          {/* Default copy is in the static HTML (SEO); it fades in once the saved copy has loaded. */}
-          <div className={cn('space-y-8 transition-opacity duration-300', content || slow ? 'opacity-100' : 'opacity-0')}>
-            <div className="inline-flex items-center gap-2 bg-primary/10 text-primary text-xs font-semibold px-3 py-1.5 rounded-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-              {hero.badge}
-            </div>
-
-            <h1 className="text-4xl sm:text-5xl font-extrabold leading-tight tracking-tight">
-              {before}<span className="text-primary">{highlight}</span>{after}
-            </h1>
-
-            <p className="text-lg text-muted-foreground leading-relaxed max-w-md">
-              {hero.subtitle}
-            </p>
-
-            <div className="flex flex-wrap gap-3">
-              <Button size="lg" className="h-12 px-8 text-base gap-2" asChild>
-                <Link href="/register">
-                  {hero.primaryCta}
-                  <ChevronRight size={16} />
-                </Link>
-              </Button>
-              <Button variant="outline" size="lg" className="h-12 px-8 text-base" asChild>
-                <Link href="/demo">{hero.secondaryCta}</Link>
-              </Button>
-            </div>
-
-            {hero.trustPoints.length > 0 && (
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
-                {hero.trustPoints.map((t) => (
-                  <span key={t} className="flex items-center gap-1.5">
-                    <Check size={13} className="text-primary" />
-                    {t}
-                  </span>
-                ))}
-              </div>
-            )}
+      <div className="relative max-w-6xl mx-auto px-4 sm:px-6 grid lg:grid-cols-[1.05fr_1fr] gap-14 lg:gap-16 items-center">
+        {/* Default copy is in the static HTML (SEO); it fades in once the saved copy has loaded. */}
+        <div className={cn('space-y-8 transition-opacity duration-300', content || slow ? 'opacity-100' : 'opacity-0')}>
+          <div className="inline-flex items-center gap-2 bg-primary/10 text-primary text-xs font-semibold px-3 py-1.5 rounded-full ring-1 ring-primary/20">
+            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+            {hero.badge}
           </div>
 
-          {/* Real screens of the demo clinic (public/landing/screens/) */}
-          <div className="relative pb-10 lg:pb-0 lg:pl-6">
-            <BrowserFrame src="dashboard.webp" darkSrc="dashboard-dark.webp" priority
-              alt="Panel de control de VetSystem con las citas de hoy y las últimas consultas" />
-            <PhoneFrame src="mobile-dashboard.webp" priority alt="VetSystem en el celular"
-              className="absolute -bottom-4 -left-3 sm:-left-6 w-24 sm:w-32 lg:-bottom-16 lg:-left-10" />
-            <div className="absolute -top-4 right-3 sm:-right-4 flex items-center gap-2 rounded-full bg-card border border-border shadow-lg px-3.5 py-2 text-xs font-semibold">
-              <span className="flex w-5 h-5 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600">
-                <Check size={12} strokeWidth={3} />
-              </span>
-              Guardado sin internet
-            </div>
+          <h1 className="text-4xl sm:text-5xl lg:text-[3.4rem] font-extrabold leading-[1.08] tracking-tight text-balance">
+            {before}<span className="text-primary">{highlight}</span>{after}
+          </h1>
+
+          <p className="text-lg text-muted-foreground leading-relaxed max-w-lg">
+            {hero.subtitle}
+          </p>
+
+          <div className="flex flex-wrap gap-3">
+            <Button size="lg" className="h-12 px-8 text-base gap-2 shadow-lg shadow-primary/25" asChild>
+              <Link href="/register">
+                {hero.primaryCta}
+                <ChevronRight size={16} />
+              </Link>
+            </Button>
+            <Button variant="outline" size="lg" className="h-12 px-8 text-base bg-background/60 backdrop-blur" asChild>
+              <Link href="/demo">{hero.secondaryCta}</Link>
+            </Button>
           </div>
+
+          {hero.trustPoints.length > 0 && (
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
+              {hero.trustPoints.map((t) => (
+                <span key={t} className="flex items-center gap-1.5">
+                  <Check size={14} className="text-primary" />
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
+
+        <HeroPhoto photo={content?.photos.hero} />
       </div>
     </section>
+  );
+}
+
+/**
+ * The hero picture (edited at /admin/landing), framed and never covered: the two
+ * small cards sit on its edges, half outside, so the person in it stays in view.
+ */
+function HeroPhoto({ photo }: { photo: SectionPhoto | undefined }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <div className="relative mx-auto w-full max-w-xl lg:max-w-none">
+      <div aria-hidden className="absolute -inset-3 sm:-inset-4 rounded-[2.25rem] bg-linear-to-br from-primary/30 via-primary/5 to-transparent rotate-2" />
+      <div className="relative aspect-[4/3] lg:aspect-[5/4] rounded-[2rem] overflow-hidden bg-muted shadow-2xl ring-1 ring-border">
+        {photo && (
+          <Image key={photo.url} src={photo.url} alt={photo.alt} fill priority sizes="(min-width: 1024px) 560px, 100vw"
+            onLoad={() => setLoaded(true)}
+            className={cn('object-cover transition-opacity duration-700', loaded ? 'opacity-100' : 'opacity-0')} />
+        )}
+      </div>
+
+      <div className="absolute -bottom-5 left-4 sm:-left-6 flex items-center gap-2.5 rounded-2xl bg-card/95 backdrop-blur border border-border shadow-xl px-4 py-2.5">
+        <span className="flex w-8 h-8 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600">
+          <WifiOff size={15} />
+        </span>
+        <span className="leading-tight">
+          <span className="block text-xs font-semibold">Guardado sin internet</span>
+          <span className="block text-[11px] text-muted-foreground">Se sincroniza al volver la conexión</span>
+        </span>
+      </div>
+
+      <div className="absolute -top-5 right-4 sm:-right-5 hidden sm:flex items-center gap-2.5 rounded-2xl bg-card/95 backdrop-blur border border-border shadow-xl px-4 py-2.5">
+        <span className="flex w-8 h-8 items-center justify-center rounded-full bg-primary/15 text-primary">
+          <CalendarDays size={15} />
+        </span>
+        <span className="leading-tight">
+          <span className="block text-xs font-semibold">Luna · 9:00 a. m.</span>
+          <span className="block text-[11px] text-muted-foreground">Cita confirmada</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Trust strip ──────────────────────────────────────────────────────────────
+
+const trustItems = [
+  { icon: WifiOff,       text: 'Funciona sin internet' },
+  { icon: Smartphone,    text: 'Computadora, tablet y celular' },
+  { icon: ShieldCheck,   text: 'Respaldo en la nube de Google' },
+  { icon: MessageCircle, text: 'Soporte por WhatsApp' },
+];
+
+function TrustStrip() {
+  return (
+    <div className="border-y border-border bg-muted/30">
+      <ul className="max-w-6xl mx-auto px-4 sm:px-6 py-5 grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-3">
+        {trustItems.map(({ icon: Icon, text }) => (
+          <li key={text} className="flex items-center justify-center lg:justify-start gap-2 text-sm font-medium text-muted-foreground">
+            <Icon size={16} className="text-primary shrink-0" />
+            <span>{text}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -180,25 +232,25 @@ const beneficios = [
     icon: WifiOff,
     titulo: 'Permite funcionar sin internet',
     desc: 'Atiende pacientes, registra consultas y cobra aunque se vaya la luz o el internet. Todo se sincroniza automáticamente cuando vuelve la conexión.',
-    color: 'bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400',
+    color: 'bg-blue-500/12 text-blue-600',
   },
   {
     icon: FileText,
     titulo: 'Historial clínico completo',
     desc: 'Pacientes, consultas, vacunas, diagnósticos y recetas en un solo lugar. Encuentra todo en segundos.',
-    color: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400',
+    color: 'bg-emerald-500/12 text-emerald-600',
   },
   {
     icon: Package,
     titulo: 'Inventario con alertas',
     desc: 'Controla tu stock de medicamentos y productos. Recibe alertas antes de quedarte sin lo esencial.',
-    color: 'bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-400',
+    color: 'bg-amber-500/12 text-amber-600',
   },
   {
     icon: Receipt,
     titulo: 'Facturación instantánea',
     desc: 'Genera facturas desde la misma consulta. Lleva el control de cobros pendientes y pagados sin planillas.',
-    color: 'bg-purple-50 text-purple-600 dark:bg-purple-950 dark:text-purple-400',
+    color: 'bg-purple-500/12 text-purple-600',
   },
 ];
 
@@ -216,13 +268,13 @@ function Beneficios() {
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {beneficios.map(({ icon: Icon, titulo, desc, color }) => (
-            <div key={titulo} className="bg-card rounded-2xl p-6 border border-border shadow-sm hover:shadow-md transition-shadow space-y-4">
-              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${color}`}>
+            <div key={titulo} className="group bg-card rounded-2xl p-7 border border-border shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-primary/30 transition-all duration-300 space-y-5">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 ${color}`}>
                 <Icon size={22} />
               </div>
-              <div className="space-y-1.5">
-                <h3 className="font-semibold text-sm leading-snug">{titulo}</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
+              <div className="space-y-2">
+                <h3 className="font-semibold leading-snug">{titulo}</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{desc}</p>
               </div>
             </div>
           ))}
@@ -266,7 +318,7 @@ function Modulos() {
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {modules.map(({ icon: Icon, title, desc }) => (
-            <div key={title} className="flex gap-3.5 bg-card rounded-xl p-4 border border-border">
+            <div key={title} className="flex gap-3.5 bg-card rounded-xl p-4 border border-border hover:border-primary/40 hover:shadow-md transition-all">
               <div className="w-10 h-10 shrink-0 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
                 <Icon size={20} />
               </div>
@@ -326,6 +378,7 @@ export default function LandingPage() {
     <div className="min-h-screen bg-background text-foreground">
       <Navbar />
       <Hero />
+      <TrustStrip />
       <OfflineDay />
       <Beneficios />
       <ProductTour />

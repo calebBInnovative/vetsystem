@@ -81,8 +81,8 @@ export interface FooterContent {
   socials: Record<SocialNetwork, string>;
 }
 
-/** Landing photos: partial backgrounds of the hero and the closing call to action, and the scene behind the product tour. */
-export const LANDING_PHOTOS = ['hero', 'tour', 'closing'] as const;
+/** Landing photos: the hero picture and the partial background of the closing call to action. */
+export const LANDING_PHOTOS = ['hero', 'closing'] as const;
 export type LandingPhotoKey = (typeof LANDING_PHOTOS)[number];
 
 export interface SectionPhoto {
@@ -178,8 +178,6 @@ export const PHOTO_ALT_MAX_LENGTH = 160;
 export const DEFAULT_PHOTOS: Record<LandingPhotoKey, SectionPhoto> = {
   hero: { url: '/landing/photos/hero.webp', path: '',
     alt: 'Veterinario sonriente junto a un perro en la mesa de consulta, con la computadora de la clínica al fondo' },
-  tour: { url: '/landing/photos/equipment.webp', path: '',
-    alt: 'Veterinario atendiendo a un perro pomerania, con el equipo de la clínica al lado' },
   closing: { url: '/landing/photos/consultation.webp', path: '',
     alt: 'Veterinario auscultando a un perro con el estetoscopio' },
 };
