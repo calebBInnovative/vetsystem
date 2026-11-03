@@ -92,20 +92,23 @@ export function ProductTour() {
             </Button>
           </div>
 
-          {/* The scene: someone at work (photo from /admin/landing) with the real screens in front of them. */}
-          <div className="order-1 lg:order-2 relative pb-10 sm:pb-14">
-            <div className="relative aspect-[4/3] sm:aspect-[16/10] w-full sm:w-[78%] rounded-3xl overflow-hidden bg-muted shadow-xl">
+          {/* The scene: someone at work (photo from /admin/landing) with the real screens over its lower part only,
+              so the person in it stays visible. */}
+          <div className="order-1 lg:order-2 relative">
+            <div className="relative aspect-[16/10] w-full rounded-3xl overflow-hidden bg-muted shadow-xl">
               {photo && (
-                <Image key={photo.url} src={photo.url} alt={photo.alt} fill sizes="(min-width: 1024px) 560px, 100vw"
-                  className="object-cover animate-in fade-in duration-700" />
+                <Image key={photo.url} src={photo.url} alt={photo.alt} fill sizes="(min-width: 1024px) 720px, 100vw"
+                  className="object-cover object-[center_30%] animate-in fade-in duration-700" />
               )}
-              <div className="absolute inset-0 bg-linear-to-t from-black/25 to-transparent" aria-hidden />
+              <div className="absolute inset-0 bg-linear-to-t from-black/30 via-transparent to-transparent" aria-hidden />
             </div>
 
-            <BrowserFrame key={stop.desktop} src={stop.desktop} alt={`Pantalla de ${stop.label} en VetSystem`}
-              className="hidden sm:block absolute right-0 bottom-0 w-[72%] animate-in fade-in slide-in-from-bottom-2 duration-300" />
-            <PhoneFrame key={stop.mobile} src={stop.mobile} alt={`Pantalla de ${stop.label} en VetSystem, en el celular`}
-              className="absolute bottom-0 right-4 w-32 sm:right-auto sm:left-[14%] sm:w-[19%] sm:-bottom-2 z-10 animate-in fade-in slide-in-from-bottom-3 duration-500" />
+            <div className="relative -mt-[18%] sm:-mt-[24%] flex items-end justify-end gap-3 px-3 sm:px-0 sm:pr-0">
+              <PhoneFrame key={stop.mobile} src={stop.mobile} alt={`Pantalla de ${stop.label} en VetSystem, en el celular`}
+                className="w-28 sm:w-[17%] sm:absolute sm:left-[4%] sm:bottom-[-0.5rem] z-10 animate-in fade-in slide-in-from-bottom-3 duration-500" />
+              <BrowserFrame key={stop.desktop} src={stop.desktop} alt={`Pantalla de ${stop.label} en VetSystem`}
+                className="hidden sm:block w-[64%] sm:-mr-4 lg:-mr-8 animate-in fade-in slide-in-from-bottom-2 duration-300" />
+            </div>
           </div>
         </div>
       </div>
