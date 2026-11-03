@@ -111,7 +111,9 @@ const dynamicRoutes = [...new Set(collectRoutes(APP_DIR))].sort(byDepthDesc);
 
 const rewrites = [
   ...dynamicRoutes.flatMap(toRewrites),
-  { source: '**', destination: '/index.html' },
+  // Not /_next/**: a chunk from an older build must 404, not come back as HTML
+  // (a browser holding the previous page would run index.html as JavaScript).
+  { source: '!/_next/**', destination: '/index.html' },
 ];
 
 // ── 5. Read firebase.json ─────────────────────────────────────────────────────

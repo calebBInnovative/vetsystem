@@ -19,24 +19,15 @@
     ],
     "headers": [
       {
-        "source": "**/*.html",
+        "source": "**",
         "headers": [
           {
             "key": "Cache-Control",
-            "value": "no-cache, no-store, must-revalidate"
+            "value": "no-cache"
           },
           {
             "key": "Cross-Origin-Opener-Policy",
             "value": "same-origin-allow-popups"
-          }
-        ]
-      },
-      {
-        "source": "**/*.txt",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache, no-store, must-revalidate"
           }
         ]
       },
@@ -46,15 +37,6 @@
           {
             "key": "Cache-Control",
             "value": "public, max-age=31536000, immutable"
-          }
-        ]
-      },
-      {
-        "source": "**",
-        "headers": [
-          {
-            "key": "Cross-Origin-Opener-Policy",
-            "value": "same-origin-allow-popups"
           }
         ]
       }
@@ -117,7 +99,7 @@
         "destination": "/promotions/_/index.html"
       },
       {
-        "source": "**",
+        "source": "!/_next/**",
         "destination": "/index.html"
       }
     ]
