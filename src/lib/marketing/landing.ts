@@ -81,7 +81,8 @@ export interface FooterContent {
   socials: Record<SocialNetwork, string>;
 }
 
-export const LANDING_PHOTOS = ['hero', 'consultation', 'vaccination', 'equipment'] as const;
+/** Partial backgrounds of the landing: the hero and the closing call to action. */
+export const LANDING_PHOTOS = ['hero', 'closing'] as const;
 export type LandingPhotoKey = (typeof LANDING_PHOTOS)[number];
 
 export interface SectionPhoto {
@@ -177,12 +178,8 @@ export const PHOTO_ALT_MAX_LENGTH = 160;
 export const DEFAULT_PHOTOS: Record<LandingPhotoKey, SectionPhoto> = {
   hero: { url: '/landing/photos/hero.webp', path: '',
     alt: 'Veterinario sonriente junto a un perro en la mesa de consulta, con la computadora de la clínica al fondo' },
-  consultation: { url: '/landing/photos/consultation.webp', path: '',
+  closing: { url: '/landing/photos/consultation.webp', path: '',
     alt: 'Veterinario auscultando a un perro con el estetoscopio' },
-  vaccination: { url: '/landing/photos/vaccination.webp', path: '',
-    alt: 'Veterinaria preparando la vacuna de un gato' },
-  equipment: { url: '/landing/photos/equipment.webp', path: '',
-    alt: 'Veterinario examinando a un pomerania junto al equipo de ultrasonido' },
 };
 
 export const DEFAULT_LANDING: LandingContent = {
@@ -468,7 +465,7 @@ export async function uploadTestimonialPhoto(file: File): Promise<Pick<Testimoni
   return { photoPath: path, photoUrl: url };
 }
 
-/** Section photo (hero, consultation, …): up to 1600 px wide, proportions kept. The caller keeps the alt text. */
+/** Section photo (hero, closing): up to 1600 px wide, proportions kept. The caller keeps the alt text. */
 export async function uploadSectionPhoto(file: File): Promise<Pick<SectionPhoto, 'url' | 'path'>> {
   return uploadLandingJpeg(await sectionJpeg(file));
 }

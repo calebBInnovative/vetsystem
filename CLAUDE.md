@@ -320,10 +320,11 @@ is recorded. A converted quote keeps its own number and stores the resulting `sa
   links → `/admin/landing` (`platform/landing`; photos in Storage
   `landing/`, resized to a 320px JPEG in the browser). A missing section falls back to its `DEFAULT_*`; no visible FAQ or testimonial → that section is hidden. One read per page load
   (`useLandingContent`).
-- Section photos (`photos`: hero, consultation, vaccination, equipment) → `/admin/landing` → Fotos. Defaults
-  are the bundled Pexels photos in `public/landing/photos/` ("Fotos: Pexels" in the footer while any is shown);
-  uploads go to the same `landing/` folder, ≤ 1600 px wide JPEG. `LandingPhoto` keeps a fixed aspect and a
-  neutral box until the content loads, so a replaced photo never flashes the default.
+- Background photos (`photos`: hero, closing) → `/admin/landing` → Fotos. `PhotoBackdrop` draws each behind
+  one side of its section (right on desktop, bottom on phones), fading into the section color, and only once the
+  content has loaded, so a replaced photo never flashes the default. Defaults are the bundled Pexels photos in
+  `public/landing/photos/` ("Fotos: Pexels" in the footer while any is shown); uploads go to the same `landing/`
+  folder, ≤ 1600 px wide JPEG.
 - WhatsApp button → `platform/contact`, mirrored from the owner's WhatsApp by `saveBillingConfig()`.
 
 All three docs are public-read, owner-write (`firestore.rules`, `storage.rules`; tests in `tests/rules/`).
