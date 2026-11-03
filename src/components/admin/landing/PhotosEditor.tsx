@@ -12,6 +12,7 @@ import { Counter, INPUT, type Update } from './shared';
 
 const LABELS: Record<LandingPhotoKey, { title: string; where: string }> = {
   hero: { title: 'Portada', where: 'Fondo del lado derecho de la portada, detrás de las pantallas del sistema.' },
+  tour: { title: 'Pantallas reales', where: 'Escena detrás de la computadora y el celular de la sección "Pantallas reales, no maquetas". Ideal: alguien en el mostrador vendiendo o revisando inventario.' },
   closing: { title: 'Cierre', where: 'Fondo del lado derecho del bloque verde final ("Empieza hoy").' },
 };
 
