@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { Counter, INPUT, type Update } from './shared';
 
 const LABELS: Record<LandingPhotoKey, { title: string; where: string }> = {
-  hero: { title: 'Portada', where: 'Foto enmarcada a la derecha del título. Horizontal, con la persona hacia el centro: se ve completa, nada la tapa.' },
+  hero: { title: 'Portada', where: 'Fondo del lado derecho de la portada; se desvanece hacia el título.' },
   closing: { title: 'Cierre', where: 'Fondo del lado derecho del bloque verde final ("Empieza hoy").' },
 };
 
@@ -50,7 +50,7 @@ export function PhotosEditor({ photos, onChange, uploadingId, onUploading, onUpl
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
-        Fotos de la página principal. Usa fotos horizontales y con permiso de uso; se reducen a 1600 px de ancho al subirlas.
+        Fotos de fondo de la página principal: cubren un lado de la sección y se desvanecen hacia el color de fondo. Usa fotos horizontales, con el motivo hacia la derecha y con permiso de uso; se reducen a 1600 px de ancho al subirlas.
       </p>
 
       {LANDING_PHOTOS.map((key) => {

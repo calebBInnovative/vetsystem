@@ -21,7 +21,7 @@ import { SiteFooter } from '@/components/marketing/SiteFooter';
 import { ProductTour } from '@/components/marketing/ProductTour';
 import { PhotoBackdrop } from '@/components/marketing/PhotoBackdrop';
 import { useLandingContent } from '@/hooks/useLandingContent';
-import { DEFAULT_HERO, splitHeroTitle, type SectionPhoto } from '@/lib/marketing/landing';
+import { DEFAULT_HERO, splitHeroTitle } from '@/lib/marketing/landing';
 import { cn } from '@/lib/utils';
 
 // ─── Navbar ──────────────────────────────────────────────────────────────────
@@ -110,12 +110,11 @@ function Hero() {
   const [before, highlight, after] = splitHeroTitle(hero);
 
   return (
-    <section className="relative overflow-hidden pt-28 pb-16 lg:pt-36 lg:pb-24">
-      {/* Soft brand glows instead of a busy background */}
-      <div aria-hidden className="pointer-events-none absolute -top-48 -right-32 h-[38rem] w-[38rem] rounded-full bg-primary/15 blur-3xl" />
-      <div aria-hidden className="pointer-events-none absolute -bottom-56 -left-40 h-[30rem] w-[30rem] rounded-full bg-primary/10 blur-3xl" />
-
-      <div className="relative max-w-6xl mx-auto px-4 sm:px-6 grid lg:grid-cols-[1.05fr_1fr] gap-14 lg:gap-16 items-center">
+    <section className="relative overflow-hidden lg:min-h-screen flex items-center pt-16">
+      {/* Desktop: the photo fills the right side. Phones: it goes below the copy, so it never sits under the buttons. */}
+      <PhotoBackdrop photo={content?.photos.hero} priority className="hidden lg:block"
+        fade="from-background via-background/30 to-transparent" />
+      <div className="relative max-w-6xl mx-auto px-4 sm:px-6 w-full pt-20 pb-0 lg:py-20 grid lg:grid-cols-2 gap-12 items-center">
         {/* Default copy is in the static HTML (SEO); it fades in once the saved copy has loaded. */}
         <div className={cn('space-y-8 transition-opacity duration-300', content || slow ? 'opacity-100' : 'opacity-0')}>
           <div className="inline-flex items-center gap-2 bg-primary/10 text-primary text-xs font-semibold px-3 py-1.5 rounded-full ring-1 ring-primary/20">
@@ -155,49 +154,14 @@ function Hero() {
           )}
         </div>
 
-        <HeroPhoto photo={content?.photos.hero} />
-      </div>
-    </section>
-  );
-}
-
-/**
- * The hero picture (edited at /admin/landing), framed and never covered: the two
- * small cards sit on its edges, half outside, so the person in it stays in view.
- */
-function HeroPhoto({ photo }: { photo: SectionPhoto | undefined }) {
-  const [loaded, setLoaded] = useState(false);
-  return (
-    <div className="relative mx-auto w-full max-w-xl lg:max-w-none">
-      <div aria-hidden className="absolute -inset-3 sm:-inset-4 rounded-[2.25rem] bg-linear-to-br from-primary/30 via-primary/5 to-transparent rotate-2" />
-      <div className="relative aspect-[4/3] lg:aspect-[5/4] rounded-[2rem] overflow-hidden bg-muted shadow-2xl ring-1 ring-border">
-        {photo && (
-          <Image key={photo.url} src={photo.url} alt={photo.alt} fill priority sizes="(min-width: 1024px) 560px, 100vw"
-            onLoad={() => setLoaded(true)}
-            className={cn('object-cover transition-opacity duration-700', loaded ? 'opacity-100' : 'opacity-0')} />
+        {content?.photos.hero && (
+          <div className="lg:hidden relative -mx-4 sm:-mx-6 aspect-[4/3]">
+            <Image src={content.photos.hero.url} alt={content.photos.hero.alt} fill sizes="100vw" className="object-cover" />
+            <div className="absolute inset-0 bg-linear-to-b from-background via-transparent to-transparent" aria-hidden />
+          </div>
         )}
       </div>
-
-      <div className="absolute -bottom-5 left-4 sm:-left-6 flex items-center gap-2.5 rounded-2xl bg-card/95 backdrop-blur border border-border shadow-xl px-4 py-2.5">
-        <span className="flex w-8 h-8 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600">
-          <WifiOff size={15} />
-        </span>
-        <span className="leading-tight">
-          <span className="block text-xs font-semibold">Guardado sin internet</span>
-          <span className="block text-[11px] text-muted-foreground">Se sincroniza al volver la conexión</span>
-        </span>
-      </div>
-
-      <div className="absolute -top-5 right-4 sm:-right-5 hidden sm:flex items-center gap-2.5 rounded-2xl bg-card/95 backdrop-blur border border-border shadow-xl px-4 py-2.5">
-        <span className="flex w-8 h-8 items-center justify-center rounded-full bg-primary/15 text-primary">
-          <CalendarDays size={15} />
-        </span>
-        <span className="leading-tight">
-          <span className="block text-xs font-semibold">Luna · 9:00 a. m.</span>
-          <span className="block text-[11px] text-muted-foreground">Cita confirmada</span>
-        </span>
-      </div>
-    </div>
+    </section>
   );
 }
 
