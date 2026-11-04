@@ -47,6 +47,8 @@ export interface AnalyticsInsight {
   icon:        string;
   title:       string;
   description: string;
+  /** Built from cost prices: hidden from staff without "Ver costos y ganancias" */
+  usesCosts?:  boolean;
 }
 
 export interface FinancialAnalytics {
@@ -273,7 +275,7 @@ function generateInsights(params: {
   const lowMarginProduct = topProducts.find(p => p.margin !== undefined && p.margin < 20 && p.totalRevenue > 0);
   if (lowMarginProduct) {
     out.push({
-      type: 'warning', icon: '💰',
+      type: 'warning', icon: '💰', usesCosts: true,
       title: `Margen bajo en "${lowMarginProduct.name}" (${lowMarginProduct.margin?.toFixed(0)}% ganancia)`,
       description: `Estás vendiendo con un margen muy reducido. Considera ajustar el precio de venta, buscar otro proveedor o evaluar si vale la pena seguir ofreciendo este producto.`,
     });

@@ -17,6 +17,8 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { DescuentoInput } from '@/components/common/DiscountInput';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { canDo } from '@/lib/auth/roles';
 import {
   Loader2, Save, CheckCircle, Search, Plus, Minus,
   Activity, FileText, Package, Receipt, X,
@@ -48,6 +50,8 @@ interface ConsultaFormProps {
 }
 
 export function ConsultaForm({ consultaId, consultation, onFinalizada, onCancelada }: ConsultaFormProps) {
+  const { session } = useAuth();
+  const canDiscount = canDo(session, 'giveDiscounts');
   const [tab, setTab]               = useState<TabId>('examen');
   const [guardando,   setGuardando]   = useState(false);
   const [finalizando, setFinalizando] = useState(false);
@@ -590,14 +594,14 @@ export function ConsultaForm({ consultaId, consultation, onFinalizada, onCancela
             )}
 
             {/* Descuento */}
-            <div className="space-y-1.5">
+            {canDiscount && <div className="space-y-1.5">
               <label className="text-sm font-medium">Descuento</label>
               <DescuentoInput
                 subtotal={subtotal}
                 value={discount}
                 onChange={(monto) => setValue('discount', monto, { shouldValidate: true })}
               />
-            </div>
+            </div>}
 
             {/* Totales */}
             <div className="rounded-xl border border-border bg-card p-4 space-y-2">

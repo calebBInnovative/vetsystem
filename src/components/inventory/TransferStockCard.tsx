@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { logAudit } from '@/lib/audit/audit';
 import { ArrowRightLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useBranches } from '@/hooks/useBranches';
@@ -34,6 +35,11 @@ export function TransferStockCard({ product, unitLabel }: { product: ProductLoca
     setSending(true);
     try {
       const result = await transferStock({ productId: product.id, toBranchId: target.id, quantity: qty, note });
+      void logAudit({
+        action: 'stock.transfer',
+        summary: `Trasladó ${qty} ${unitLabel} de ${product.name} a ${target.name}${note ? ` (${note})` : ''}`,
+        entityId: product.id,
+      });
       toast.success(`${qty} ${unitLabel} enviado${qty === 1 ? '' : 's'} a ${target.name}`
         + (result.createdInTarget ? ' (se creó el producto allá)' : ''));
       setQuantity(''); setNote('');

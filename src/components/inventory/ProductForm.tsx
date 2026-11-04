@@ -16,6 +16,10 @@ interface ProductoFormProps {
   textoBoton?: string;
   formId?: string;
   hideSubmitButton?: boolean;
+  /** Without the "Ver costos" action: no cost price field */
+  hideCost?: boolean;
+  /** Without the "Ajustar stock" action: the stock is shown, not edited */
+  lockStock?: boolean;
 }
 
 export function ProductoForm({
@@ -25,6 +29,8 @@ export function ProductoForm({
   textoBoton = 'Guardar Producto',
   formId,
   hideSubmitButton = false,
+  hideCost = false,
+  lockStock = false,
 }: ProductoFormProps) {
   const {
     register,
@@ -178,7 +184,9 @@ export function ProductoForm({
               min="0"
               step="any"
               placeholder="0"
-              className={field(!!errors.currentStock)}
+              readOnly={lockStock}
+              title={lockStock ? 'Para cambiar el stock necesitas el permiso de ajustar stock' : undefined}
+              className={cn(field(!!errors.currentStock), lockStock && 'opacity-60 cursor-not-allowed')}
             />
             {errors.currentStock && <Err>{errors.currentStock.message}</Err>}
           </div>
@@ -210,16 +218,18 @@ export function ProductoForm({
             {errors.salePrice && <Err>{errors.salePrice.message}</Err>}
           </div>
 
-          <div>
-            <label className={labelClass}>Precio de costo ($)</label>
-            <input
-              {...register('costPrice')}
-              type="text"
-              inputMode="numeric"
-              placeholder="0.00"
-              className={field(false)}
-            />
-          </div>
+          {!hideCost && (
+            <div>
+              <label className={labelClass}>Precio de costo ($)</label>
+              <input
+                {...register('costPrice')}
+                type="text"
+                inputMode="numeric"
+                placeholder="0.00"
+                className={field(false)}
+              />
+            </div>
+          )}
 
         </div>
       </section>

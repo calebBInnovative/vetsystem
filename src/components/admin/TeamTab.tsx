@@ -10,11 +10,13 @@ import { useBranches } from '@/hooks/useBranches';
 import { useClinicUsers } from '@/hooks/useClinicUsers';
 import { createUser, deleteUser, sendPasswordReset, updateUser, type FirestoreUser } from '@/lib/auth/auth.service';
 import {
-  ROLE_LABELS, assignableRoles, canManageUser, hasFullModuleAccess, isClinicManager, userBranchIds,
+  ACTION_LABELS, DEFAULT_STAFF_ACTIONS, ROLE_LABELS, assignableRoles, canManageUser, hasFullModuleAccess,
+  isClinicManager, userBranchIds,
 } from '@/lib/auth/roles';
 import { sessionLimits } from '@/lib/billing/plans';
+import { logAudit } from '@/lib/audit/audit';
 import { cn } from '@/lib/utils';
-import type { AppModule, Permissions, UserRole } from '@/types/license';
+import type { ActionPermissions, AppModule, Permissions, SensitiveAction, UserRole } from '@/types/license';
 import { BranchAssignment } from './BranchAssignment';
 
 const INPUT = 'w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
@@ -58,7 +60,11 @@ type Draft = {
   role: UserRole;
   permissions: Permissions | null;
   branchIds?: string[];
+  actions: ActionPermissions;
 };
+
+/** Profiles saved before actions existed could do all of them, and still can. */
+const ALL_ACTIONS: Required<ActionPermissions> = { voidDocuments: true, giveDiscounts: true, viewCosts: true, adjustStock: true };
 
 function permissionsForRole(role: UserRole, current: Permissions | null): Permissions | null {
   if (hasFullModuleAccess(role)) return null;
@@ -91,6 +97,26 @@ export function TeamTab() {
       || (!isClinicManager(u.role) && userBranchIds(u.branchIds).some((id) => myBranches.includes(id)))),
   [users, clinicManager, session?.uid, myBranches]);
 
+  const branchesLabel = (role: UserRole, ids: string[] | undefined) =>
+    !multiBranch || isClinicManager(role) ? '' : ` en ${userBranchIds(ids).map(branchName).join(', ')}`;
+
+  /** What a manager changed, in words, for the Bitácora; empty when nothing did. */
+  function describeChanges(before: FirestoreUser, after: Draft): string {
+    const parts: string[] = [];
+    if (before.role !== after.role) parts.push(`rol ${ROLE_LABELS[before.role]} → ${ROLE_LABELS[after.role]}`);
+    const was = userBranchIds(before.branchIds).join(','), now = userBranchIds(after.branchIds).join(',');
+    if (!isClinicManager(after.role) && was !== now) parts.push(`sucursales: ${userBranchIds(after.branchIds).map(branchName).join(', ')}`);
+    if (after.permissions && JSON.stringify(before.permissions ?? null) !== JSON.stringify(after.permissions)) parts.push('módulos');
+    const granted = (Object.keys(ACTION_LABELS) as SensitiveAction[])
+      .filter((k) => (before.actions ?? ALL_ACTIONS)[k] !== true && after.actions[k] === true).map((k) => ACTION_LABELS[k].label.toLowerCase());
+    const removed = (Object.keys(ACTION_LABELS) as SensitiveAction[])
+      .filter((k) => (before.actions ?? ALL_ACTIONS)[k] === true && after.actions[k] !== true).map((k) => ACTION_LABELS[k].label.toLowerCase());
+    if (!hasFullModuleAccess(after.role) && granted.length) parts.push(`ahora puede ${granted.join(', ')}`);
+    if (!hasFullModuleAccess(after.role) && removed.length) parts.push(`ya no puede ${removed.join(', ')}`);
+    if (before.name !== after.name.trim() && after.name.trim()) parts.push(`nombre → ${after.name.trim()}`);
+    return parts.join('; ');
+  }
+
   const filtered = branchFilter === 'all'
     ? visible
     : visible.filter((u) => isClinicManager(u.role) || userBranchIds(u.branchIds).includes(branchFilter));
@@ -103,6 +129,7 @@ export function TeamTab() {
   // ── Create ──
   const emptyCreate = (): Draft & { email: string; password: string } => ({
     email: '', password: '', name: '', role: 'veterinarian', permissions: { ...DEFAULT_PERMISSIONS },
+    actions: { ...DEFAULT_STAFF_ACTIONS },
     // A branch manager must name the branch: the rules refuse a profile outside theirs.
     branchIds: clinicManager ? undefined : [branchState?.activeId && myBranches.includes(branchState.activeId) ? branchState.activeId : myBranches[0]],
   });
@@ -119,7 +146,9 @@ export function TeamTab() {
         ...form,
         clinicId,
         branchIds: isClinicManager(form.role) ? undefined : (form.branchIds ?? (clinicManager ? undefined : myBranches)),
+        actions: hasFullModuleAccess(form.role) ? undefined : form.actions,
       });
+      void logAudit({ action: 'user.create', summary: `Agregó a ${form.name} (${form.email}) como ${ROLE_LABELS[form.role]}${branchesLabel(form.role, form.branchIds)}` });
       toast.success(`Usuario ${form.email} creado`);
       setForm(emptyCreate());
       void reload();
@@ -132,7 +161,7 @@ export function TeamTab() {
 
   // ── Edit ──
   const [editTarget, setEditTarget] = useState<FirestoreUser | null>(null);
-  const [edit, setEdit] = useState<Draft>({ name: '', role: 'veterinarian', permissions: null });
+  const [edit, setEdit] = useState<Draft>({ name: '', role: 'veterinarian', permissions: null, actions: {} });
   const [saving, setSaving] = useState(false);
 
   function openEdit(u: FirestoreUser) {
@@ -142,6 +171,7 @@ export function TeamTab() {
       role: u.role,
       permissions: hasFullModuleAccess(u.role) ? null : (u.permissions ?? { ...DEFAULT_PERMISSIONS }),
       branchIds: u.branchIds,
+      actions: u.actions ?? { ...ALL_ACTIONS },
     });
   }
 
@@ -155,7 +185,10 @@ export function TeamTab() {
         role: edit.role,
         permissions: edit.permissions,
         branchIds: isClinicManager(edit.role) ? undefined : (edit.branchIds ?? (clinicManager ? undefined : myBranches)),
+        actions: hasFullModuleAccess(edit.role) ? undefined : edit.actions,
       });
+      const changes = describeChanges(editTarget, edit);
+      if (changes) void logAudit({ action: 'user.update', summary: `Cambió a ${editTarget.name}: ${changes}` });
       toast.success('Usuario actualizado');
       setEditTarget(null);
       void reload();
@@ -191,6 +224,7 @@ export function TeamTab() {
     setBusy(true);
     try {
       await deleteUser(deleteTarget.uid);
+      void logAudit({ action: 'user.delete', summary: `Quitó el acceso de ${deleteTarget.name} (${ROLE_LABELS[deleteTarget.role]})` });
       toast.success(`${deleteTarget.name} ya no tiene acceso`);
       setDeleteTarget(null);
       void reload();
@@ -239,6 +273,21 @@ export function TeamTab() {
               </label>
             ))}
           </div>
+          <p className="text-xs font-medium text-muted-foreground pt-2">Acciones delicadas</p>
+          <div className="space-y-0.5">
+            {(Object.keys(ACTION_LABELS) as SensitiveAction[]).map((key) => (
+              <label key={key} className="flex items-start gap-2 cursor-pointer select-none rounded-lg px-2.5 py-1.5 hover:bg-muted/60 transition-colors">
+                <input type="checkbox" className="accent-primary h-3.5 w-3.5 mt-0.5"
+                  checked={draft.actions[key] === true}
+                  onChange={(e) => set({ ...draft, actions: { ...draft.actions, [key]: e.target.checked } })} />
+                <span className="text-xs">
+                  {ACTION_LABELS[key].label}
+                  <span className="block text-[11px] text-muted-foreground">{ACTION_LABELS[key].hint}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <p className="text-[11px] text-muted-foreground px-1">Todo lo delicado queda registrado en la Bitácora.</p>
         </div>
       )}
     </>

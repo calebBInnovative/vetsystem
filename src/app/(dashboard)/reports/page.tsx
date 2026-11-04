@@ -7,6 +7,7 @@ import { useBranches } from '@/hooks/useBranches';
 import { useInventoryValuation } from '@/hooks/useInventory';
 import { openPdfReport, printPdfReport } from '@/lib/reports/exportPdf';
 import { downloadCsv } from '@/lib/reports/exportCsv';
+import { canDo } from '@/lib/auth/roles';
 import { PRODUCT_CATEGORIES, type ProductCategory } from '@/types/inventory';
 import { SERVICE_CATEGORIES } from '@/types/service';
 import { useAuth } from '@/contexts/AuthContext';
@@ -208,6 +209,7 @@ function CollapsibleSection({ title, icon, defaultOpen = true, children }: {
 
 export default function ReportsPage() {
   const { session } = useAuth();
+  const canViewCosts = canDo(session, 'viewCosts');
 
   // Date range state
   const [preset,    setPreset]    = useState(4);   // "Este mes" default
@@ -301,13 +303,13 @@ export default function ReportsPage() {
     }
 
     // Low-margin products
-    const lowMargin = report.productStats.filter(p => p.margin !== undefined && p.margin < 20);
+    const lowMargin = canViewCosts ? report.productStats.filter(p => p.margin !== undefined && p.margin < 20) : [];
     if (lowMargin.length > 0) {
       insights.push({ icon: '📉', title: `${lowMargin.length} producto${lowMargin.length > 1 ? 's' : ''} con margen bajo (<20%)`, body: `${lowMargin.slice(0, 3).map(p => p.name).join(', ')}. Considera ajustar precios de compra o venta.`, kind: 'warning' });
     }
 
     return insights;
-  }, [report]);
+  }, [report, canViewCosts]);
   const INCOME_TYPE_LABELS: Record<string, string> = {
     consultation: 'Consulta', vaccination: 'Vacuna', surgery: 'Cirugía', product: 'Producto', grooming: 'Estética', other: 'Otro',
   };
@@ -332,7 +334,7 @@ export default function ReportsPage() {
           <button
             type="button"
             disabled={loading || !report}
-            onClick={() => report && downloadCsv(report)}
+            onClick={() => report && downloadCsv(report, canViewCosts)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Sheet size={14} />
@@ -719,7 +721,7 @@ export default function ReportsPage() {
       {/* ── Inventory valuation ─────────────────────────────────────
           Stock on hand is an asset, not income or expense of the period, so it
           sits in its own section and is never mixed into the range totals. */}
-      <InventoryValuationSection />
+      {canViewCosts && <InventoryValuationSection />}
 
       {/* ── Products ───────────────────────────────────────────────── */}
       <CollapsibleSection title={`Productos vendidos (${report?.productStats.length ?? 0})`} icon={<ShoppingBag size={13} />}>
@@ -761,7 +763,7 @@ export default function ReportsPage() {
                     <th className="text-right py-2 px-1 text-muted-foreground font-medium hidden md:table-cell">Ventas</th>
                     <th className="text-right py-2 px-1 text-muted-foreground font-medium">Ingresos</th>
                     <th className="text-right py-2 px-1 text-muted-foreground font-medium hidden sm:table-cell">%</th>
-                    <th className="text-right py-2 px-1 text-muted-foreground font-medium hidden lg:table-cell">Margen</th>
+                    {canViewCosts && <th className="text-right py-2 px-1 text-muted-foreground font-medium hidden lg:table-cell">Margen</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -782,13 +784,13 @@ export default function ReportsPage() {
                         <td className="py-2 px-1 text-right hidden md:table-cell">{p.salesCount}</td>
                         <td className="py-2 px-1 text-right font-bold tabular-nums">{fmtCurrency(p.totalRevenue)}</td>
                         <td className="py-2 px-1 text-right text-muted-foreground hidden sm:table-cell">{pct}%</td>
-                        <td className="py-2 px-1 text-right hidden lg:table-cell">
+                        {canViewCosts && <td className="py-2 px-1 text-right hidden lg:table-cell">
                           {p.margin != null ? (
                             <span className={p.margin < 20 ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-green-600 dark:text-green-400 font-medium'}>
                               {p.margin.toFixed(0)}%
                             </span>
                           ) : '—'}
-                        </td>
+                        </td>}
                       </tr>
                     );
                   })}

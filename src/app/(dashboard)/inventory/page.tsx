@@ -29,6 +29,8 @@ import { ModuleImportButton } from '@/components/common/ModuleImportButton';
 import { getInventoryExportData } from '@/lib/export/modules';
 import { importProductsFromFile } from '@/lib/import/modules';
 import { useAuth } from '@/contexts/AuthContext';
+import { canDo } from '@/lib/auth/roles';
+import { logAudit } from '@/lib/audit/audit';
 
 // ─── Draft types ──────────────────────────────────────────────────────────────
 
@@ -197,6 +199,9 @@ type View = 'lista' | 'cards';
 
 export default function InventoryPage() {
   const { session } = useAuth();
+  const canViewCosts = canDo(session, 'viewCosts');
+  // The bulk table edits cost and stock directly, so it needs both actions.
+  const canBulkEdit  = canViewCosts && canDo(session, 'adjustStock');
   const [searchQuery, setSearchQuery] = useState('');
   const [categoria,   setCategoria]   = useState<ProductCategory | undefined>();
   const [view,        setView]        = useState<View>('lista');
@@ -254,6 +259,14 @@ export default function InventoryPage() {
           }),
         ),
       );
+      // Stock typed into the table records no movement, so it goes in the Bitácora.
+      for (const d of changedDrafts) {
+        const before = products.find((p) => p.id === d.id)?.currentStock;
+        const after = parseFloat(d.currentStock) || 0;
+        if (before !== undefined && before !== after) {
+          void logAudit({ action: 'stock.edit', summary: `Cambió el stock de ${d.name.trim()} de ${before} a ${after} en la tabla de inventario`, entityId: d.id });
+        }
+      }
       toast.success(`${changedDrafts.length} producto${changedDrafts.length !== 1 ? 's' : ''} actualizado${changedDrafts.length !== 1 ? 's' : ''}`);
       exitEditMode();
     } catch {
@@ -306,9 +319,11 @@ export default function InventoryPage() {
                 getData={getInventoryExportData}
                 clinicName={session?.clinicName}
               />
-              <Button variant="outline" className="gap-2" onClick={enterEditMode} disabled={loading || products.length === 0}>
-                <Pencil size={15} /> Editar lista
-              </Button>
+              {canBulkEdit && (
+                <Button variant="outline" className="gap-2" onClick={enterEditMode} disabled={loading || products.length === 0}>
+                  <Pencil size={15} /> Editar lista
+                </Button>
+              )}
               <Link href="/inventory/new" className="app:hidden">
                 <Button className="gap-2">
                   <Plus size={17} />
@@ -364,7 +379,7 @@ export default function InventoryPage() {
         <>
           <AlertasStock />
 
-          <InventoryValuation />
+          {canViewCosts && <InventoryValuation />}
 
           <BuscadorPacientes
             onBuscar={setSearchQuery}

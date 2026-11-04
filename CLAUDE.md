@@ -196,6 +196,20 @@ Roles `master`, `admin` and `branch_manager` bypass per-module permissions. `vet
 - Admin → Equipo is `components/admin/TeamTab.tsx` (branch filter, branch chips); the team is read from
   Firestore (`useClinicUsers`), never synced to Dexie.
 
+**Sensitive actions** (`SensitiveAction`, `users/{uid}.actions`, checked with `canDo(session, action)`):
+`voidDocuments` (cancel/refund/correct/delete payments, void/delete quotes), `giveDiscounts` (POS, consultation
+and invoice discounts), `viewCosts` (cost price, inventory valuation, margins in reports/analytics/CSV),
+`adjustStock` (adjust form, transfers, stock field when editing a product, bulk "Editar lista").
+Managers may do all; a staff profile **without** `actions` (saved before they existed) keeps doing all, as before;
+new staff get `DEFAULT_STAFF_ACTIONS`. Client-side gate, like module permissions — the Bitácora is the control.
+
+**Bitácora** (`auditLog` table, Admin → Bitácora): `logAudit({ action, summary, amount?, entityId? })` from
+`src/lib/audit/audit.ts` after each sensitive action (and team changes). Branch-scoped (stamped by the
+creating hook); append-only in firestore.rules (own entries, no edits/deletes); only managers read/sync it,
+branch managers their branches. `logAudit` never throws — call it after the action, outside its transaction.
+Editing the stock by hand records no movement, so those edits are logged as `stock.edit`.
+Note: there is no UI to void a sale or an invoice directly (only through payments).
+
 ---
 
 ## 8. Demo Mode
@@ -218,7 +232,7 @@ Demo mode is a fully isolated, no-Firebase sandbox:
 
 ## 9. Database Schema (Dexie)
 
-Current version: **27**. Schema is in `src/lib/db/database.ts`.
+Current version: **29**. Schema is in `src/lib/db/database.ts`.
 
 Tables and their primary key + indexed fields:
 ```
@@ -239,6 +253,7 @@ collaborators:        id, clinicId, syncStatus, updatedAt, deletedAt
 collaboratorPayments: id, collaboratorId, clinicId, syncStatus, updatedAt
 promotions:           id, clinicId, active, syncStatus, updatedAt, deletedAt
 quotes:               id, number, clinicId, date, status, patientId, syncStatus, updatedAt, deletedAt
+auditLog:             id, clinicId, branchId, action, createdAt, syncStatus
 syncQueue:            id, table, operation, payload, clinicId, createdAt, attempts, status
 ```
 
@@ -283,7 +298,8 @@ All modules live under `src/app/(dashboard)/`. Feature logic is in `src/hooks/us
 A clinic can run several branches (points of sale), limited by the plan's `maxBranches` (Clínica: 3).
 - **Shared by the clinic:** patients, owners, services, promotions — and each patient's clinical history.
 - **Per branch (`branchId`):** `BRANCH_SCOPED_TABLES` in `database.ts` — products, movements, sales, payments,
-  invoices, appointments, quotes, consultations, fixedExpenses, expensePayments, collaborators, collaboratorPayments.
+  invoices, appointments, quotes, consultations, fixedExpenses, expensePayments, collaborators, collaboratorPayments,
+  auditLog.
 - Rows without `branchId` (everything from before branches) belong to `MAIN_BRANCH_ID` ('main', "Principal").
 - **Writes:** a Dexie `creating` hook stamps the active branch on new rows — never pass branchId by hand. Sync
   (`upsertRemoteDocs`) sets 'main' on remote rows that lack it, so the hook never mislabels them.

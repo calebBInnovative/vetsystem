@@ -20,6 +20,8 @@ import {
 import { PRODUCT_CATEGORIES } from '@/types/inventory';
 import { SERVICE_CATEGORIES } from '@/types/service';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { canDo } from '@/lib/auth/roles';
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('es-NI', { style: 'currency', currency: 'NIO', maximumFractionDigits: 0 }).format(n);
@@ -114,6 +116,8 @@ function ProductRanking({
   onCatFilter:  (c: string | null) => void;
   allCategories: string[];
 }) {
+  const { session } = useAuth();
+  const canViewCosts = canDo(session, 'viewCosts');
   const visible = catFilter ? products.filter(p => p.category === catFilter) : products;
   const maxRevenue = visible.length > 0 ? visible[0].totalRevenue : 0;
 
@@ -182,7 +186,7 @@ function ProductRanking({
                     <RankBar value={p.totalRevenue} max={maxRevenue} />
                     <span className="text-[10px] text-muted-foreground shrink-0">
                       {p.totalQty} {p.unit}
-                      {p.margin !== undefined && (
+                      {canViewCosts && p.margin !== undefined && (
                         <span className={cn(
                           'ml-1 font-medium',
                           p.margin < 20 ? 'text-amber-500' : 'text-green-500',
@@ -275,6 +279,8 @@ function Skeleton({ className }: { className?: string }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function FinancesAnalytics() {
+  const { session } = useAuth();
+  const canViewCosts = canDo(session, 'viewCosts');
   const today = format(new Date(), 'yyyy-MM-dd');
   const [period,    setPeriod]    = useState<AnalyticsPeriod>('week');
   const [refDate,   setRefDate]   = useState(today);
@@ -485,7 +491,7 @@ export function FinancesAnalytics() {
             <p className="text-sm font-semibold">Análisis y recomendaciones</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {analytics!.insights.map((insight, i) => (
+            {analytics!.insights.filter((insight) => canViewCosts || !insight.usesCosts).map((insight, i) => (
               <InsightCard key={i} insight={insight} />
             ))}
           </div>

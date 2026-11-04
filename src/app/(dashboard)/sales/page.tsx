@@ -24,6 +24,8 @@ import {
 import { ExportMenu } from '@/components/common/ExportMenu';
 import { getSalesExportData } from '@/lib/export/modules';
 import { useAuth } from '@/contexts/AuthContext';
+import { canDo } from '@/lib/auth/roles';
+import { auditMoney, logAudit } from '@/lib/audit/audit';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -337,6 +339,7 @@ type CatalogView = 'grid' | 'list';
 
 export default function SalesPage() {
   const { session } = useAuth();
+  const canDiscount = canDo(session, 'giveDiscounts');
   const [searchQuery,  setSearchQuery]  = useState('');
   const [categoria,    setCategoria]    = useState<ProductCategory | undefined>();
   const [catOpen,      setCatOpen]      = useState(false);
@@ -645,6 +648,14 @@ export default function SalesPage() {
         patientId:     patientId || undefined,
         notes:         notes || undefined,
       });
+      const itemDiscounts = cart.reduce((s, i) => s + (i.itemDiscount || 0), 0);
+      if (discountN + itemDiscounts > 0) {
+        void logAudit({
+          action: 'sale.discount',
+          summary: `Vendió ${auditMoney(Math.max(0, subtotalAmount - discountN))} con ${auditMoney(discountN + itemDiscounts)} de descuento`,
+          amount: discountN + itemDiscounts, entityId: ventaId,
+        });
+      }
       const venta = await db.sales.get(ventaId);
       if (venta?.invoiceId) setInvoiceId(venta.invoiceId);
       setStep('exito');
@@ -912,7 +923,7 @@ export default function SalesPage() {
                         </div>
                       </div>
                       {/* Per-item discount toggle */}
-                      <button
+                      {canDiscount && <button
                         type="button"
                         onClick={() => setDiscountOpenId(discountOpenId === item.productId ? null : item.productId)}
                         className={cn(
@@ -924,14 +935,14 @@ export default function SalesPage() {
                       >
                         <span>%</span>
                         <span>{item.itemDiscount > 0 ? `−${fmt(item.itemDiscount)}` : 'Desc.'}</span>
-                      </button>
+                      </button>}
                       <button type="button" onClick={() => eliminar(item.productId)}
                         className="text-muted-foreground hover:text-destructive transition-colors shrink-0 mt-0.5">
                         <Trash2 size={14} />
                       </button>
                     </div>
                     {/* Per-item discount input — shown when toggled */}
-                    {discountOpenId === item.productId && (
+                    {canDiscount && discountOpenId === item.productId && (
                       <div className="border-t border-border pt-2">
                         <p className="text-[11px] text-muted-foreground mb-1.5">Descuento en este producto</p>
                         <DescuentoInput
@@ -982,14 +993,14 @@ export default function SalesPage() {
             </div>
 
             {/* Descuento global */}
-            <div className="space-y-1">
+            {canDiscount && <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Descuento global</label>
               <DescuentoInput
                 subtotal={subtotal}
                 value={discountN}
                 onChange={(amount) => setDiscount(String(amount))}
               />
-            </div>
+            </div>}
 
             {/* Total */}
             <div className="rounded-xl bg-muted/40 p-3 space-y-1">

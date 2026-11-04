@@ -19,7 +19,7 @@ function section(title: string): string {
   return `\n${title}\n`;
 }
 
-export function generateCsvContent(report: ReportSummary): string {
+export function generateCsvContent(report: ReportSummary, includeCosts = true): string {
   const lines: string[] = [];
   const periodLabel = report.from === report.to ? report.from : `${report.from} - ${report.to}`;
 
@@ -74,7 +74,8 @@ export function generateCsvContent(report: ReportSummary): string {
 
   // Products
   lines.push(section('PRODUCTOS MÁS VENDIDOS'));
-  lines.push(csvRow(['#', 'Producto', 'Categoría', 'Unidades vendidas', 'N° ventas', 'Ingresos (NIO)', '% del total', 'Precio costo (NIO)', 'Margen (%)']));
+  lines.push(csvRow(['#', 'Producto', 'Categoría', 'Unidades vendidas', 'N° ventas', 'Ingresos (NIO)', '% del total',
+    ...(includeCosts ? ['Precio costo (NIO)', 'Margen (%)'] : [])]));
   report.productStats.forEach((p, i) => {
     const cat = PRODUCT_CATEGORIES[p.category as keyof typeof PRODUCT_CATEGORIES];
     const pct = report.totalRevenue > 0 ? ((p.totalRevenue / report.totalRevenue) * 100).toFixed(1) : '0';
@@ -86,8 +87,10 @@ export function generateCsvContent(report: ReportSummary): string {
       p.salesCount,
       fmt(p.totalRevenue),
       `${pct}%`,
-      p.costPrice != null ? fmt(p.costPrice) : '',
-      p.margin != null ? p.margin.toFixed(1) : '',
+      ...(includeCosts ? [
+        p.costPrice != null ? fmt(p.costPrice) : '',
+        p.margin != null ? p.margin.toFixed(1) : '',
+      ] : []),
     ]));
   });
   if (report.productStats.length === 0) lines.push(csvRow(['Sin datos']));
@@ -122,8 +125,9 @@ export function generateCsvContent(report: ReportSummary): string {
   return lines.join('\n');
 }
 
-export function downloadCsv(report: ReportSummary): void {
-  const content  = generateCsvContent(report);
+/** `includeCosts` false for staff without "Ver costos y ganancias". */
+export function downloadCsv(report: ReportSummary, includeCosts = true): void {
+  const content  = generateCsvContent(report, includeCosts);
   const BOM      = '﻿'; // UTF-8 BOM for Excel compatibility
   const blob     = new Blob([BOM + content], { type: 'text/csv;charset=utf-8' });
   const url      = URL.createObjectURL(blob);

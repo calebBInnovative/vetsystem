@@ -2,6 +2,7 @@
 
 import { db, getClinicaId, getBranchFilter } from '@/lib/db/database';
 import type { ExportColumn } from './index';
+import { canDo } from '@/lib/auth/roles';
 
 const fmt = {
   date:  (s: string) => s ?? '',
@@ -217,7 +218,8 @@ export async function getInventoryExportData(): Promise<{ rows: Record<string, u
     { header: 'Stock mín.',   key: 'minStock',    width: 12 },
     { header: 'Unidad',       key: 'unit',        width: 12 },
     { header: 'Precio venta', key: 'salePrice',   width: 14 },
-    { header: 'Precio costo', key: 'costPrice',   width: 14 },
+    // Staff without "Ver costos" export no cost column.
+    ...(canDo(await db.session.get('singleton'), 'viewCosts') ? [{ header: 'Precio costo', key: 'costPrice', width: 14 }] : []),
     { header: 'Proveedor',    key: 'supplier',    width: 20 },
     { header: 'Vencimiento',  key: 'expiration',  width: 14 },
     { header: 'Activo',       key: 'active',      width: 10 },

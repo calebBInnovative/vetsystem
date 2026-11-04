@@ -65,6 +65,7 @@ const TABLAS_SYNC = [
   { nombre: 'promotions',           tabla: () => db.promotions           },
   { nombre: 'quotes',               tabla: () => db.quotes               },
   { nombre: 'branches',             tabla: () => db.branches             },
+  { nombre: 'auditLog',             tabla: () => db.auditLog             },
 ] as const;
 
 /** Progress of the catch-up pull, for the first-sync screen. */
@@ -77,6 +78,8 @@ const FINANCE_COLLECTIONS = new Set(['fixedExpenses', 'expensePayments', 'collab
 type SyncSession = { role?: string; permissions?: { finances?: boolean } | null };
 
 function canSyncCollection(nombre: string, session: SyncSession): boolean {
+  // The Bitácora is read by managers only; staff still push their own entries.
+  if (nombre === 'auditLog') return session.role === 'master' || session.role === 'admin' || session.role === 'branch_manager';
   if (!FINANCE_COLLECTIONS.has(nombre)) return true;
   return session.role === 'master' || session.role === 'admin' || session.role === 'branch_manager'
       || session.permissions?.finances === true;

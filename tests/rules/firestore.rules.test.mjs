@@ -273,6 +273,41 @@ describe('branch managers', () => {
   });
 });
 
+describe('audit log', () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'users/boss-sur'), { uid: 'boss-sur', clinicId: 'clinic-a', role: 'branch_manager', permissions: null, branchIds: ['sur'], name: 'Boss' });
+      await setDoc(doc(db, 'users/recep-sur'), { uid: 'recep-sur', clinicId: 'clinic-a', role: 'reception', permissions: {}, branchIds: ['sur'], name: 'Recep Sur' });
+      await setDoc(doc(db, 'clinics/clinic-a/auditLog/main-1'), { clinicId: 'clinic-a', branchId: 'main', userId: 'owner-a', action: 'stock.adjust' });
+      await setDoc(doc(db, 'clinics/clinic-a/auditLog/sur-1'), { clinicId: 'clinic-a', branchId: 'sur', userId: 'recep-sur', action: 'quote.void' });
+    });
+  });
+  const entry = (uid, branchId) => ({ clinicId: 'clinic-a', branchId, userId: uid, action: 'quote.void', summary: 'x', _syncedAt: serverTimestamp() });
+
+  it('staff append their own entries in their branch, and cannot read the log', async () => {
+    const db = as('recep-sur');
+    await assertSucceeds(setDoc(doc(db, 'clinics/clinic-a/auditLog/n1'), entry('recep-sur', 'sur'), { merge: true }));
+    await assertFails(setDoc(doc(db, 'clinics/clinic-a/auditLog/n2'), entry('owner-a', 'sur')));
+    await assertFails(setDoc(doc(db, 'clinics/clinic-a/auditLog/n3'), entry('recep-sur', 'main')));
+    await assertFails(getDoc(doc(db, 'clinics/clinic-a/auditLog/sur-1')));
+  });
+
+  it('nobody rewrites or deletes a line; a retried push only touches the timestamp', async () => {
+    await assertFails(updateDoc(doc(as('recep-sur'), 'clinics/clinic-a/auditLog/sur-1'), { summary: 'otra cosa' }));
+    await assertFails(deleteDoc(doc(as('recep-sur'), 'clinics/clinic-a/auditLog/sur-1')));
+    await assertFails(deleteDoc(doc(as('owner-a'), 'clinics/clinic-a/auditLog/sur-1')));
+    await assertFails(updateDoc(doc(as('owner-a'), 'clinics/clinic-a/auditLog/sur-1'), { summary: 'x' }));
+    await assertSucceeds(updateDoc(doc(as('recep-sur'), 'clinics/clinic-a/auditLog/sur-1'), { _syncedAt: serverTimestamp() }));
+  });
+
+  it('managers read it; branch managers only their branches', async () => {
+    await assertSucceeds(getDocs(collection(as('owner-a'), 'clinics/clinic-a/auditLog')));
+    await assertSucceeds(getDocs(query(collection(as('boss-sur'), 'clinics/clinic-a/auditLog'), where('branchId', 'in', ['sur']))));
+    await assertFails(getDoc(doc(as('boss-sur'), 'clinics/clinic-a/auditLog/main-1')));
+  });
+});
+
 describe('clinic data', () => {
   it('members still write regular clinic data', async () => {
     await assertSucceeds(setDoc(doc(as('recep-a'), 'clinics/clinic-a/patients/p1'), { name: 'Firulais' }));

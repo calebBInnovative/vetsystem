@@ -16,6 +16,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { db, getClinicaId } from '@/lib/db/database';
+import { useAuth } from '@/contexts/AuthContext';
+import { canDo } from '@/lib/auth/roles';
+import { auditMoney, logAudit } from '@/lib/audit/audit';
 
 interface PagoConNombre extends PaymentLocal {
   patientName?: string;
@@ -62,7 +65,11 @@ export function PagoCard({ pago, compact = false }: PagoCardProps) {
   const estadoInfo = PAYMENT_STATUSES[pago.status];
   const metodoInfo = PAYMENT_METHODS[pago.paymentMethod];
   const tipoInfo   = INCOME_TYPES[pago.type];
-  const acciones   = ACCIONES[pago.status] ?? [];
+  const { session } = useAuth();
+  // Cancelling, refunding, correcting or deleting a payment is a voiding action.
+  const canVoid    = canDo(session, 'voidDocuments');
+  const acciones   = (ACCIONES[pago.status] ?? [])
+    .filter((a) => canVoid || (a.estado !== 'cancelled' && a.estado !== 'refunded'));
 
   const hoy       = new Date();
   const mesActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
@@ -83,13 +90,26 @@ export function PagoCard({ pago, compact = false }: PagoCardProps) {
 
   async function handleCambiarEstado(estado: PaymentStatus) {
     setLoading(true);
-    try { await updatePaymentStatus(pago.id, estado); }
+    try {
+      await updatePaymentStatus(pago.id, estado);
+      if (estado === 'cancelled' || estado === 'refunded') {
+        void logAudit({
+          action: estado === 'cancelled' ? 'payment.cancel' : 'payment.refund',
+          summary: `${estado === 'cancelled' ? 'Canceló' : 'Reembolsó'} el pago de ${auditMoney(pago.amount)} · ${pago.concept}`,
+          amount: pago.amount, entityId: pago.id,
+        });
+      }
+    }
     finally { setLoading(false); }
   }
 
   async function handleEliminar() {
     if (!confirm('¿Eliminar este pago?')) return;
     await deletePayment(pago.id);
+    void logAudit({
+      action: 'payment.delete', summary: `Eliminó el pago de ${auditMoney(pago.amount)} · ${pago.concept}`,
+      amount: pago.amount, entityId: pago.id,
+    });
   }
 
   async function openEdit() {
@@ -131,6 +151,12 @@ export function PagoCard({ pago, compact = false }: PagoCardProps) {
         amount: parsed,
         paymentMethod: newMethod !== pago.paymentMethod ? newMethod : undefined,
         notes: newNotes !== (pago.notes ?? '') ? newNotes : undefined,
+      });
+      void logAudit({
+        action: 'payment.correct',
+        summary: `Corrigió el pago de ${auditMoney(pago.amount)} a ${auditMoney(parsed)} · ${pago.concept}`
+          + (result.rectificationId ? ' (anuló la factura y emitió una rectificativa)' : ''),
+        amount: parsed, entityId: pago.id,
       });
       if (result.rectificationId) {
         const rectInv = await db.invoices.get(result.rectificationId);
@@ -232,19 +258,25 @@ export function PagoCard({ pago, compact = false }: PagoCardProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={openEdit}>
-                  <Pencil size={14} className="mr-2" /> Corregir monto
-                </DropdownMenuItem>
-                {acciones.length > 0 && <DropdownMenuSeparator />}
+                {canVoid && (
+                  <DropdownMenuItem onClick={openEdit}>
+                    <Pencil size={14} className="mr-2" /> Corregir monto
+                  </DropdownMenuItem>
+                )}
+                {canVoid && acciones.length > 0 && <DropdownMenuSeparator />}
                 {acciones.map(({ label, estado, icon: Icon }) => (
                   <DropdownMenuItem key={estado} onClick={() => handleCambiarEstado(estado)}>
                     <Icon size={14} className="mr-2" /> {label}
                   </DropdownMenuItem>
                 ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleEliminar} className="text-destructive focus:text-destructive">
-                  <Trash2 size={14} className="mr-2" /> Eliminar
-                </DropdownMenuItem>
+                {canVoid && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleEliminar} className="text-destructive focus:text-destructive">
+                      <Trash2 size={14} className="mr-2" /> Eliminar
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

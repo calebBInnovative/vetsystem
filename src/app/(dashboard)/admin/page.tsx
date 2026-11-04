@@ -24,6 +24,7 @@ import {
 import { cn } from '@/lib/utils';
 import { BranchesCard } from '@/components/admin/BranchesCard';
 import { TeamTab } from '@/components/admin/TeamTab';
+import { AuditLogTab } from '@/components/admin/AuditLogTab';
 import { canManageTeam, isClinicManager } from '@/lib/auth/roles';
 
 type Accion = 'idle' | 'loading' | 'ok' | 'error';
@@ -47,7 +48,7 @@ export default function AdminPage() {
   // A branch manager gets their team and their branch, never the plan or the clinic.
   const branchManager = session?.role === 'branch_manager';
 
-  type TabKey = 'clinica' | 'sucursal' | 'usuarios' | 'plan' | 'datos' | 'firebase' | 'estado';
+  type TabKey = 'clinica' | 'sucursal' | 'usuarios' | 'bitacora' | 'plan' | 'datos' | 'firebase' | 'estado';
   const [tab, setTab] = useState<TabKey>(branchManager ? 'usuarios' : 'clinica');
 
   useEffect(() => {
@@ -60,9 +61,11 @@ export default function AdminPage() {
   const tabs: { key: TabKey; label: string }[] = branchManager ? [
     { key: 'usuarios',  label: 'Equipo'         },
     { key: 'sucursal',  label: 'Sucursal'       },
+    { key: 'bitacora',  label: 'Bitácora'       },
   ] : [
     { key: 'clinica',   label: 'Clínica'        },
     { key: 'usuarios',  label: 'Equipo'         },
+    { key: 'bitacora',  label: 'Bitácora'       },
     { key: 'plan',      label: 'Plan'           },
     ...(esMaster ? [
       { key: 'datos'    as TabKey, label: 'Datos locales' },
@@ -115,6 +118,7 @@ export default function AdminPage() {
       {esAdmin && tab === 'clinica'  && <TabClinica />}
       {branchManager && tab === 'sucursal' && <BranchesCard />}
       {tab === 'usuarios' && <TeamTab />}
+      {tab === 'bitacora' && <AuditLogTab />}
       {esAdmin && tab === 'plan'     && <TabPlan />}
       {esMaster && tab === 'datos'    && <TabDatos />}
       {esMaster && tab === 'firebase' && <TabFirebase />}

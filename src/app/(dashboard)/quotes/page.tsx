@@ -11,6 +11,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
+import { canDo } from '@/lib/auth/roles';
+import { auditMoney, logAudit } from '@/lib/audit/audit';
 import { useBranches } from '@/hooks/useBranches';
 import {
   useQuotes, useQuoteStats, convertQuoteToSale, cancelQuote, deleteQuote,
@@ -42,6 +44,7 @@ const FILTERS: { value: QuoteStatus | 'all'; label: string }[] = [
 export default function QuotesPage() {
   const router = useRouter();
   const { session } = useAuth();
+  const canVoid = canDo(session, 'voidDocuments');
   const branches = useBranches()?.branches;
 
   const [status, setStatus] = useState<QuoteStatus | 'all'>('open');
@@ -75,12 +78,14 @@ export default function QuotesPage() {
 
   async function handleCancel(quote: QuoteWithDetails) {
     await cancelQuote(quote.id);
+    void logAudit({ action: 'quote.void', summary: `Anuló la cotización ${quote.number} de ${auditMoney(quote.total)}`, amount: quote.total, entityId: quote.id });
     toast.success(`Cotización ${quote.number} anulada`);
   }
 
   async function handleDelete() {
     if (!confirmDelete) return;
     await deleteQuote(confirmDelete.id);
+    void logAudit({ action: 'quote.delete', summary: `Eliminó la cotización ${confirmDelete.number} de ${auditMoney(confirmDelete.total)}`, amount: confirmDelete.total, entityId: confirmDelete.id });
     toast.success(`Cotización ${confirmDelete.number} eliminada`);
     setConfirmDelete(null);
   }
@@ -213,14 +218,16 @@ export default function QuotesPage() {
                       <Button size="sm" className="gap-1.5" onClick={() => { setConverting(q); setMethod('cash'); }}>
                         <ShoppingCart size={14} /> Convertir en venta
                       </Button>
-                      <Button size="sm" variant="ghost" className="gap-1.5 text-muted-foreground"
-                        onClick={() => handleCancel(q)}>
-                        <Ban size={14} /> Anular
-                      </Button>
+                      {canVoid && (
+                        <Button size="sm" variant="ghost" className="gap-1.5 text-muted-foreground"
+                          onClick={() => handleCancel(q)}>
+                          <Ban size={14} /> Anular
+                        </Button>
+                      )}
                     </>
                   )}
 
-                  {q.status !== 'converted' && (
+                  {canVoid && q.status !== 'converted' && (
                     <Button size="sm" variant="ghost" className="gap-1.5 text-destructive hover:text-destructive"
                       onClick={() => setConfirmDelete(q)}>
                       <Trash2 size={14} /> Eliminar

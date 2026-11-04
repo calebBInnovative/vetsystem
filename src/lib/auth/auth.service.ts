@@ -26,7 +26,7 @@ import { httpsCallable } from 'firebase/functions';
 import { getFirebaseApp, getFirestoreDb, getFirebaseFunctions } from '@/lib/firebase/firebase.config';
 import { db } from '@/lib/db/database';
 import { syncService } from '@/lib/sync/sync.service';
-import type { SessionLocal, Permissions, UserRole } from '@/types/license';
+import type { ActionPermissions, SessionLocal, Permissions, UserRole } from '@/types/license';
 import { limitsFromLicense } from '@/lib/billing/plans';
 import { hasFullModuleAccess } from '@/lib/auth/roles';
 
@@ -201,6 +201,7 @@ export async function refreshSession(user: User): Promise<SessionLocal | null> {
       role,
       permissions,
       branchIds:      Array.isArray(userData.branchIds) ? (userData.branchIds as string[]) : undefined,
+      actions:        hasFullModuleAccess(role) || !userData.actions ? undefined : (userData.actions as ActionPermissions),
       plan:           licenseData.plan ?? 'Basic',
       expirationDate: licenseData.expirationDate ?? _missingLicense().expirationDate,
       subscription:   licenseData.subscription !== false,
@@ -249,6 +250,8 @@ export interface NewUser {
   permissions: Permissions | null;
   /** Branches a staff member works in; omitted = main branch only */
   branchIds?:  string[];
+  /** Staff only: sensitive actions */
+  actions?:    ActionPermissions;
 }
 
 /** @deprecated Use NewUser instead */
@@ -262,6 +265,7 @@ export interface FirestoreUser {
   clinicId:    string;
   permissions: Permissions | null;
   branchIds?:  string[];
+  actions?:    ActionPermissions;
   createdAt?:  unknown;
 }
 
@@ -311,6 +315,7 @@ export async function createUser(data: NewUser): Promise<string> {
     clinicId:    data.clinicId,
     permissions: data.permissions,
     ...(data.branchIds?.length ? { branchIds: data.branchIds } : {}),
+    ...(data.actions ? { actions: data.actions } : {}),
     createdAt:   serverTimestamp(),
   });
 
@@ -438,7 +443,7 @@ export const configurarLicencia = configureLicense;
 /** Updates a user's name, role, permissions and optionally personal phone */
 export async function updateUser(
   uid:  string,
-  data: { name: string; role: UserRole; permissions: Permissions | null; phone?: string; branchIds?: string[] },
+  data: { name: string; role: UserRole; permissions: Permissions | null; phone?: string; branchIds?: string[]; actions?: ActionPermissions },
 ): Promise<void> {
   const fs = getFirestoreDb();
   // Firestore refuses undefined values: a field left out simply keeps its stored value.

@@ -29,6 +29,15 @@ export type AppModule =
 /** Per-module access flags. `master`, `admin` and `branch_manager` bypass this entirely. */
 export type Permissions = Record<AppModule, boolean>;
 
+/**
+ * Sensitive actions a manager grants or withholds per staff member, on top of
+ * the modules: the ones a multi-branch owner wants to control and audit.
+ */
+export type SensitiveAction = 'voidDocuments' | 'giveDiscounts' | 'viewCosts' | 'adjustStock';
+
+/** Missing (profiles from before these existed) = every action allowed, as before. */
+export type ActionPermissions = Partial<Record<SensitiveAction, boolean>>;
+
 /** Roles in the system (ordered by privilege) */
 export type UserRole = 'master' | 'admin' | 'branch_manager' | 'veterinarian' | 'reception';
 
@@ -51,6 +60,8 @@ export interface SessionLocal {
   permissions:    Permissions | null;
   /** Branches a staff member works in (users/{uid}.branchIds); managers reach every branch. */
   branchIds?:     string[];
+  /** Staff only (users/{uid}.actions): sensitive actions; managers may do all of them. */
+  actions?:       ActionPermissions;
   plan:           string;
   expirationDate: string; // YYYY-MM-DD
   /** true = active/trial, false = expired/suspended */

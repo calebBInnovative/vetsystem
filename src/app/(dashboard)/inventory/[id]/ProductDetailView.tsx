@@ -21,11 +21,17 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { canDo } from '@/lib/auth/roles';
+import { logAudit } from '@/lib/audit/audit';
 
 export function ProductDetailView() {
   const id                           = useRouteId();
   const { producto, loading }        = useProduct(id ?? '');
   const { movements }                = useProductMovements(id ?? '');
+  const { session }                  = useAuth();
+  const canViewCosts                 = canDo(session, 'viewCosts');
+  const canAdjust                    = canDo(session, 'adjustStock');
   const [ajustando, setAjustando]    = useState(false);
   const [tipoAjuste, setTipoAjuste]  = useState<'entry' | 'exit'>('entry');
   const [editMode,   setEditMode]    = useState(false);
@@ -54,6 +60,11 @@ export function ProductDetailView() {
     setAjustando(true);
     try {
       await adjustStock(id ?? '', { ...datos, type: tipoAjuste });
+      void logAudit({
+        action: 'stock.adjust',
+        summary: `${tipoAjuste === 'entry' ? 'Entrada' : 'Salida'} manual de ${datos.quantity} · ${producto!.name}${datos.reason ? ` (${datos.reason})` : ''}`,
+        entityId: id ?? undefined,
+      });
 
       if (affectsFinances) {
         const amount = parseFloat(financeAmount) || 0;
@@ -129,6 +140,8 @@ export function ProductDetailView() {
           loading={editLoading}
           textoBoton="Guardar cambios"
           hideSubmitButton
+          hideCost={!canViewCosts}
+          lockStock={!canAdjust}
           defaultValues={{
             name:                producto.name,
             category:            producto.category,
@@ -148,7 +161,21 @@ export function ProductDetailView() {
           onSubmit={async (data) => {
             setEditLoading(true);
             try {
-              await updateProduct(id!, data);
+              // Hidden or locked fields keep the stored value, whatever the form sent.
+              const changes = {
+                ...data,
+                ...(canViewCosts ? {} : { costPrice: producto.costPrice }),
+                ...(canAdjust ? {} : { currentStock: producto.currentStock }),
+              };
+              await updateProduct(id!, changes);
+              // Editing the stock by hand records no movement, so it goes in the Bitácora.
+              if (Number(changes.currentStock) !== producto.currentStock) {
+                void logAudit({
+                  action: 'stock.edit',
+                  summary: `Cambió el stock de ${producto.name} de ${producto.currentStock} a ${changes.currentStock} al editar el producto`,
+                  entityId: id!,
+                });
+              }
               toast.success('Producto actualizado');
               setEditMode(false);
             } catch {
@@ -203,7 +230,7 @@ export function ProductDetailView() {
           { label: 'Stock actual', value: `${producto.currentStock} ${unidad}`, highlight: stockBajo },
           { label: 'Stock mínimo', value: `${producto.minimumStock} ${unidad}`, highlight: false },
           { label: 'Precio venta', value: producto.salePrice ? `C$${producto.salePrice.toFixed(0)}` : '—', highlight: false },
-          { label: 'Precio costo', value: producto.costPrice ? `C$${producto.costPrice.toFixed(0)}` : '—', highlight: false },
+          ...(canViewCosts ? [{ label: 'Precio costo', value: producto.costPrice ? `C$${producto.costPrice.toFixed(0)}` : '—', highlight: false }] : []),
         ].map(({ label, value, highlight }) => (
           <div key={label} className="bg-card rounded-2xl border border-border p-4 text-center">
             <p className="text-xs text-muted-foreground mb-1">{label}</p>
@@ -213,10 +240,10 @@ export function ProductDetailView() {
       </div>
 
       {/* ── Transfer to another branch (only with more than one branch) ────── */}
-      <TransferStockCard product={producto} unitLabel={unidad} />
+      {canAdjust && <TransferStockCard product={producto} unitLabel={unidad} />}
 
       {/* ── Stock adjustment form ─────────────────────────────────────────── */}
-      <div className="bg-card rounded-2xl border border-border p-5">
+      {canAdjust && <div className="bg-card rounded-2xl border border-border p-5">
         <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">
           Ajustar Stock
         </h2>
@@ -324,7 +351,7 @@ export function ProductDetailView() {
                   className="w-full rounded-xl border border-input bg-background pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-primary transition-colors"
                 />
               </div>
-              {producto.costPrice && (
+              {canViewCosts && producto.costPrice && (
                 <p className="text-xs text-muted-foreground">
                   Precio costo unitario: C${producto.costPrice.toFixed(0)}
                   {' · '}
@@ -351,7 +378,7 @@ export function ProductDetailView() {
               : 'Registrar movimiento'}
           </Button>
         </form>
-      </div>
+      </div>}
 
       {/* ── Movement history ──────────────────────────────────────────────── */}
       {movements.length > 0 && (

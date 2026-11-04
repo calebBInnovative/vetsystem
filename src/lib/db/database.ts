@@ -26,6 +26,7 @@ import type { FixedExpense, ExpensePayment } from '@/types/expense';
 import type { Collaborator, CollaboratorPayment } from '@/types/collaborator';
 import type { PromotionLocal } from '@/types/promotion';
 import type { QuoteLocal }     from '@/types/quote';
+import type { AuditEntryLocal } from '@/types/audit';
 import { MAIN_BRANCH_ID, type BranchLocal } from '@/types/branch';
 import { sessionLimits } from '@/lib/billing/plans';
 
@@ -99,6 +100,8 @@ class VetSystemDB extends Dexie {
   // Quotes — priced documents that only become sales when accepted
   quotes!: EntityTable<QuoteLocal, 'id'>;
   branches!: EntityTable<BranchLocal, 'id'>;
+  /** Bitácora: sensitive actions, append-only */
+  auditLog!: EntityTable<AuditEntryLocal, 'id'>;
   /** Device-local preferences (e.g. the active branch); never synced. */
   prefs!: EntityTable<{ key: string; value: string }, 'key'>;
 
@@ -447,6 +450,11 @@ class VetSystemDB extends Dexie {
       prefs:    'key',
     });
 
+    // v29 — Bitácora (audit log of sensitive actions), per branch
+    this.version(29).stores({
+      auditLog: 'id, clinicId, branchId, action, createdAt, syncStatus',
+    });
+
     // Every new row of a branch-scoped table belongs to the branch the user is
     // working in, without each form having to pass it. Rows downloaded by sync
     // arrive with their branchId already set (see upsertRemoteDocs).
@@ -463,7 +471,7 @@ class VetSystemDB extends Dexie {
 /** Tables whose rows belong to one branch. Everything else is shared by the clinic. */
 export const BRANCH_SCOPED_TABLES = [
   'products', 'movements', 'sales', 'payments', 'invoices', 'appointments', 'quotes',
-  'consultations', 'fixedExpenses', 'expensePayments', 'collaborators', 'collaboratorPayments',
+  'consultations', 'fixedExpenses', 'expensePayments', 'collaborators', 'collaboratorPayments', 'auditLog',
 ] as const;
 
 /** Last known active branch, for the synchronous `creating` hook. */

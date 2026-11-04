@@ -9,6 +9,9 @@ import { INVOICE_PAYMENT_METHODS, type InvoicePaymentMethod, type InvoiceStatus 
 import type { ConsultationWithPatient } from '@/types/consultation';
 import { DescuentoInput } from '@/components/common/DiscountInput';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { canDo } from '@/lib/auth/roles';
+import { auditMoney, logAudit } from '@/lib/audit/audit';
 
 interface FacturaModalProps {
   consultation: ConsultationWithPatient;
@@ -29,6 +32,8 @@ function fmt(n: number) {
 }
 
 export function FacturaModal({ consultation, open, onGuardada }: FacturaModalProps) {
+  const { session } = useAuth();
+  const canDiscount = canDo(session, 'giveDiscounts');
   const [guardando, setGuardando]     = useState(false);
   const [status, setEstado]           = useState<InvoiceStatus>('paid');
   const [paymentMethod, setMetodoPago]   = useState<InvoicePaymentMethod>('cash');
@@ -59,6 +64,13 @@ export function FacturaModal({ consultation, open, onGuardada }: FacturaModalPro
         discount:   descuentoNum,
         notes:       notes.trim() || undefined,
       });
+      if (descuentoNum > 0) {
+        void logAudit({
+          action: 'invoice.discount',
+          summary: `Facturó ${auditMoney(total)} con ${auditMoney(descuentoNum)} de descuento (consulta)`,
+          amount: descuentoNum, entityId: id,
+        });
+      }
       onGuardada(id);
     } finally {
       setGuardando(false);
@@ -114,14 +126,21 @@ export function FacturaModal({ consultation, open, onGuardada }: FacturaModalPro
                 <span>Subtotal</span>
                 <span>{fmt(subtotal)}</span>
               </div>
-              <div className="space-y-1.5">
-                <span className="text-sm text-muted-foreground">Descuento</span>
-                <DescuentoInput
-                  subtotal={subtotal}
-                  value={descuentoNum}
-                  onChange={(monto) => setDescuento(String(monto))}
-                />
-              </div>
+              {canDiscount ? (
+                <div className="space-y-1.5">
+                  <span className="text-sm text-muted-foreground">Descuento</span>
+                  <DescuentoInput
+                    subtotal={subtotal}
+                    value={descuentoNum}
+                    onChange={(monto) => setDescuento(String(monto))}
+                  />
+                </div>
+              ) : descuentoNum > 0 && (
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Descuento</span>
+                  <span>−{fmt(descuentoNum)}</span>
+                </div>
+              )}
               <div className="flex justify-between font-bold text-base pt-1 border-t border-border">
                 <span>Total</span>
                 <span className="text-primary">{fmt(total)}</span>

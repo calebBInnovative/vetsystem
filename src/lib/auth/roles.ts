@@ -1,4 +1,4 @@
-import type { UserRole } from '@/types/license';
+import type { ActionPermissions, SensitiveAction, UserRole } from '@/types/license';
 import { MAIN_BRANCH_ID } from '@/types/branch';
 
 /**
@@ -59,4 +59,30 @@ export function canManageUser(
   if (target.role !== 'veterinarian' && target.role !== 'reception') return false;
   const mine = userBranchIds(manager.branchIds);
   return userBranchIds(target.branchIds).every((id) => mine.includes(id));
+}
+
+export const ACTION_LABELS: Record<SensitiveAction, { label: string; hint: string }> = {
+  voidDocuments: { label: 'Anular ventas y facturas', hint: 'También anular cotizaciones y pagos.' },
+  giveDiscounts: { label: 'Dar descuentos',           hint: 'Descuentos manuales al cobrar. Las promociones siempre aplican.' },
+  viewCosts:     { label: 'Ver costos y ganancias',   hint: 'Precio de compra de los productos y utilidad en los reportes.' },
+  adjustStock:   { label: 'Ajustar y trasladar stock', hint: 'Corregir existencias a mano y enviar productos a otra sucursal.' },
+};
+
+/** What a new staff member may do until a manager says otherwise. */
+export const DEFAULT_STAFF_ACTIONS: Required<ActionPermissions> = {
+  voidDocuments: false, giveDiscounts: true, viewCosts: false, adjustStock: false,
+};
+
+/**
+ * Whether this session may perform a sensitive action. Managers always may;
+ * staff profiles saved before actions existed keep doing everything, as they did.
+ */
+export function canDo(
+  session: { role: UserRole; actions?: ActionPermissions } | null | undefined,
+  action: SensitiveAction,
+): boolean {
+  if (!session) return false;
+  if (hasFullModuleAccess(session.role)) return true;
+  if (!session.actions) return true;
+  return session.actions[action] === true;
 }

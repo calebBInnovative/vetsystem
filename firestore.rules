@@ -70,7 +70,7 @@ service cloud.firestore {
     // Documents without branchId (from before branches) are the main branch's.
     function branchIsolated(collection) {
       return collection in ['products', 'movements', 'sales', 'payments', 'invoices', 'appointments',
-                            'quotes', 'fixedExpenses', 'expensePayments', 'collaborators', 'collaboratorPayments'];
+                            'quotes', 'fixedExpenses', 'expensePayments', 'collaborators', 'collaboratorPayments', 'auditLog'];
     }
 
     // A user profile's branches; none = the main branch.
@@ -101,7 +101,7 @@ service cloud.firestore {
       allow read: if isAuth() && request.auth.uid == uid;
       allow update: if isAuth() && request.auth.uid == uid
                     && !request.resource.data.diff(resource.data).affectedKeys()
-                         .hasAny(['uid', 'email', 'role', 'clinicId', 'permissions', 'branchIds']);
+                         .hasAny(['uid', 'email', 'role', 'clinicId', 'permissions', 'branchIds', 'actions']);
 
       // Master/admin: read the users of their own clinic only (listUsers queries
       // by clinicId). Reading every user exposed other clinics' names and e-mails.
@@ -160,15 +160,30 @@ service cloud.firestore {
       // All app data (patients, consultations, appointments, products, etc.)
       // The platform owner gets read only: enough to run count() aggregations
       // for metering, never enough to alter a customer's records.
+      // Bitácora: anyone in the clinic appends their own entries; only managers read
+      // them (branch managers, their branches'). Nobody edits or deletes a line. The
+      // wildcard below excludes it, or its broader grants would apply too.
+      match /auditLog/{entryId} {
+        allow read:   if belongsToClinic(clinicId) && userRole() in ['master', 'admin', 'branch_manager']
+                      && inUserBranch(resource.data);
+        allow create: if belongsToClinic(clinicId) && request.resource.data.userId == request.auth.uid
+                      && request.resource.data.clinicId == clinicId
+                      && inUserBranch(request.resource.data);
+        // A retried push of the same entry only refreshes the sync timestamp.
+        allow update: if belongsToClinic(clinicId) && resource.data.userId == request.auth.uid
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['_syncedAt', 'syncStatus']);
+      }
+
       match /{collection}/{docId} {
-        allow read:  if (belongsToClinic(clinicId) && (!financeCollection(collection) || canUseFinances())
+        allow read:  if (belongsToClinic(clinicId) && collection != 'auditLog'
+                         && (!financeCollection(collection) || canUseFinances())
                          && (!branchIsolated(collection) || inUserBranch(resource.data)))
                      || isPlatformOwner();
 
         // The license also matches this wildcard; rules grant access if ANY match
         // allows it, so it must be excluded here or every member could renew it.
         function canWrite() {
-          return belongsToClinic(clinicId) && collection != 'license'
+          return belongsToClinic(clinicId) && collection != 'license' && collection != 'auditLog'
               && (!financeCollection(collection) || canUseFinances())
               // Branches (points of sale) are created and edited by clinic managers;
               // a branch manager only edits the name and contact of their own.

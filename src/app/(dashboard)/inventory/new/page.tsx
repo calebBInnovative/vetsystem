@@ -12,6 +12,8 @@ import { ArrowLeft, BookOpen, FileSpreadsheet, PencilLine, Download, Upload, Che
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { downloadProductTemplate } from '@/lib/inventory/productTemplate';
+import { useAuth } from '@/contexts/AuthContext';
+import { canDo } from '@/lib/auth/roles';
 
 type Mode = 'select' | 'manual' | 'catalog' | 'excel';
 
@@ -213,6 +215,7 @@ function SelectionCard({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function NewProductPage() {
+  const { session } = useAuth();
   const router  = useRouter();
   const [mode, setMode]     = useState<Mode>('select');
   const [saving, setSaving] = useState(false);
@@ -287,7 +290,7 @@ export default function NewProductPage() {
       {/* Manual form */}
       {mode === 'manual' && (
         <div className="bg-card rounded-2xl border border-border p-6">
-          <ProductoForm onSubmit={handleSubmit} loading={saving} />
+          <ProductoForm onSubmit={handleSubmit} loading={saving} hideCost={!canDo(session, 'viewCosts')} />
         </div>
       )}
 
