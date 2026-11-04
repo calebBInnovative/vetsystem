@@ -59,13 +59,13 @@ service cloud.firestore {
     }
 
     function canUseFinances() {
-      return userRef().data.role in ['master', 'admin']
+      return userRef().data.role in ['master', 'admin', 'branch_manager']
           || (userRef().data.permissions != null && userRef().data.permissions.get('finances', false) == true);
     }
 
     // Branches: inventory, sales, cash, invoices, agenda, quotes, expenses and payroll
-    // belong to one branch. Staff reach only the branches assigned to them
-    // (users/{uid}.branchIds; none = the main branch); managers reach all.
+    // belong to one branch. Staff and branch managers reach only the branches assigned
+    // to them (users/{uid}.branchIds; none = the main branch); clinic managers reach all.
     // Consultations are not listed: the clinical history is shared by every branch.
     // Documents without branchId (from before branches) are the main branch's.
     function branchIsolated(collection) {
@@ -73,8 +73,13 @@ service cloud.firestore {
                             'quotes', 'fixedExpenses', 'expensePayments', 'collaborators', 'collaboratorPayments'];
     }
 
+    // A user profile's branches; none = the main branch.
+    function branchesOf(data) {
+      return data.get('branchIds', []).size() > 0 ? data.branchIds : ['main'];
+    }
+
     function userBranches() {
-      return userRef().data.get('branchIds', []).size() > 0 ? userRef().data.branchIds : ['main'];
+      return branchesOf(userRef().data);
     }
 
     function inUserBranch(data) {
@@ -82,7 +87,13 @@ service cloud.firestore {
     }
 
     function staffRole(role) {
-      return role in ['admin', 'veterinarian', 'reception'];
+      return role in ['admin', 'branch_manager', 'veterinarian', 'reception'];
+    }
+
+    // A branch manager runs the staff (not other managers) of their own branches:
+    // every branch of the profile, before and after the change, must be theirs.
+    function branchManagerReaches(data) {
+      return data.role in ['veterinarian', 'reception'] && branchesOf(data).hasOnly(userBranches());
     }
 
     match /users/{uid} {
@@ -94,7 +105,8 @@ service cloud.firestore {
 
       // Master/admin: read the users of their own clinic only (listUsers queries
       // by clinicId). Reading every user exposed other clinics' names and e-mails.
-      allow read: if isAuth() && (isMaster() || userRole() == 'admin')
+      // Branch managers read them too, to list their branches' team.
+      allow read: if isAuth() && (isMaster() || userRole() in ['admin', 'branch_manager'])
                   && resource.data.clinicId == userClinicId();
 
       // Master/admin: create a staff user doc only in their own clinic
@@ -111,6 +123,19 @@ service cloud.firestore {
       allow delete: if isAuth() && (isMaster() || userRole() == 'admin')
                     && resource.data.clinicId == userClinicId()
                     && (isMaster() || resource.data.role != 'master');
+
+      // Branch manager: staff of their own branches only, kept inside those branches.
+      allow create: if isAuth() && userRole() == 'branch_manager'
+                    && request.resource.data.clinicId == userClinicId()
+                    && branchManagerReaches(request.resource.data);
+      allow update: if isAuth() && userRole() == 'branch_manager'
+                    && resource.data.clinicId == userClinicId()
+                    && request.resource.data.clinicId == resource.data.clinicId
+                    && branchManagerReaches(resource.data)
+                    && branchManagerReaches(request.resource.data);
+      allow delete: if isAuth() && userRole() == 'branch_manager'
+                    && resource.data.clinicId == userClinicId()
+                    && branchManagerReaches(resource.data);
     }
 
     // ── Clinic root document ──────────────────────────────────────────────────
@@ -145,8 +170,16 @@ service cloud.firestore {
         function canWrite() {
           return belongsToClinic(clinicId) && collection != 'license'
               && (!financeCollection(collection) || canUseFinances())
-              // Branches (points of sale) are created and edited by managers only
-              && (collection != 'branches' || userRef().data.role in ['master', 'admin']);
+              // Branches (points of sale) are created and edited by clinic managers;
+              // a branch manager only edits the name and contact of their own.
+              && (collection != 'branches' || userRef().data.role in ['master', 'admin'] || branchManagerEdit());
+        }
+        function branchManagerEdit() {
+          return userRef().data.role == 'branch_manager' && docId in userBranches()
+              // The main branch is virtual until first saved, so its first save is a create.
+              && (resource == null ? docId == 'main'
+                  : request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['name', 'address', 'phone', 'updatedAt', 'syncStatus', '_syncedAt']));
         }
         // Staff write only inside their branches, and cannot move a document out of one.
         allow create: if canWrite() && (!branchIsolated(collection) || inUserBranch(request.resource.data));

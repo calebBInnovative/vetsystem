@@ -1,6 +1,7 @@
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { useBranches } from '@/hooks/useBranches';
 import { printRecibo } from '@/lib/invoices/print-receipt';
 import { INVOICE_STATUSES, INVOICE_PAYMENT_METHODS, type InvoiceWithDetails } from '@/types/invoice';
 import { cn } from '@/lib/utils';
@@ -25,6 +26,7 @@ function fmtFecha(iso?: string) {
 
 export function FacturaViewer({ factura, acciones = false }: FacturaViewerProps) {
   const { session } = useAuth();
+  const branches = useBranches()?.branches;
 
   const estadoInfo = INVOICE_STATUSES[factura.status];
   const metodoInfo = INVOICE_PAYMENT_METHODS[factura.paymentMethod];
@@ -159,7 +161,7 @@ export function FacturaViewer({ factura, acciones = false }: FacturaViewerProps)
           </div>
           {acciones && (
             <button
-              onClick={() => printRecibo(factura, session)}
+              onClick={() => printRecibo(factura, session, { branches })}
               className="shrink-0 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-border hover:bg-muted/40 transition-colors"
             >
               <Printer size={13} />

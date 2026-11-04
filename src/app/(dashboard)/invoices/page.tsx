@@ -9,6 +9,7 @@ import { Receipt, Search, Printer } from 'lucide-react';
 import { ExportMenu } from '@/components/common/ExportMenu';
 import { getInvoicesExportData } from '@/lib/export/modules';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBranches } from '@/hooks/useBranches';
 import { Button } from '@/components/ui/button';
 import { printRecibosBatch } from '@/lib/invoices/print-receipt';
 
@@ -95,6 +96,7 @@ function FacturaRow({ factura, selected, onToggle }: {
 
 export default function InvoicesPage() {
   const { session } = useAuth();
+  const branches = useBranches()?.branches;
   const [filtroEstado, setFiltroEstado] = useState<InvoiceStatus | 'todas'>('todas');
   const [searchQuery, setSearchQuery]   = useState('');
 
@@ -151,7 +153,7 @@ export default function InvoicesPage() {
     if (chosen.length === 0) return;
     // Sorted oldest first so the printed stack comes out in reading order
     const ordered = [...chosen].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''));
-    printRecibosBatch(ordered, session ?? null);
+    printRecibosBatch(ordered, session ?? null, { branches });
   }
 
   // Resumen financiero

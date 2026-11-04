@@ -12,6 +12,7 @@ import { BranchSwitcher } from '@/components/layout/BranchSwitcher';
 import { getActiveBranchId } from '@/lib/db/database';
 import { useAuth } from '@/contexts/AuthContext';
 import { logout, actualizarUsuario } from '@/lib/auth/auth.service';
+import { ROLE_LABELS, canManageTeam, hasFullModuleAccess } from '@/lib/auth/roles';
 import { db } from '@/lib/db/database';
 import { clearDemo } from '@/lib/demo/demo.service';
 import { LicenseBanner } from '@/components/license/LicenseBanner';
@@ -463,7 +464,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     if (!session) return false;
     // The plan applies to every role, master and admin included.
     if (!planAllowsModule(session, modulo)) return false;
-    if (session.role === 'master' || session.role === 'admin') return true;
+    if (hasFullModuleAccess(session.role)) return true;
     // null permissions for a staff user means the Firestore doc was missing the field — grant default access
     if (session.permissions === null) return true;
     return session.permissions[modulo] === true;
@@ -785,8 +786,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     >
                       <div className="text-right hidden sm:block">
                         <p className="text-sm font-medium leading-tight">{session.userName}</p>
-                        <p className="text-xs text-muted-foreground capitalize">
-                          {isDemo ? 'Demo' : session.role}
+                        <p className="text-xs text-muted-foreground">
+                          {isDemo ? 'Demo' : ROLE_LABELS[session.role]}
                         </p>
                       </div>
                       <div className="w-7 h-7 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-xs font-semibold shrink-0">
@@ -821,7 +822,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                       </>
                     )}
 
-                    {!isDemo && esAdmin && (
+                    {!isDemo && canManageTeam(session.role) && (
                       <>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem asChild>

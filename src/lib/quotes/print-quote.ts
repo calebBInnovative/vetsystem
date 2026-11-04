@@ -1,4 +1,5 @@
-import { printRecibo } from '@/lib/invoices/print-receipt';
+import { printRecibo, type ReceiptOptions } from '@/lib/invoices/print-receipt';
+import { branchOf } from '@/lib/db/database';
 import type { QuoteWithDetails } from '@/types/quote';
 import type { InvoiceWithDetails, InvoiceItem } from '@/types/invoice';
 import type { SessionLocal } from '@/types/license';
@@ -11,7 +12,11 @@ import type { SessionLocal } from '@/types/license';
  * The quote is adapted to the receipt's shape instead of duplicating the
  * layout; nothing is written to the invoices table.
  */
-export function printQuote(quote: QuoteWithDetails, session: SessionLocal | null): void {
+export function printQuote(
+  quote: QuoteWithDetails,
+  session: SessionLocal | null,
+  branches?: ReceiptOptions['branches'],
+): void {
   const items: InvoiceItem[] = quote.items.map((item) => ({
     id:          item.id,
     description: item.description,
@@ -44,7 +49,9 @@ export function printQuote(quote: QuoteWithDetails, session: SessionLocal | null
     ownerPhone:    quote.ownerPhone,
   };
 
-  printRecibo(asReceipt, session, {
+  // The receipt looks the branch up on the row; InvoiceWithDetails does not declare it.
+  printRecibo(Object.assign(asReceipt, { branchId: branchOf(quote) }), session, {
+    branches,
     documentLabel:  'COTIZACIÓN',
     hidePaymentRow: true,
     validUntil:     quote.validUntil,

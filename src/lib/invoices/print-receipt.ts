@@ -1,5 +1,8 @@
 import type { InvoiceWithDetails } from '@/types/invoice';
 import type { SessionLocal } from '@/types/license';
+import { ROLE_LABELS } from '@/lib/auth/roles';
+import { branchOf } from '@/lib/db/database';
+import type { Branch } from '@/types/branch';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -14,12 +17,6 @@ function fmtFecha(iso: string) {
   return `${d}/${m}/${y}`;
 }
 
-const ROLE_LABEL: Record<string, string> = {
-  master:       'Master',
-  admin:        'Administrador',
-  veterinarian: 'Veterinario',
-  reception:    'Recepción',
-};
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -134,6 +131,11 @@ export interface ReceiptOptions {
   validUntil?: string;
   /** Replaces the "Atendido por" line */
   attendedLabel?: string;
+  /**
+   * The clinic's branches. Each receipt prints its own branch's address and
+   * phone, and its name when the clinic has more than one active branch.
+   */
+  branches?: Pick<Branch, 'id' | 'name' | 'address' | 'phone' | 'active'>[];
 }
 
 function buildReceiptBody(
@@ -142,10 +144,13 @@ function buildReceiptBody(
   options: ReceiptOptions = {},
 ): string {
   const clinicName   = session?.clinicName ?? 'House of Pets';
-  const roleLabel    = ROLE_LABEL[session?.role ?? ''] ?? '';
+  const roleLabel    = (session ? ROLE_LABELS[session.role] : '') ?? '';
   // Only the part before @ — e.g. "caleb" from "caleb@example.com"
   const emailAlias   = session?.email?.split('@')[0] ?? '';
   const atendidoPor  = options.attendedLabel ?? [roleLabel, emailAlias].filter(Boolean).join(' ');
+  const branch       = options.branches?.find((b) => b.id === branchOf(factura));
+  const multiBranch  = (options.branches?.filter((b) => b.active).length ?? 0) > 1;
+  const phone        = branch?.phone || session?.clinicTel;
 
   const metodos: Record<string, string> = {
     cash:     'Efectivo',
@@ -196,7 +201,9 @@ function buildReceiptBody(
     <div class="gap-sm"></div>
     <div class="clinic-name">${escHtml(clinicName)}</div>
     <div class="clinic-sub">Clínica Veterinaria · Nicaragua</div>
-    ${session?.clinicTel ? `<div class="clinic-sub">Tel: ${escHtml(session.clinicTel)}</div>` : ''}
+    ${multiBranch && branch ? `<div class="clinic-sub"><strong>${escHtml(branch.name)}</strong></div>` : ''}
+    ${branch?.address ? `<div class="clinic-sub">${escHtml(branch.address)}</div>` : ''}
+    ${phone ? `<div class="clinic-sub">Tel: ${escHtml(phone)}</div>` : ''}
   </div>
 
   <div class="dash"></div>

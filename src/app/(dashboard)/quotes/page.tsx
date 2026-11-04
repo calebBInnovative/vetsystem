@@ -11,6 +11,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBranches } from '@/hooks/useBranches';
 import {
   useQuotes, useQuoteStats, convertQuoteToSale, cancelQuote, deleteQuote,
   QuoteConversionError,
@@ -41,6 +42,7 @@ const FILTERS: { value: QuoteStatus | 'all'; label: string }[] = [
 export default function QuotesPage() {
   const router = useRouter();
   const { session } = useAuth();
+  const branches = useBranches()?.branches;
 
   const [status, setStatus] = useState<QuoteStatus | 'all'>('open');
   const { quotes, loading } = useQuotes({ status });
@@ -202,7 +204,7 @@ export default function QuotesPage() {
 
                 <div className="flex gap-2 flex-wrap pt-1">
                   <Button size="sm" variant="outline" className="gap-1.5"
-                    onClick={() => printQuote(q, session)}>
+                    onClick={() => printQuote(q, session, branches)}>
                     <Printer size={14} /> Imprimir
                   </Button>
 

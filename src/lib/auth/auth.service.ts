@@ -28,6 +28,7 @@ import { db } from '@/lib/db/database';
 import { syncService } from '@/lib/sync/sync.service';
 import type { SessionLocal, Permissions, UserRole } from '@/types/license';
 import { limitsFromLicense } from '@/lib/billing/plans';
+import { hasFullModuleAccess } from '@/lib/auth/roles';
 
 // ─── Firestore structure ──────────────────────────────────────────────────────
 //
@@ -35,7 +36,7 @@ import { limitsFromLicense } from '@/lib/billing/plans';
 //    clinicId:     string
 //    name:         string
 //    email:        string
-//    role:         'master' | 'admin' | 'veterinarian' | 'reception'
+//    role:         'master' | 'admin' | 'branch_manager' | 'veterinarian' | 'reception'
 //    permissions:  Permissions | null  (null = full access)
 //    createdAt:    serverTimestamp()
 //
@@ -170,7 +171,7 @@ export async function refreshSession(user: User): Promise<SessionLocal | null> {
     const clinicId: string  = userData.clinicId;
     const role:     UserRole = userData.role ?? 'reception';
     const permissions: Permissions | null =
-      (role === 'master' || role === 'admin')
+      hasFullModuleAccess(role)
         ? null
         : ((userData.permissions as Permissions | null | undefined) ?? DEFAULT_STAFF_PERMISSIONS);
 
@@ -275,8 +276,12 @@ export async function createUser(data: NewUser): Promise<string> {
   const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
   if (!apiKey) throw new Error('Firebase API key not configured.');
 
+  // The Auth emulator serves the same REST API under its own host.
+  const authHost = process.env.NEXT_PUBLIC_USE_EMULATOR === 'true'
+    ? 'http://localhost:9099/identitytoolkit.googleapis.com'
+    : 'https://identitytoolkit.googleapis.com';
   const res = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`,
+    `${authHost}/v1/accounts:signUp?key=${apiKey}`,
     {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -436,7 +441,9 @@ export async function updateUser(
   data: { name: string; role: UserRole; permissions: Permissions | null; phone?: string; branchIds?: string[] },
 ): Promise<void> {
   const fs = getFirestoreDb();
-  await setDoc(doc(fs, 'users', uid), data, { merge: true });
+  // Firestore refuses undefined values: a field left out simply keeps its stored value.
+  const fields = Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined));
+  await setDoc(doc(fs, 'users', uid), fields, { merge: true });
 }
 
 /** @deprecated Use updateUser instead */
@@ -450,7 +457,7 @@ export async function sendPasswordReset(email: string): Promise<void> {
 /** @deprecated Use sendPasswordReset instead */
 export const enviarResetPassword = sendPasswordReset;
 
-/** Lists all users of a clinic (admin/master only, requires internet) */
+/** Lists all users of a clinic (managers only, requires internet) */
 export async function listUsers(clinicId: string): Promise<FirestoreUser[]> {
   const fs   = getFirestoreDb();
   // Filtered on the server: firestore.rules lets a manager read only their clinic's users.

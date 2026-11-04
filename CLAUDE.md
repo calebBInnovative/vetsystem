@@ -147,8 +147,8 @@ interface SessionLocal {
   clinicId: string;        // e.g. 'demo' in demo mode
   clinicName: string;
   userName: string;
-  role: 'master' | 'admin' | 'veterinarian' | 'reception';
-  permissions: Permissions | null; // null = full access (master/admin)
+  role: 'master' | 'admin' | 'branch_manager' | 'veterinarian' | 'reception';
+  permissions: Permissions | null; // null = full access (master/admin/branch_manager)
   plan: string;
   expirationDate: string;  // YYYY-MM-DD
   subscription: boolean;
@@ -185,7 +185,16 @@ License modes (from `src/types/license.ts`):
 | `blocked` | 45+ days offline / clock tamper | Full block |
 | `expired` | `expirationDate` passed (online) | Block |
 
-Roles `master` and `admin` bypass per-module permissions. `veterinarian` and `reception` are gated by the `Permissions` record.
+Roles `master`, `admin` and `branch_manager` bypass per-module permissions. `veterinarian` and `reception` are gated by the `Permissions` record.
+
+**Role tiers** (`src/lib/auth/roles.ts` — `ROLE_LABELS`, `isClinicManager`, `canManageUser`, …; firestore.rules mirrors them):
+- **Clinic managers** (`master`, `admin`): every branch, the plan, the clinic profile, the whole team.
+- **Branch manager** (`branch_manager`, "Encargado de sucursal"): every module but only in their `branchIds`;
+  Admin shows them Equipo (staff of their branches — add/edit/remove `veterinarian`/`reception` only, kept inside
+  their branches) and Sucursal (name, address, phone of their branch; not code or active).
+- **Staff** (`veterinarian`, `reception`): the modules and branches a manager grants them.
+- Admin → Equipo is `components/admin/TeamTab.tsx` (branch filter, branch chips); the team is read from
+  Firestore (`useClinicUsers`), never synced to Dexie.
 
 ---
 
@@ -282,8 +291,10 @@ A clinic can run several branches (points of sale), limited by the plan's `maxBr
   (or a previewed plan) hides the extra branches without deleting them.
 - **Reads:** lists/counts/totals of scoped tables filter with `await getBranchFilter()` inside the `useLiveQuery`
   callback (reactive to branch switches). Patient-centric history and lookups by id are not filtered.
-- Active branch: device-local (`db.prefs`), picked in the header `BranchSwitcher`. Managers reach every active
-  branch; staff only `users/{uid}.branchIds` (Admin → Usuarios). Branches are edited in Admin → Clínica.
+- Active branch: device-local (`db.prefs`), picked in the header `BranchSwitcher`. Clinic managers reach every active
+  branch; branch managers and staff only `users/{uid}.branchIds` (Admin → Equipo). Branches are edited in Admin → Clínica.
+- Receipts and quotes print their own branch's address and phone (`ReceiptOptions.branches`), and its name when
+  the clinic has more than one active branch.
 - **Numbers:** `nextDocumentNumber('FAC'|'COT', clinicId)` (`src/lib/numbering.ts`): main branch keeps
   `FAC-2026-0043`, other branches `FAC-SUR-2026-0001`; highest used + 1 per prefix and year. Call it **before**
   `db.transaction` — it reads branches/prefs/session, which a transaction would have to list.

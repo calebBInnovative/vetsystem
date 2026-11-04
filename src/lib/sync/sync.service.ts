@@ -78,7 +78,8 @@ type SyncSession = { role?: string; permissions?: { finances?: boolean } | null 
 
 function canSyncCollection(nombre: string, session: SyncSession): boolean {
   if (!FINANCE_COLLECTIONS.has(nombre)) return true;
-  return session.role === 'master' || session.role === 'admin' || session.permissions?.finances === true;
+  return session.role === 'master' || session.role === 'admin' || session.role === 'branch_manager'
+      || session.permissions?.finances === true;
 }
 
 /**
@@ -90,7 +91,7 @@ const BRANCH_ISOLATED = new Set<string>(BRANCH_SCOPED_TABLES.filter((t) => t !==
 
 type BranchSession = SyncSession & { isDemo?: boolean; branchIds?: string[] };
 
-/** Staff only: the branches their device may download. Managers get every branch (undefined = no filter). */
+/** Staff and branch managers: the branches their device may download. Clinic managers get every branch (undefined = no filter). */
 function staffBranchIds(session: BranchSession): string[] | undefined {
   if (session.role === 'master' || session.role === 'admin' || session.isDemo) return undefined;
   return session.branchIds?.length ? [...session.branchIds].sort() : [MAIN_BRANCH_ID];

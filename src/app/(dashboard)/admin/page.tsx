@@ -5,11 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { sembrarDatos, limpiarDatos } from '@/lib/dev/seed';
 import { getClinicId } from '@/lib/db/database';
 import { syncService, type SyncAllProgress } from '@/lib/sync/sync.service';
-import {
-  crearUsuario, actualizarUsuario, eliminarUsuario, enviarResetPassword,
-  configurarLicencia, actualizarPerfilClinica, listarUsuarios,
-  type NuevoUsuario, type UsuarioFirestore,
-} from '@/lib/auth/auth.service';
+import { configurarLicencia, actualizarPerfilClinica } from '@/lib/auth/auth.service';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription } from '@/hooks/useSubscription';
 import { PLAN_MODULE_LABELS, planLabel, sessionLimits } from '@/lib/billing/plans';
@@ -20,45 +16,15 @@ import { formatMoney, subscribeClinicInvoices, type SubscriptionInvoice } from '
 import { isPlatformOwner } from '@/lib/usage/usage.service';
 import { Button } from '@/components/ui/button';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from '@/components/ui/dialog';
-import {
   Loader2, Sprout, Trash2, CheckCircle2, AlertCircle,
   CloudUpload, RefreshCw, Database, Wifi, WifiOff, AlertTriangle,
-  UserPlus, Users, KeyRound, ShieldAlert, Pencil, KeySquare, Phone,
+  ShieldAlert, Phone,
   BookOpen, ChevronRight, Activity, CreditCard, BellRing, Landmark, Layers, Globe,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { AppModule, Permissions, UserRole } from '@/types/license';
-import { BranchAssignment } from '@/components/admin/BranchAssignment';
 import { BranchesCard } from '@/components/admin/BranchesCard';
-
-// ─── Module permission config ─────────────────────────────────────────────────
-
-const MODULOS: { key: AppModule; label: string }[] = [
-  { key: 'patients',     label: 'Pacientes'    },
-  { key: 'schedule',     label: 'Agenda'       },
-  { key: 'consultations',label: 'Consultas'    },
-  { key: 'sales',        label: 'Ventas'       },
-  { key: 'quotes',       label: 'Cotizaciones' },
-  { key: 'inventory',    label: 'Inventario'   },
-  { key: 'finances',     label: 'Finanzas'     },
-  { key: 'invoices',     label: 'Facturas'     },
-  { key: 'services',     label: 'Servicios'    },
-  { key: 'promotions',   label: 'Promociones'      },
-  { key: 'import',       label: 'Importar/Exportar' },
-];
-
-const DEFAULT_PERMISSIONS: Permissions = {
-  patients: true, schedule: true, consultations: true, sales: true, quotes: true,
-  inventory: false, finances: false, invoices: false, services: false,
-  promotions: false, import: false,
-};
-
-function permissionsForRole(role: UserRole, current: Permissions | null): Permissions | null {
-  if (role === 'admin') return null;
-  return current ?? { ...DEFAULT_PERMISSIONS };
-}
+import { TeamTab } from '@/components/admin/TeamTab';
+import { canManageTeam, isClinicManager } from '@/lib/auth/roles';
 
 type Accion = 'idle' | 'loading' | 'ok' | 'error';
 
@@ -77,21 +43,26 @@ export default function AdminPage() {
   const { session, loading } = useAuth();
   const router = useRouter();
   const esMaster = session?.role === 'master';
-  const esAdmin  = session?.role === 'admin' || esMaster;
+  const esAdmin  = isClinicManager(session?.role);
+  // A branch manager gets their team and their branch, never the plan or the clinic.
+  const branchManager = session?.role === 'branch_manager';
 
-  const [tab, setTab] = useState<'clinica' | 'usuarios' | 'plan' | 'datos' | 'firebase' | 'estado'>('clinica');
+  type TabKey = 'clinica' | 'sucursal' | 'usuarios' | 'plan' | 'datos' | 'firebase' | 'estado';
+  const [tab, setTab] = useState<TabKey>(branchManager ? 'usuarios' : 'clinica');
 
   useEffect(() => {
-    if (!loading && !esAdmin) router.replace('/dashboard');
-  }, [loading, esAdmin, router]);
+    if (!loading && !canManageTeam(session?.role)) router.replace('/dashboard');
+  }, [loading, session?.role, router]);
 
   if (loading) return null;
-  if (!esAdmin) return null;
+  if (!canManageTeam(session?.role)) return null;
 
-  type TabKey = 'clinica' | 'usuarios' | 'plan' | 'datos' | 'firebase' | 'estado';
-  const tabs: { key: TabKey; label: string }[] = [
+  const tabs: { key: TabKey; label: string }[] = branchManager ? [
+    { key: 'usuarios',  label: 'Equipo'         },
+    { key: 'sucursal',  label: 'Sucursal'       },
+  ] : [
     { key: 'clinica',   label: 'Clínica'        },
-    { key: 'usuarios',  label: 'Usuarios'       },
+    { key: 'usuarios',  label: 'Equipo'         },
     { key: 'plan',      label: 'Plan'           },
     ...(esMaster ? [
       { key: 'datos'    as TabKey, label: 'Datos locales' },
@@ -111,7 +82,9 @@ export default function AdminPage() {
           <p className="text-sm text-muted-foreground mt-0.5">
             {esMaster
               ? 'Gestión completa: usuarios, plan, datos, sync y estado de la DB'
-              : 'Gestiona tu equipo y la suscripción de tu clínica'}
+              : branchManager
+                ? 'Gestiona el equipo y los datos de tu sucursal'
+                : 'Gestiona tu equipo, tus sucursales y la suscripción de tu clínica'}
           </p>
         </div>
         {esMaster && <EnvBadge />}
@@ -139,9 +112,10 @@ export default function AdminPage() {
         ))}
       </div>
 
-      {tab === 'clinica'  && <TabClinica />}
-      {tab === 'usuarios' && <TabUsuarios esMaster={esMaster} />}
-      {tab === 'plan'     && <TabPlan />}
+      {esAdmin && tab === 'clinica'  && <TabClinica />}
+      {branchManager && tab === 'sucursal' && <BranchesCard />}
+      {tab === 'usuarios' && <TeamTab />}
+      {esAdmin && tab === 'plan'     && <TabPlan />}
       {esMaster && tab === 'datos'    && <TabDatos />}
       {esMaster && tab === 'firebase' && <TabFirebase />}
       {esMaster && tab === 'estado'   && <TabEstado />}
@@ -183,34 +157,6 @@ function EnvBadge() {
   );
 }
 
-// ─── Permissions editor ───────────────────────────────────────────────────────
-
-function PermisosEditor({
-  permissions, onChange,
-}: {
-  permissions: Permissions;
-  onChange: (p: Permissions) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <p className="text-xs font-medium text-muted-foreground">Acceso a módulos</p>
-      <div className="grid grid-cols-2 gap-1.5">
-        {MODULOS.map(({ key, label }) => (
-          <label key={key} className="flex items-center gap-2 cursor-pointer select-none rounded-lg px-2.5 py-1.5 hover:bg-muted/60 transition-colors">
-            <input
-              type="checkbox"
-              checked={permissions[key] ?? false}
-              onChange={(e) => onChange({ ...permissions, [key]: e.target.checked })}
-              className="accent-primary h-3.5 w-3.5"
-            />
-            <span className="text-xs">{label}</span>
-          </label>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ─── Deep link to a tab ───────────────────────────────────────────────────────
 // Reacts to the query string, so a link to ?tab=plan also works when /admin is
 // already open (the page does not remount on a same-route navigation).
@@ -222,442 +168,6 @@ function TabFromQuery<T extends string>({ valid, onTab }: { valid: T[]; onTab: (
     if (match) onTab(match);
   }, [match, onTab]);
   return null;
-}
-
-// ─── Tab: Usuarios ────────────────────────────────────────────────────────────
-
-const ROLES_STAFF: { value: UserRole; label: string }[] = [
-  { value: 'admin',        label: 'Admin'       },
-  { value: 'veterinarian', label: 'Veterinario' },
-  { value: 'reception',    label: 'Recepción'   },
-];
-
-function TabUsuarios({ esMaster: _esMaster }: { esMaster: boolean }) {
-  const { session } = useAuth();
-  const clinicId = session?.clinicId ?? process.env.NEXT_PUBLIC_CLINIC_ID ?? 'house-of-pets';
-
-  const [usuarios,  setUsuarios]  = useState<UsuarioFirestore[]>([]);
-  const [cargandoU, setCargandoU] = useState(true);
-
-  // ── Create form state ──────────────────────────────────────────────────────
-  const [form, setForm] = useState<NuevoUsuario>({
-    email: '', password: '', name: '', role: 'veterinarian',
-    clinicId, permissions: { ...DEFAULT_PERMISSIONS },
-  });
-  const [accionCrear, setAccionCrear] = useState<Accion>('idle');
-  const [mensajeCrear, setMensajeCrear] = useState('');
-
-  // ── Edit modal ─────────────────────────────────────────────────────────────
-  const [editTarget, setEditTarget] = useState<UsuarioFirestore | null>(null);
-  const [editForm,   setEditForm]   = useState<{ name: string; role: UserRole; permissions: Permissions | null; branchIds?: string[] }>({
-    name: '', role: 'veterinarian', permissions: { ...DEFAULT_PERMISSIONS },
-  });
-  const [accionEdit, setAccionEdit] = useState<Accion>('idle');
-
-  // ── Reset password modal ───────────────────────────────────────────────────
-  const [resetTarget, setResetTarget] = useState<UsuarioFirestore | null>(null);
-  const [accionReset, setAccionReset] = useState<Accion>('idle');
-
-  // ── Delete modal ───────────────────────────────────────────────────────────
-  const [deleteTarget, setDeleteTarget] = useState<UsuarioFirestore | null>(null);
-  const [accionDelete, setAccionDelete] = useState<Accion>('idle');
-
-
-  const cargarUsuarios = useCallback(async () => {
-    setCargandoU(true);
-    try { setUsuarios(await listarUsuarios(clinicId)); }
-    catch { /* sin conexión */ }
-    finally { setCargandoU(false); }
-  }, [clinicId]);
-
-  useEffect(() => { cargarUsuarios(); }, [cargarUsuarios]);
-
-  // Plan cap on team size (soft: enforced here, not in firestore.rules)
-  const { maxUsers } = sessionLimits(session);
-  const atUserLimit = maxUsers !== null && !cargandoU && usuarios.length >= maxUsers;
-
-  // ── Create ─────────────────────────────────────────────────────────────────
-  async function handleCrear(e: React.FormEvent) {
-    e.preventDefault();
-    if (atUserLimit) {
-      setMensajeCrear(`Tu plan permite hasta ${maxUsers} usuarios. Cambia de plan en la pestaña Plan para agregar más.`);
-      setAccionCrear('error');
-      return;
-    }
-    setAccionCrear('loading'); setMensajeCrear('');
-    try {
-      await crearUsuario({ ...form, clinicId });
-      setMensajeCrear(`Usuario ${form.email} creado.`);
-      setAccionCrear('ok');
-      setForm({ email: '', password: '', name: '', role: 'veterinarian', clinicId, permissions: { ...DEFAULT_PERMISSIONS } });
-      cargarUsuarios();
-    } catch (err) {
-      setMensajeCrear((err as Error).message);
-      setAccionCrear('error');
-    }
-  }
-
-  function abrirEdit(u: UsuarioFirestore) {
-    setEditTarget(u);
-    setEditForm({
-      name:    u.name,
-      role:    u.role,
-      permissions: u.role === 'admin' ? null : (u.permissions ?? { ...DEFAULT_PERMISSIONS }),
-      branchIds: u.branchIds,
-    });
-    setAccionEdit('idle');
-  }
-
-  // ── Edit ───────────────────────────────────────────────────────────────────
-  async function handleGuardarEdit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!editTarget) return;
-    setAccionEdit('loading');
-    try {
-      await actualizarUsuario(editTarget.uid, editForm);
-      setAccionEdit('ok');
-      cargarUsuarios();
-      setTimeout(() => setEditTarget(null), 800);
-    } catch (err) {
-      setAccionEdit('error');
-      console.error(err);
-    }
-  }
-
-  // ── Reset password ─────────────────────────────────────────────────────────
-  async function handleReset() {
-    if (!resetTarget) return;
-    setAccionReset('loading');
-    try {
-      await enviarResetPassword(resetTarget.email);
-      setAccionReset('ok');
-      setTimeout(() => setResetTarget(null), 1200);
-    } catch (err) {
-      setAccionReset('error');
-      console.error(err);
-    }
-  }
-
-  // ── Delete ─────────────────────────────────────────────────────────────────
-  async function handleDelete() {
-    if (!deleteTarget) return;
-    setAccionDelete('loading');
-    try {
-      await eliminarUsuario(deleteTarget.uid);
-      setDeleteTarget(null);
-      setAccionDelete('idle');
-      cargarUsuarios();
-    } catch (err) {
-      setAccionDelete('error');
-      console.error(err);
-    }
-  }
-
-  return (
-    <div className="space-y-5">
-
-      {/* ── User list ── */}
-      <Card titulo="Usuarios registrados" desc={`Clínica: ${clinicId}`}>
-        <button
-          type="button"
-          onClick={cargarUsuarios}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mb-3"
-        >
-          <RefreshCw size={11} /> Recargar
-        </button>
-
-        {cargandoU ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-            <Loader2 size={14} className="animate-spin" /> Cargando…
-          </div>
-        ) : usuarios.length === 0 ? (
-          <div className="text-center py-6 text-muted-foreground text-sm">
-            <Users size={24} className="mx-auto mb-2 opacity-40" />
-            Sin usuarios en Firestore.
-          </div>
-        ) : (
-          <div className="divide-y divide-border">
-            {usuarios.map((u) => (
-              <div key={u.uid} className="flex items-center gap-3 py-2.5">
-                <div className="w-7 h-7 bg-primary/10 rounded-full flex items-center justify-center text-primary text-xs font-bold shrink-0">
-                  {u.name?.slice(0, 2).toUpperCase() ?? 'US'}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{u.name}</p>
-                  <p className="text-xs text-muted-foreground">{u.email}</p>
-                </div>
-                <span className={cn(
-                  'text-[10px] px-2 py-0.5 rounded-full font-medium capitalize shrink-0',
-                  u.role === 'master'
-                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400'
-                    : 'bg-muted text-muted-foreground',
-                )}>
-                  {u.role}
-                </span>
-                {u.role !== 'master' && (
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => abrirEdit(u)}
-                      title="Editar"
-                      className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                    >
-                      <Pencil size={13} />
-                    </button>
-                    <button
-                      onClick={() => { setResetTarget(u); setAccionReset('idle'); }}
-                      title="Resetear contraseña"
-                      className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                    >
-                      <KeySquare size={13} />
-                    </button>
-                    {/* Admins represent the clinic — only staff can be deleted */}
-                    {(u.role === 'veterinarian' || u.role === 'reception') && (
-                      <button
-                        onClick={() => { setDeleteTarget(u); setAccionDelete('idle'); }}
-                        title="Eliminar"
-                        className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      {/* ── Create user form ── */}
-      <Card
-        titulo="Crear usuario del equipo"
-        desc={`Se crea en Firebase Auth + Firestore. Requiere internet.${maxUsers !== null && !cargandoU ? ` Usuarios: ${usuarios.length} de ${maxUsers} en tu plan.` : ''}`}
-      >
-        <form onSubmit={handleCrear} className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs font-medium">Nombre completo</label>
-              <input
-                required
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="Dra. Ana López"
-                className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium">Rol</label>
-              <select
-                value={form.role}
-                onChange={(e) => {
-                  const role = e.target.value as UserRole;
-                  setForm({ ...form, role, permissions: permissionsForRole(role, form.permissions) });
-                }}
-                className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                {ROLES_STAFF.map((r) => (
-                  <option key={r.value} value={r.value}>{r.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-medium">Email</label>
-            <input
-              type="email"
-              required
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              placeholder="ana@clinica.com"
-              className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-medium flex items-center gap-1.5">
-              <KeyRound size={11} /> Contraseña temporal
-            </label>
-            <input
-              type="text"
-              required
-              minLength={6}
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              placeholder="mínimo 6 caracteres"
-              className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-            <p className="text-[10px] text-muted-foreground">El usuario puede cambiarla desde su perfil.</p>
-          </div>
-
-          {form.role !== 'admin' && form.permissions && (
-            <div className="rounded-xl border border-border p-3">
-              <PermisosEditor
-                permissions={form.permissions}
-                onChange={(p) => setForm({ ...form, permissions: p })}
-              />
-            </div>
-          )}
-          {form.role !== 'admin' && (
-            <BranchAssignment value={form.branchIds} onChange={(ids) => setForm({ ...form, branchIds: ids })} />
-          )}
-          {form.role === 'admin' && (
-            <p className="text-[11px] text-muted-foreground px-1">
-              Los admins tienen acceso completo a todos los módulos.
-            </p>
-          )}
-
-          <Button type="submit" disabled={accionCrear === 'loading' || atUserLimit} className="w-full gap-2">
-            {accionCrear === 'loading' ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
-            {atUserLimit ? 'Límite de usuarios del plan alcanzado' : 'Crear usuario'}
-          </Button>
-          <ResultadoBox accion={accionCrear} mensaje={mensajeCrear} />
-        </form>
-      </Card>
-
-
-      {/* ── Edit modal ── */}
-      <Dialog open={!!editTarget} onOpenChange={(o) => { if (!o) setEditTarget(null); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Editar usuario</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleGuardarEdit} className="space-y-4 pt-1">
-            <div className="space-y-1">
-              <label className="text-xs font-medium">Nombre completo</label>
-              <input
-                required
-                value={editForm.name}
-                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium">Rol</label>
-              <select
-                value={editForm.role}
-                onChange={(e) => {
-                  const role = e.target.value as UserRole;
-                  setEditForm({ ...editForm, role, permissions: permissionsForRole(role, editForm.permissions) });
-                }}
-                className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                {ROLES_STAFF.map((r) => (
-                  <option key={r.value} value={r.value}>{r.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {editForm.role !== 'admin' && (
-              <BranchAssignment value={editForm.branchIds} onChange={(ids) => setEditForm({ ...editForm, branchIds: ids })} />
-            )}
-            {editForm.role !== 'admin' && editForm.permissions ? (
-              <div className="rounded-xl border border-border p-3">
-                <PermisosEditor
-                  permissions={editForm.permissions}
-                  onChange={(p) => setEditForm({ ...editForm, permissions: p })}
-                />
-              </div>
-            ) : (
-              <p className="text-[11px] text-muted-foreground px-1">
-                Los admins tienen acceso completo a todos los módulos.
-              </p>
-            )}
-
-            {accionEdit === 'error' && (
-              <p className="text-xs text-destructive">Error al guardar. Intenta de nuevo.</p>
-            )}
-            {accionEdit === 'ok' && (
-              <p className="text-xs text-green-600 flex items-center gap-1">
-                <CheckCircle2 size={12} /> Guardado.
-              </p>
-            )}
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setEditTarget(null)}>
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={accionEdit === 'loading'}>
-                {accionEdit === 'loading' && <Loader2 size={13} className="animate-spin mr-1.5" />}
-                Guardar cambios
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Reset password modal ── */}
-      <Dialog open={!!resetTarget} onOpenChange={(o) => { if (!o) setResetTarget(null); }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Restablecer contraseña</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 pt-1">
-            <p className="text-sm text-muted-foreground">
-              Se enviará un email de recuperación a{' '}
-              <span className="font-medium text-foreground">{resetTarget?.email}</span>.
-              El usuario podrá crear una nueva contraseña desde el enlace.
-            </p>
-            {accionReset === 'ok' && (
-              <p className="text-xs text-green-600 flex items-center gap-1">
-                <CheckCircle2 size={12} /> Email enviado correctamente.
-              </p>
-            )}
-            {accionReset === 'error' && (
-              <p className="text-xs text-destructive">Error al enviar el email. ¿Tienes conexión?</p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setResetTarget(null)}>Cancelar</Button>
-            <Button
-              onClick={handleReset}
-              disabled={accionReset === 'loading' || accionReset === 'ok'}
-              className="gap-2"
-            >
-              {accionReset === 'loading'
-                ? <Loader2 size={13} className="animate-spin" />
-                : <KeySquare size={13} />}
-              Enviar email
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Delete confirmation modal ── */}
-      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Eliminar usuario</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2 pt-1">
-            <p className="text-sm text-muted-foreground">
-              ¿Eliminar a{' '}
-              <span className="font-semibold text-foreground">{deleteTarget?.name}</span>?
-              Perderá acceso al sistema de inmediato. Esta acción no se puede deshacer.
-            </p>
-            {accionDelete === 'error' && (
-              <p className="text-xs text-destructive">Error al eliminar. Intenta de nuevo.</p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancelar</Button>
-            <Button
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={accionDelete === 'loading'}
-              className="gap-2"
-            >
-              {accionDelete === 'loading'
-                ? <Loader2 size={13} className="animate-spin" />
-                : <Trash2 size={13} />}
-              Eliminar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-    </div>
-  );
 }
 
 // ─── Tab: Clínica (admin + master) ───────────────────────────────────────────

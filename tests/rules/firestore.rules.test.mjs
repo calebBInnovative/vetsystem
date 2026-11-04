@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import {
   assertFails, assertSucceeds, initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore';
 
 const PLATFORM_OWNER_EMAIL = 'calebgtnbacon@gmail.com';
 let env;
@@ -206,6 +206,70 @@ describe('users', () => {
     await assertFails(updateDoc(doc(db, 'users/recep-a'), { role: 'master' }));
     await assertFails(setDoc(doc(db, 'users/y'), { uid: 'y', clinicId: 'clinic-b', role: 'reception' }));
     await assertFails(updateDoc(doc(db, 'users/recep-a'), { clinicId: 'clinic-b' }));
+  });
+});
+
+describe('branch managers', () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'users/boss-sur'), { uid: 'boss-sur', clinicId: 'clinic-a', role: 'branch_manager', permissions: null, branchIds: ['sur'], name: 'Boss Sur' });
+      await setDoc(doc(db, 'users/recep-sur'), { uid: 'recep-sur', clinicId: 'clinic-a', role: 'reception', permissions: {}, branchIds: ['sur'], name: 'Recep Sur' });
+      await setDoc(doc(db, 'users/vet-both'), { uid: 'vet-both', clinicId: 'clinic-a', role: 'veterinarian', permissions: {}, branchIds: ['sur', 'main'], name: 'Vet' });
+      await setDoc(doc(db, 'clinics/clinic-a/branches/sur'), { clinicId: 'clinic-a', name: 'Sur', code: 'SUR', active: true });
+      await setDoc(doc(db, 'clinics/clinic-a/branches/main'), { clinicId: 'clinic-a', name: 'Principal', code: 'PRI', active: true });
+      await setDoc(doc(db, 'clinics/clinic-a/sales/s-sur'), { clinicId: 'clinic-a', branchId: 'sur', total: 20 });
+      await setDoc(doc(db, 'clinics/clinic-a/sales/s-main'), { clinicId: 'clinic-a', branchId: 'main', total: 10 });
+      await setDoc(doc(db, 'clinics/clinic-a/fixedExpenses/rent-sur'), { clinicId: 'clinic-a', branchId: 'sur' });
+    });
+  });
+
+  it('works in every module of their branch, finances included, and nowhere else', async () => {
+    const db = as('boss-sur');
+    await assertSucceeds(getDoc(doc(db, 'clinics/clinic-a/sales/s-sur')));
+    await assertSucceeds(getDoc(doc(db, 'clinics/clinic-a/fixedExpenses/rent-sur')));
+    await assertFails(getDoc(doc(db, 'clinics/clinic-a/sales/s-main')));
+    await assertFails(setDoc(doc(db, 'clinics/clinic-a/sales/n1'), { clinicId: 'clinic-a', branchId: 'main', total: 1 }));
+  });
+
+  it('adds, edits and removes staff of their own branches only', async () => {
+    const db = as('boss-sur');
+    await assertSucceeds(getDocs(query(collection(db, 'users'), where('clinicId', '==', 'clinic-a'))));
+    await assertSucceeds(setDoc(doc(db, 'users/new-sur'), { uid: 'new-sur', clinicId: 'clinic-a', role: 'reception', branchIds: ['sur'] }));
+    await assertSucceeds(updateDoc(doc(db, 'users/recep-sur'), { role: 'veterinarian', permissions: { sales: true } }));
+    await assertSucceeds(deleteDoc(doc(db, 'users/new-sur')));
+    // Not without a branch (= main), not in another branch, not to a staff of two branches
+    await assertFails(setDoc(doc(db, 'users/x1'), { uid: 'x1', clinicId: 'clinic-a', role: 'reception' }));
+    await assertFails(setDoc(doc(db, 'users/x2'), { uid: 'x2', clinicId: 'clinic-a', role: 'reception', branchIds: ['sur', 'main'] }));
+    await assertFails(updateDoc(doc(db, 'users/recep-sur'), { branchIds: ['main'] }));
+    await assertFails(updateDoc(doc(db, 'users/vet-both'), { name: 'Otro' }));
+    await assertFails(deleteDoc(doc(db, 'users/recep-a')));
+  });
+
+  it('cannot hand out or touch manager roles', async () => {
+    const db = as('boss-sur');
+    await assertFails(setDoc(doc(db, 'users/x3'), { uid: 'x3', clinicId: 'clinic-a', role: 'branch_manager', branchIds: ['sur'] }));
+    await assertFails(setDoc(doc(db, 'users/x4'), { uid: 'x4', clinicId: 'clinic-a', role: 'admin', branchIds: ['sur'] }));
+    await assertFails(updateDoc(doc(db, 'users/recep-sur'), { role: 'admin' }));
+    await assertFails(updateDoc(doc(db, 'users/owner-a'), { name: 'X' }));
+    await assertFails(updateDoc(doc(db, 'users/boss-sur'), { branchIds: ['sur', 'main'] }));
+  });
+
+  it('a clinic admin can name a branch manager', async () => {
+    await assertSucceeds(updateDoc(doc(as('owner-a'), 'users/recep-sur'), { role: 'branch_manager', permissions: null }));
+  });
+
+  it('edits the name and contact of their own branch only', async () => {
+    const db = as('boss-sur');
+    // As the sync pushes it: the whole local row, merged, with the server timestamp
+    await assertSucceeds(setDoc(doc(db, 'clinics/clinic-a/branches/sur'),
+      { clinicId: 'clinic-a', name: 'Sur', code: 'SUR', active: true, address: 'Km 8', phone: '2222-3333', updatedAt: 1, _syncedAt: serverTimestamp() },
+      { merge: true }));
+    await assertFails(updateDoc(doc(db, 'clinics/clinic-a/branches/sur'), { code: 'XX' }));
+    await assertFails(updateDoc(doc(db, 'clinics/clinic-a/branches/sur'), { active: false }));
+    await assertFails(updateDoc(doc(db, 'clinics/clinic-a/branches/main'), { address: 'Otra' }));
+    await assertFails(setDoc(doc(db, 'clinics/clinic-a/branches/norte'), { clinicId: 'clinic-a', name: 'Norte', code: 'NOR', active: true }));
+    await assertFails(deleteDoc(doc(db, 'clinics/clinic-a/branches/sur')));
   });
 });
 

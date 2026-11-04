@@ -26,11 +26,11 @@ export type AppModule =
   | 'promotions'
   | 'import';
 
-/** Per-module access flags. `master` and `admin` bypass this entirely. */
+/** Per-module access flags. `master`, `admin` and `branch_manager` bypass this entirely. */
 export type Permissions = Record<AppModule, boolean>;
 
 /** Roles in the system (ordered by privilege) */
-export type UserRole = 'master' | 'admin' | 'veterinarian' | 'reception';
+export type UserRole = 'master' | 'admin' | 'branch_manager' | 'veterinarian' | 'reception';
 
 /**
  * Single record in Dexie (id = 'singleton').
@@ -47,7 +47,7 @@ export interface SessionLocal {
   userTel?:       string;
   userName:       string;
   role:           UserRole;
-  /** null = full access (master / admin). Defined = custom module restrictions. */
+  /** null = full access (master / admin / branch_manager). Defined = custom module restrictions. */
   permissions:    Permissions | null;
   /** Branches a staff member works in (users/{uid}.branchIds); managers reach every branch. */
   branchIds?:     string[];

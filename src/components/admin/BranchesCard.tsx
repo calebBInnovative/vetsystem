@@ -2,10 +2,12 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Pencil, Plus, Store } from 'lucide-react';
+import { Loader2, Pencil, Plus, Store, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { normalizeBranchCode, saveBranch, useBranches } from '@/hooks/useBranches';
+import { useClinicUsers } from '@/hooks/useClinicUsers';
+import { isClinicManager, userBranchIds } from '@/lib/auth/roles';
 import { sessionLimits } from '@/lib/billing/plans';
 import { MAIN_BRANCH_ID, type BranchLocal } from '@/types/branch';
 import { cn } from '@/lib/utils';
@@ -19,15 +21,23 @@ const EMPTY: Draft = { name: '', code: '', address: '', phone: '', active: true 
  * Admin → Clínica: the clinic's branches (points of sale). Patients are shared;
  * inventory, cash, sales, agenda, expenses and payroll are kept per branch.
  * How many can be active comes from the plan (maxBranches).
+ * A branch manager sees only their branches and edits just name and contact
+ * (firestore.rules refuses the rest).
  */
 export function BranchesCard() {
   const { session } = useAuth();
   const state = useBranches();
+  const { users } = useClinicUsers(session?.clinicId);
   const { maxBranches } = sessionLimits(session);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
 
   if (!state) return null;
+  const clinicManager = isClinicManager(session?.role);
+  const myBranches = userBranchIds(session?.branchIds);
+  const shown = clinicManager ? state.branches : state.branches.filter((b) => myBranches.includes(b.id));
+  // Who works in each branch; clinic managers work in all of them and are left out.
+  const teamOf = (branchId: string) => users.filter((u) => !isClinicManager(u.role) && userBranchIds(u.branchIds).includes(branchId));
   const activeCount = state.branches.filter((b) => b.active).length;
   const atLimit = maxBranches !== null && activeCount >= maxBranches;
   // Activating a branch counts against the plan too.
@@ -64,20 +74,28 @@ export function BranchesCard() {
     <div className="bg-card rounded-2xl border border-border p-5 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-medium text-sm">Sucursales</p>
+          <p className="font-medium text-sm">{clinicManager ? 'Sucursales' : 'Tu sucursal'}</p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Los pacientes se comparten. Inventario, caja, ventas, agenda, gastos y colaboradores van por sucursal.
-            {' '}{maxBranches === null ? 'Tu plan no limita las sucursales.' : `Tu plan incluye ${maxBranches}.`}
+            {clinicManager ? (
+              <>
+                Los pacientes se comparten. Inventario, caja, ventas, agenda, gastos y colaboradores van por sucursal.
+                {' '}{maxBranches === null ? 'Tu plan no limita las sucursales.' : `Tu plan incluye ${maxBranches}.`}
+              </>
+            ) : 'La dirección y el teléfono salen en los recibos y cotizaciones de la sucursal.'}
           </p>
         </div>
-        <Button size="sm" variant="outline" className="gap-1.5 shrink-0" disabled={atLimit || !!draft}
-          onClick={() => setDraft({ ...EMPTY })}>
-          <Plus size={14} /> Agregar
-        </Button>
+        {clinicManager && (
+          <Button size="sm" variant="outline" className="gap-1.5 shrink-0" disabled={atLimit || !!draft}
+            onClick={() => setDraft({ ...EMPTY })}>
+            <Plus size={14} /> Agregar
+          </Button>
+        )}
       </div>
 
       <div className="space-y-2">
-        {state.branches.map((b) => (
+        {shown.map((b) => {
+          const team = teamOf(b.id);
+          return (
           <div key={b.id} className={cn('flex items-center gap-3 rounded-xl border border-border px-3 py-2.5', !b.active && 'opacity-60')}>
             <Store size={16} className="text-primary shrink-0" />
             <div className="flex-1 min-w-0">
@@ -89,15 +107,22 @@ export function BranchesCard() {
               {(b.address || b.phone) && (
                 <p className="text-xs text-muted-foreground truncate">{[b.address, b.phone].filter(Boolean).join(' · ')}</p>
               )}
+              {team.length > 0 && (
+                <p className="text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5" title={team.map((u) => u.name).join(', ')}>
+                  <Users size={11} className="shrink-0" />
+                  {team.length} {team.length === 1 ? 'persona' : 'personas'}: {team.map((u) => u.name.split(' ')[0]).join(', ')}
+                </p>
+              )}
             </div>
             <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={`Editar ${b.name}`} onClick={() => edit(b)} disabled={!!draft}>
               <Pencil size={14} />
             </Button>
           </div>
-        ))}
+          );
+        })}
       </div>
 
-      {atLimit && !draft && (
+      {clinicManager && atLimit && !draft && (
         <p className="text-xs text-muted-foreground">Llegaste al máximo de sucursales de tu plan. El plan Clínica incluye 3.</p>
       )}
 
@@ -107,14 +132,15 @@ export function BranchesCard() {
           <div className="grid grid-cols-[1fr_6rem] gap-2">
             <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Nombre (ej. Sucursal Centro)" maxLength={60} className={INPUT} />
             <input value={draft.code} onChange={(e) => setDraft({ ...draft, code: normalizeBranchCode(e.target.value) })}
-              placeholder="CEN" maxLength={4} className={cn(INPUT, 'font-mono uppercase')} aria-label="Código" />
+              placeholder="CEN" maxLength={4} className={cn(INPUT, 'font-mono uppercase')} aria-label="Código"
+              disabled={!clinicManager} />
           </div>
           <div className="grid sm:grid-cols-2 gap-2">
             <input value={draft.address} onChange={(e) => setDraft({ ...draft, address: e.target.value })} placeholder="Dirección (opcional)" maxLength={120} className={INPUT} />
             <input value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} placeholder="Teléfono (opcional)" maxLength={20} className={INPUT} />
           </div>
           <p className="text-[11px] text-muted-foreground">El código (2 a 4 letras) identificará los documentos de la sucursal, como las facturas.</p>
-          {draft.id !== MAIN_BRANCH_ID && (
+          {clinicManager && draft.id !== MAIN_BRANCH_ID && (
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={draft.active} onChange={(e) => setDraft({ ...draft, active: e.target.checked })} />
               Activa

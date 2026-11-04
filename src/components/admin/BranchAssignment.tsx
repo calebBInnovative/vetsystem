@@ -4,14 +4,21 @@ import { useBranches } from '@/hooks/useBranches';
 import { MAIN_BRANCH_ID } from '@/types/branch';
 
 /**
- * Which branches a staff member works in. Hidden while the clinic has a single
- * branch. Managers (admin) reach every branch, so it is not shown for them.
+ * Which branches a staff member or branch manager works in. Hidden while the
+ * clinic has a single branch. Clinic managers (admin) reach every branch, so it
+ * is not shown for them. `allowedIds` limits the choice to a branch manager's own.
  */
-export function BranchAssignment({ value, onChange }: { value: string[] | undefined; onChange: (ids: string[]) => void }) {
+export function BranchAssignment({ value, onChange, allowedIds, hint }: {
+  value: string[] | undefined;
+  onChange: (ids: string[]) => void;
+  allowedIds?: string[];
+  hint?: string;
+}) {
   const state = useBranches();
-  const branches = state?.branches.filter((b) => b.active) ?? [];
-  if (branches.length < 2) return null;
-  const selected = value?.length ? value : [MAIN_BRANCH_ID];
+  const active = state?.branches.filter((b) => b.active) ?? [];
+  if (active.length < 2) return null;
+  const branches = allowedIds ? active.filter((b) => allowedIds.includes(b.id)) : active;
+  const selected = value?.length ? value : [allowedIds?.[0] ?? MAIN_BRANCH_ID];
 
   return (
     <div className="rounded-xl border border-border p-3 space-y-2">
@@ -31,7 +38,9 @@ export function BranchAssignment({ value, onChange }: { value: string[] | undefi
           );
         })}
       </div>
-      <p className="text-[11px] text-muted-foreground">Solo verá el inventario, la caja, la agenda y las ventas de estas sucursales.</p>
+      <p className="text-[11px] text-muted-foreground">
+        {hint ?? 'Solo verá el inventario, la caja, la agenda y las ventas de estas sucursales.'}
+      </p>
     </div>
   );
 }

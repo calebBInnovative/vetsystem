@@ -537,8 +537,8 @@ export const getClinicaId = getClinicId;
 const activeBranchKey = (clinicId: string, uid: string) => `activeBranch:${clinicId}:${uid}`;
 
 /**
- * Branches this session may work in: managers (master/admin) every active
- * branch of the clinic, staff the ones assigned to them (main when none).
+ * Branches this session may work in: clinic managers (master/admin) every active
+ * branch of the clinic, branch managers and staff the ones assigned to them (main when none).
  * Reads Dexie, so a useLiveQuery calling it re-runs when branches change.
  */
 export async function getAllowedBranchIds(): Promise<string[]> {
