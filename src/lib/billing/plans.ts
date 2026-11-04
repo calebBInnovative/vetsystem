@@ -1,6 +1,7 @@
 import { doc, getDoc, onSnapshot, serverTimestamp, setDoc, type Unsubscribe } from 'firebase/firestore';
 import { getFirestoreDb } from '@/lib/firebase/firebase.config';
 import type { AppModule, SessionLocal } from '@/types/license';
+import { isPlatformOwner } from '@/lib/usage/usage.service';
 
 /**
  * Subscription plans on the client: the catalog the platform owner edits in
@@ -228,12 +229,20 @@ export async function savePlans({ catalog, annualEnabled }: PlanSettings): Promi
   await setDoc(doc(getFirestoreDb(), 'platform', 'plans'), { plans: catalog, annualEnabled, moduleSet: MODULE_SET, updatedAt: serverTimestamp() });
 }
 
+type LimitsSession = Pick<SessionLocal, 'plan' | 'planLimits' | 'isDemo' | 'planPreview' | 'email'>;
+
+/** Only the demo and the platform owner may try other plans; everyone else gets what they paid for. */
+export function canPreviewPlans(session: Pick<SessionLocal, 'isDemo' | 'email'> | null): boolean {
+  return !!session && (session.isDemo === true || isPlatformOwner(session.email));
+}
+
 /** Limits in force for this session, offline included. Demo and old sessions get their plan's defaults. */
-export function sessionLimits(session: Pick<SessionLocal, 'plan' | 'planLimits' | 'isDemo'> | null): PlanLimits {
+export function sessionLimits(session: LimitsSession | null): PlanLimits {
+  if (session?.planPreview && canPreviewPlans(session)) return session.planPreview.limits;
   if (session?.planLimits) return session.planLimits;
   return limitsFromLicense({ plan: session?.isDemo ? 'clinic' : session?.plan });
 }
 
-export function planAllowsModule(session: Pick<SessionLocal, 'plan' | 'planLimits' | 'isDemo'> | null, module: PlanModule): boolean {
+export function planAllowsModule(session: LimitsSession | null, module: PlanModule): boolean {
   return sessionLimits(session).modules.includes(module);
 }

@@ -1,6 +1,7 @@
 import { getAuth, signOut as firebaseSignOut } from 'firebase/auth';
 import { getFirebaseApp } from '@/lib/firebase/firebase.config';
-import { db } from '@/lib/db/database';
+import { branchOf, db } from '@/lib/db/database';
+import { MAIN_BRANCH_ID } from '@/types/branch';
 import { tryLoadDemoSnapshot, DEMO_CLINIC_ID } from '@/lib/demo/demo.snapshot';
 import type { SessionLocal } from '@/types/license';
 import type { PatientLocal, OwnerLocal } from '@/types/patient';
@@ -66,13 +67,38 @@ export async function setupDemo(): Promise<void> {
   // Preferred path: load curated data published by the developer from Firestore.
   // This is a 1-read version check; subsequent visits skip the download entirely.
   const loadedFromFirestore = await tryLoadDemoSnapshot();
-  if (loadedFromFirestore) return;
+  if (!loadedFromFirestore) {
+    // Fallback: generate local seed data (used when offline or no snapshot published yet).
+    const existing = await db.patients.where('clinicId').equals(DEMO_CLINIC_ID).count();
+    if (existing === 0) await _seedDemoData();
+  }
 
-  // Fallback: generate local seed data (used when offline or no snapshot published yet).
-  const existing = await db.patients.where('clinicId').equals(DEMO_CLINIC_ID).count();
-  if (existing > 0) return;
+  await ensureDemoBranch();
+}
 
-  await _seedDemoData();
+const DEMO_BRANCH_ID = 'demo-sur';
+
+/**
+ * A second branch with part of the catalog, so the Clínica plan can be tried in
+ * the demo (branch switcher, separate stock, transfers). The other plans hide it.
+ */
+async function ensureDemoBranch(): Promise<void> {
+  if (await db.branches.get(DEMO_BRANCH_ID)) return;
+  const now = ts();
+  const products = (await db.products.where('clinicId').equals(DEMO_CLINIC_ID).toArray())
+    .filter((p) => !p.deletedAt && p.active && branchOf(p) === MAIN_BRANCH_ID)
+    .slice(0, 8);
+  await db.transaction('rw', [db.branches, db.products], async () => {
+    await db.branches.put({
+      id: DEMO_BRANCH_ID, clinicId: DEMO_CLINIC_ID, name: 'Sucursal Sur', code: 'SUR',
+      address: 'Carretera a Masaya, km 8', active: true, createdAt: now, syncStatus: 'synced', updatedAt: now,
+    });
+    await db.products.bulkAdd(products.map((p) => ({
+      ...p, id: uuid(), branchId: DEMO_BRANCH_ID,
+      currentStock: Math.max(2, Math.round(p.currentStock / 3)),
+      createdAt: now, updatedAt: now,
+    })));
+  });
 }
 
 export async function clearDemo(): Promise<void> {
@@ -81,7 +107,7 @@ export async function clearDemo(): Promise<void> {
     db.patients, db.owners, db.consultations, db.appointments,
     db.products, db.movements, db.payments, db.invoices, db.services, db.sales,
     db.fixedExpenses, db.expensePayments, db.collaborators, db.collaboratorPayments,
-    db.promotions, db.quotes, db.syncQueue,
+    db.promotions, db.quotes, db.branches, db.syncQueue,
   ], async () => {
     await Promise.all([
       db.patients.where('clinicId').equals(DEMO_CLINIC_ID).delete(),
@@ -100,6 +126,7 @@ export async function clearDemo(): Promise<void> {
       db.collaboratorPayments.where('clinicId').equals(DEMO_CLINIC_ID).delete(),
       db.promotions.where('clinicId').equals(DEMO_CLINIC_ID).delete(),
       db.quotes.where('clinicId').equals(DEMO_CLINIC_ID).delete(),
+      db.branches.where('clinicId').equals(DEMO_CLINIC_ID).delete(),
       // Anything the visitor created while exploring the demo is queued for push.
       // It must go with the data: once the demo session is gone, those items would
       // be retried forever against clinics/demo, which the real user cannot write.

@@ -27,6 +27,7 @@ import type { Collaborator, CollaboratorPayment } from '@/types/collaborator';
 import type { PromotionLocal } from '@/types/promotion';
 import type { QuoteLocal }     from '@/types/quote';
 import { MAIN_BRANCH_ID, type BranchLocal } from '@/types/branch';
+import { sessionLimits } from '@/lib/billing/plans';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TIPOS INTERNOS
@@ -545,8 +546,10 @@ export async function getAllowedBranchIds(): Promise<string[]> {
   if (!s) return [MAIN_BRANCH_ID];
   if (s.role === 'master' || s.role === 'admin' || s.isDemo) {
     const rows = await db.branches.where('clinicId').equals(s.clinicId).filter((b) => !b.deletedAt && b.active).toArray();
-    const ids = rows.map((b) => b.id);
-    return ids.includes(MAIN_BRANCH_ID) ? ids : [MAIN_BRANCH_ID, ...ids];
+    const others = rows.filter((b) => b.id !== MAIN_BRANCH_ID).sort((a, b) => a.createdAt - b.createdAt).map((b) => b.id);
+    // A plan with fewer branches (a downgrade, or a plan previewed in the demo) keeps the oldest ones.
+    const { maxBranches } = sessionLimits(s);
+    return [MAIN_BRANCH_ID, ...others].slice(0, maxBranches ?? undefined);
   }
   return s.branchIds?.length ? s.branchIds : [MAIN_BRANCH_ID];
 }

@@ -26,6 +26,7 @@ import { puedeEscribir } from '@/lib/license/license.service';
 import { ThemeSwitcher } from '@/components/themes/ThemeSwitcher';
 import { PlanUpgradeRequired } from '@/components/license/PlanUpgradeRequired';
 import { planAllowsModule } from '@/lib/billing/plans';
+import { PlanPreviewSwitcher, StartPlanPreviewItem } from '@/components/billing/PlanPreviewSwitcher';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -717,6 +718,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         )}
+        {isDemo && (
+          <div className="bg-amber-500/5 border-b border-amber-500/20 px-4 py-1.5 flex justify-center print:hidden">
+            <PlanPreviewSwitcher variant="demo" />
+          </div>
+        )}
+        <PlanPreviewSwitcher variant="owner" />
 
         {/* Header */}
         <header className="h-14 bg-card shadow-sm flex items-center px-4 z-40 shrink-0 print:hidden">
@@ -853,6 +860,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                               <Globe size={14} />
                               Página web
                             </Link>
+                          </DropdownMenuItem>
+                        )}
+                        {isPlatformOwner(session.email) && !session.planPreview && (
+                          <DropdownMenuItem asChild>
+                            <StartPlanPreviewItem className="flex w-full items-center gap-2 cursor-pointer" />
                           </DropdownMenuItem>
                         )}
                         {(esMaster || process.env.NODE_ENV === 'development') && (

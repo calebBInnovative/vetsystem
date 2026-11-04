@@ -210,6 +210,9 @@ export async function refreshSession(user: User): Promise<SessionLocal | null> {
       // false = new Google user who hasn't completed the clinic setup form yet
       setupComplete:  userData.setupComplete === false ? false : true,
     };
+    // A plan preview is a device-local choice: a refresh from Firestore keeps it.
+    const previous = await db.session.get('singleton');
+    if (previous?.uid === user.uid && previous.planPreview) session.planPreview = previous.planPreview;
 
     await db.session.put(session);
     return session;

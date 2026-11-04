@@ -199,6 +199,11 @@ Demo mode is a fully isolated, no-Firebase sandbox:
 - All sync operations are no-ops when `isDemo`
 - Tour (`TourGuide` component) auto-starts on first demo visit
 - Demo banner in the layout has a **"Probar alertas"** button to test push notifications
+- **"Ver como plan"** (Básico / Profesional / Clínica, `PlanPreviewSwitcher`) under the demo banner: the demo
+  defaults to Clínica and seeds a second branch, "Sucursal Sur" (`ensureDemoBranch`), with part of the catalog.
+  The platform owner gets the same preview from the user menu ("Ver como otro plan") with a "Volver a mi plan" bar.
+  `session.planPreview` overrides the limits in `sessionLimits()` only for the demo and the owner
+  (`canPreviewPlans`); it is device-local, survives `refreshSession`, and never writes the license.
 
 ---
 
@@ -273,6 +278,8 @@ A clinic can run several branches (points of sale), limited by the plan's `maxBr
 - Rows without `branchId` (everything from before branches) belong to `MAIN_BRANCH_ID` ('main', "Principal").
 - **Writes:** a Dexie `creating` hook stamps the active branch on new rows — never pass branchId by hand. Sync
   (`upsertRemoteDocs`) sets 'main' on remote rows that lack it, so the hook never mislabels them.
+- **Plan cap:** `getAllowedBranchIds()` keeps main + the oldest branches up to `maxBranches`, so a downgrade
+  (or a previewed plan) hides the extra branches without deleting them.
 - **Reads:** lists/counts/totals of scoped tables filter with `await getBranchFilter()` inside the `useLiveQuery`
   callback (reactive to branch switches). Patient-centric history and lookups by id are not filtered.
 - Active branch: device-local (`db.prefs`), picked in the header `BranchSwitcher`. Managers reach every active

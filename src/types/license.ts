@@ -1,4 +1,4 @@
-import type { BillingPeriod, PlanLimits } from '@/lib/billing/plans';
+import type { BillingPeriod, PlanId, PlanLimits } from '@/lib/billing/plans';
 
 // ─── License and local session types ─────────────────────────────────────────
 
@@ -90,6 +90,12 @@ export interface SessionLocal {
   planLimits?:            PlanLimits;
   /** 'monthly' | 'annual' of the last paid period */
   planPeriod?:            BillingPeriod;
+  /**
+   * A plan being tried out in the demo or previewed by the platform owner: its
+   * limits replace the real ones in sessionLimits(). Device-local, never synced,
+   * and ignored for anyone else (it never grants a clinic more than it paid for).
+   */
+  planPreview?:           { planId: PlanId; name: string; limits: PlanLimits };
 }
 
 export interface LicenseInfo {
