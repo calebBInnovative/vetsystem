@@ -6,6 +6,10 @@ import { crearClinicaDesdeSetup } from '@/lib/auth/auth.service';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Loader2, Phone, Building2, CheckCircle2 } from 'lucide-react';
+import { TrialPlanPicker } from '@/components/auth/TrialPlanPicker';
+import { readChosenPlan } from '@/lib/billing/chosenPlan';
+import type { PlanId } from '@/lib/billing/plans';
+
 
 function validarTelefono(tel: string): boolean {
   const digits = tel.replace(/[\s\-\+]/g, '');
@@ -24,6 +28,9 @@ export default function SetupPage() {
   const { firebaseUser, session, loading, refreshFromDexie } = useAuth();
 
   const [clinicName, setClinicName] = useState('');
+  // Picked on /register or the pricing page before the Google sign-in
+  const [planId, setPlanId] = useState<PlanId>('professional');
+  useEffect(() => { const chosen = readChosenPlan(); if (chosen) setPlanId(chosen); }, []);
   const [telefono,   setTelefono]   = useState('');
   const [telError,   setTelError]   = useState('');
   const [nameError,  setNameError]  = useState('');
@@ -92,6 +99,7 @@ export default function SetupPage() {
       await crearClinicaDesdeSetup({
         clinicName: clinicName.trim(),
         phone:      telefono.trim(),
+        planId,
       });
       setDone(true);
       setTimeout(async () => {
@@ -139,6 +147,8 @@ export default function SetupPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+
+        <TrialPlanPicker value={planId} onChange={setPlanId} />
 
         {/* Clinic name */}
         <div className="space-y-1.5">

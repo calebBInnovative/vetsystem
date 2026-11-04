@@ -49,7 +49,8 @@ export function ManualPaymentPanel({ onDone }: { onDone?: () => void }) {
   const catalog = usePlans();
 
   // Start on the clinic's current plan (a trial tries Professional), if still on sale.
-  const [planId, setPlanId] = useState<PlanId>(() => planIdOf(session?.plan));
+  // A trial is paid as the plan it was of; otherwise the current plan.
+  const [planId, setPlanId] = useState<PlanId>(() => session?.plan === 'Trial' && session.trialPlan ? session.trialPlan : planIdOf(session?.plan));
   const [period, setPeriod] = useState<BillingPeriod>('monthly');
   const plan = catalog?.[planId];
 

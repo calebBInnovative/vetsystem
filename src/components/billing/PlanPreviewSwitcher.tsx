@@ -57,7 +57,7 @@ export function PlanPreviewSwitcher({ variant }: { variant: 'demo' | 'owner' }) 
       <div className="flex items-center gap-2">
         <span className="hidden sm:inline text-xs text-amber-700 dark:text-amber-400">Ver como plan</span>
         {pills}
-        <Link href="/register" className="hidden md:inline text-xs font-semibold text-primary hover:underline">
+        <Link href={`/register?plan=${current}`} className="hidden md:inline text-xs font-semibold text-primary hover:underline">
           Quiero este plan
         </Link>
       </div>

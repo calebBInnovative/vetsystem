@@ -27,7 +27,7 @@ import { getFirebaseApp, getFirestoreDb, getFirebaseFunctions } from '@/lib/fire
 import { db } from '@/lib/db/database';
 import { syncService } from '@/lib/sync/sync.service';
 import type { ActionPermissions, SessionLocal, Permissions, UserRole } from '@/types/license';
-import { limitsFromLicense } from '@/lib/billing/plans';
+import { isPlanId, limitsFromLicense, type PlanId } from '@/lib/billing/plans';
 import { hasFullModuleAccess } from '@/lib/auth/roles';
 
 // ─── Firestore structure ──────────────────────────────────────────────────────
@@ -99,6 +99,8 @@ export async function register(params: {
   clinicName: string;
   phone?:     string;
   logo?:      File | null;
+  /** The plan the 7-day trial is of */
+  planId?:    PlanId;
 }): Promise<void> {
   _userCreationInFlight = true;
   const credential = await createUserWithEmailAndPassword(getAuth_(), params.email, params.password);
@@ -106,7 +108,7 @@ export async function register(params: {
   try {
     // Clinic, trial license and user doc are created server-side: the browser is
     // not allowed to write a license (see firestore.rules).
-    await _registerClinic({ clinicName: params.clinicName, userName: params.name, phone: params.phone });
+    await _registerClinic({ clinicName: params.clinicName, userName: params.name, phone: params.phone, planId: params.planId });
     await refreshSession(user);
   } catch (err) {
     // Registration failed — roll back the Auth user so the person can retry with the same email.
@@ -404,6 +406,7 @@ export const completarSetupClinica = completeClinicSetup;
 export async function createClinicFromSetup(params: {
   clinicName: string;
   phone:      string;
+  planId?:    PlanId;
 }): Promise<void> {
   const user = getAuth_().currentUser;
   if (!user) throw new Error('No authenticated user');
@@ -414,6 +417,7 @@ export async function createClinicFromSetup(params: {
     userName:   user.displayName ?? user.email ?? undefined,
     phone:      params.phone,
     logoUrl:    user.photoURL ?? undefined,
+    planId:     params.planId,
   });
   await refreshSession(user);
 }
@@ -493,6 +497,7 @@ async function _registerClinic(data: {
   userName?:  string;
   phone?:     string;
   logoUrl?:   string;
+  planId?:    PlanId;
 }): Promise<{ clinicId: string; created: boolean }> {
   const fn = httpsCallable<typeof data, { clinicId: string; created: boolean }>(
     getFirebaseFunctions(),
@@ -554,7 +559,7 @@ function _devLicense() {
  */
 export function billingStateFields(
   license: Record<string, unknown>,
-): Pick<SessionLocal, 'billingNoticeAt' | 'billingNoticeBlocking' | 'graceUntil' | 'lastPaymentAt' | 'planLimits' | 'planPeriod'> {
+): Pick<SessionLocal, 'billingNoticeAt' | 'billingNoticeBlocking' | 'graceUntil' | 'lastPaymentAt' | 'planLimits' | 'planPeriod' | 'trialPlan'> {
   const notice = license.billingNotice as { at?: unknown; blocking?: unknown } | null | undefined;
   const hasNotice = !!notice && typeof notice.at === 'number';
   return {
@@ -564,6 +569,7 @@ export function billingStateFields(
     lastPaymentAt:         typeof license.lastPaymentAt === 'number' ? license.lastPaymentAt : undefined,
     planLimits:            limitsFromLicense(license),
     planPeriod:            license.planPeriod === 'annual' ? 'annual' : license.planPeriod === 'monthly' ? 'monthly' : undefined,
+    trialPlan:             isPlanId(license.trialPlan) ? license.trialPlan : undefined,
   };
 }
 

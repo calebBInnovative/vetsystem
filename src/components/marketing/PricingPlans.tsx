@@ -83,7 +83,7 @@ function PlanCard({ plan, annual }: { plan: PlanConfig; annual: boolean }) {
         </div>
         <div className="pt-3">
           <Button className="w-full h-11 text-base" variant={featured ? 'default' : 'outline'} asChild>
-            <Link href="/register">Comenzar 7 días gratis</Link>
+            <Link href={`/register?plan=${plan.id}`}>Comenzar 7 días gratis</Link>
           </Button>
         </div>
       </div>

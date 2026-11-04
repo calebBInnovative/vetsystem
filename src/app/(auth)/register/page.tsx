@@ -8,6 +8,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Loader2, Eye, EyeOff, WifiOff, Wifi, Phone } from 'lucide-react';
 import { VetSystemIcon } from '@/components/common/VetSystemLogo';
+import { TrialPlanPicker } from '@/components/auth/TrialPlanPicker';
+import { readChosenPlan } from '@/lib/billing/chosenPlan';
+import { clearDemo } from '@/lib/demo/demo.service';
+import type { PlanId } from '@/lib/billing/plans';
 
 // ── Validación de teléfono nicaragüense ───────────────────────────────────────
 // Acepta 8 dígitos locales (ej. 8163-0097) o con prefijo +505
@@ -29,7 +33,9 @@ function formatearTelefono(raw: string): string {
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { session, loading: authCargando } = useAuth();
+  const { session, loading: authCargando, refreshFromDexie } = useAuth();
+  const [planId, setPlanId] = useState<PlanId>('professional');
+  useEffect(() => { const chosen = readChosenPlan(); if (chosen) setPlanId(chosen); }, []);
 
   const [nombre,     setNombre]     = useState('');
   const [clinicName, setClinicName] = useState('');
@@ -45,14 +51,15 @@ export default function RegisterPage() {
   const [online,     setOnline]     = useState(true);
 
   useEffect(() => {
+    // Coming from the demo ("Quiero este plan"): leave the sandbox and stay here to sign up.
     if (!authCargando && session?.isDemo) {
-      router.replace('/dashboard');
+      void clearDemo().then(refreshFromDexie);
       return;
     }
     if (!authCargando && session) {
       router.replace(session.setupComplete === false ? '/setup' : '/dashboard');
     }
-  }, [authCargando, session, router]);
+  }, [authCargando, session, router, refreshFromDexie]);
 
   useEffect(() => {
     setOnline(navigator.onLine);
@@ -109,6 +116,7 @@ export default function RegisterPage() {
         name:       nombre.trim(),
         clinicName: clinicName.trim(),
         phone:      telefono.trim(),
+        planId,
       });
       router.replace('/dashboard');
     } catch (err: unknown) {
@@ -175,6 +183,9 @@ export default function RegisterPage() {
         {online ? <Wifi size={11} /> : <WifiOff size={11} />}
         {online ? 'Conectado' : 'Sin conexión — registro no disponible'}
       </div>
+
+      {/* The trial's plan applies to both ways of signing up */}
+      <TrialPlanPicker value={planId} onChange={setPlanId} />
 
       {/* Google */}
       <Button

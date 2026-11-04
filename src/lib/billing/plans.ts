@@ -97,6 +97,10 @@ export function planIdOf(licensePlan: unknown): PlanId {
   return (PLAN_IDS as readonly unknown[]).includes(licensePlan) ? licensePlan as PlanId : 'professional';
 }
 
+export function isPlanId(value: unknown): value is PlanId {
+  return (PLAN_IDS as readonly unknown[]).includes(value);
+}
+
 function positive(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
 }

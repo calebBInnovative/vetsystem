@@ -107,6 +107,8 @@ export interface SessionLocal {
    * and ignored for anyone else (it never grants a clinic more than it paid for).
    */
   planPreview?:           { planId: PlanId; name: string; limits: PlanLimits };
+  /** The plan the trial is of (license.trialPlan), chosen at sign-up; offered first when paying */
+  trialPlan?:             PlanId;
 }
 
 export interface LicenseInfo {

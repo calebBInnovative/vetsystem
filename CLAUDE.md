@@ -635,7 +635,11 @@ Clinic subscriptions are paid through Recurrente from Cloud Functions in
     checked in Admin → Usuarios (soft — not in rules). The plan applies to master/admin too.
   - The owner can set a clinic's plan without a payment in `/admin/billing` (`setLicensePlan`).
 - **The browser never writes a license.** New clinics are created by the `registerClinic`
-  callable (`functions/src/clinics/`), which also grants the 7-day trial (`TRIAL_DAYS`). `firestore.rules`
+  callable (`functions/src/clinics/`), which also grants the 7-day trial (`TRIAL_DAYS`).
+  **Trial of a chosen plan:** `/register?plan=<id>` (pricing cards, the demo's "Quiero este plan") preselects
+  `TrialPlanPicker` (also on `/setup`, via sessionStorage `chosenPlan.ts`); `registerClinic({ planId })`
+  writes `license.trialPlan` + that plan's frozen `limits` from the live catalog (an inactive plan → default
+  trial). `session.trialPlan` makes it the default in the pay modal. Opening /register from the demo leaves it. `firestore.rules`
   lets only the platform owner write `clinics/{id}/license/data`; clinic managers may change
   just `clinicName`. Users cannot change their own `role`, `clinicId` or `permissions`.
   Rules tests: `npm run test:rules`.

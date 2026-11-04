@@ -1,4 +1,5 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
+import { PLANS_PATH, isPlanId, parsePlans, planLimits, type PlanId } from '../billing/plans';
 
 /**
  * Clinic registration runs on the server so the license is never written by a
@@ -31,6 +32,11 @@ export interface RegisterClinicInput {
   userName: unknown;
   phone?: unknown;
   logoUrl?: unknown;
+  /**
+   * The plan the visitor chose (demo "Quiero este plan", landing pricing). The
+   * trial grants that plan's limits; anything else keeps the default trial.
+   */
+  planId?: unknown;
 }
 
 export interface RegisterClinicResult {
@@ -108,6 +114,7 @@ export async function registerClinic(
   const logoUrl    = optionalHttpsUrl(input.logoUrl);
   const now        = options.now ?? Date.now();
   const suffix     = options.randomSuffix ?? defaultSuffix;
+  const trialPlan: PlanId | null = isPlanId(input.planId) ? input.planId : null;
 
   const base = slugifyClinicName(clinicName) || input.uid.slice(0, 8).toLowerCase();
   const candidates = [base];
@@ -131,6 +138,11 @@ export async function registerClinic(
     }
     if (!clinicId) throw new RegistrationError('already-exists', 'Could not allocate a clinic id. Try another name.');
 
+    // The chosen plan's limits, from the owner's live catalog, frozen on the license
+    // like a paid period's. A plan the owner switched off is not offered as a trial.
+    const catalog = trialPlan ? parsePlans((await tx.get(db.doc(PLANS_PATH))).data()) : null;
+    const trial = trialPlan && catalog?.[trialPlan].active ? catalog[trialPlan] : null;
+
     const clinicRef = db.collection('clinics').doc(clinicId);
     tx.create(clinicRef, {
       name:      clinicName,
@@ -145,6 +157,7 @@ export async function registerClinic(
       expirationDate: trialExpiration(now),
       subscription:   true,
       trialStartedAt: now,
+      ...(trial ? { trialPlan: trial.id, limits: planLimits(trial) } : {}),
       updatedAt:      FieldValue.serverTimestamp(),
     });
     tx.create(userRef, {

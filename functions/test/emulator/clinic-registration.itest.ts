@@ -51,6 +51,28 @@ describe('registerClinic (emulator)', () => {
     assert.equal((await db.doc('clinics/otra-clinica').get()).exists, false);
   });
 
+  // Uses the catalog as the other suites leave it (they share platform/plans): never write it here.
+  it('a trial of the chosen plan carries that plan\'s limits from the catalog', async () => {
+    await registerClinic(db, {
+      uid: 'reg-owner-plan', email: 'plan@example.com', clinicName: 'Clínica Plan', userName: 'P', planId: 'basic',
+    }, { now: NOW });
+    const license = (await db.doc('clinics/clinica-plan/license/data').get()).data();
+    assert.equal(license?.plan, 'Trial');
+    assert.equal(license?.trialPlan, 'basic');
+    assert.equal(license?.limits?.maxBranches, 1);
+    assert.ok(Array.isArray(license?.limits?.modules));
+    assert.equal(license?.expirationDate, '2026-10-27');
+  });
+
+  it('ignores an unknown plan and keeps the default trial', async () => {
+    await registerClinic(db, {
+      uid: 'reg-owner-bad', email: 'bad@example.com', clinicName: 'Clínica Rara', userName: 'R', planId: 'enterprise',
+    }, { now: NOW });
+    const license = (await db.doc('clinics/clinica-rara/license/data').get()).data();
+    assert.equal(license?.trialPlan, undefined);
+    assert.equal(license?.limits, undefined);
+  });
+
   it('refuses the reserved demo id', async () => {
     const result = await registerClinic(db, {
       uid: 'reg-owner-3', email: 'demo@example.com', clinicName: 'Demo', userName: 'D',

@@ -4,7 +4,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { RegistrationError, registerClinic as registerClinicInFirestore } from './clinic.registration';
 
 // ─── registerClinic ───────────────────────────────────────────────────────────
-// Input:  { clinicName, userName?, phone?, logoUrl? }
+// Input:  { clinicName, userName?, phone?, logoUrl?, planId? }
 // Output: { clinicId, created }
 // Called right after sign-up (email) or from /setup (Google). The clinic owner
 // gets role 'admin' and a TRIAL_DAYS trial; the license is written only here.
@@ -21,6 +21,7 @@ export const registerClinic = onCall({ cors: true }, async (request) => {
       userName:   data.userName,
       phone:      data.phone,
       logoUrl:    data.logoUrl,
+      planId:     data.planId,
     });
   } catch (err) {
     if (err instanceof RegistrationError) throw new HttpsError(err.code, err.message);
